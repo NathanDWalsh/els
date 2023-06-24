@@ -41,6 +41,12 @@ Optional, if not included then file content output to console. Otherwise:
 
 Data store types for mvp1: (sql/csv/excel/parquet)
 
+```dot
+digraph {
+a -> b
+}
+```
+
 ```plantuml
  @startuml thename
 
@@ -95,6 +101,7 @@ rectangle "Store Container: has other Containers or Objects" as sc {
         end note
     
     }
+
 
 }
 
