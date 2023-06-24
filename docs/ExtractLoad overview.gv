@@ -1,0 +1,28 @@
+
+digraph {
+
+folder -> eldef [label=contains]
+folder -> tstore [label=cancontain]
+folder -> folder [label=cancontain]
+folder -> proj_root [label=canbe]
+
+eldef -> tstore [label=defines1o2]
+
+eldef -> tstore [label=can_define]
+eldef -> folder [label=can_define]
+
+tstore -> path [label=has]
+tstore -> type [label=has]
+
+path -> explicit [label=canbe]
+path -> implicit [label=canbe]
+
+type -> explicit [label=canbe]
+type -> implicit [label=canbe]
+
+implicit -> path_eq_tstore [label=when]
+
+tstore -> dest [label=is]
+tstore -> target [label=is]
+
+}
