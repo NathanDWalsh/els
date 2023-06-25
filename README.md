@@ -111,60 +111,11 @@ rectangle "Store Container: has other Containers or Objects" as sc {
 ```
 
 ```mermaid
-C4Context
-      rectangle "Store Container: has other Containers or Objects" as sc {
-
-    note as n1
-        **examples**
-        *database
-        *schema
-        *folder
-        *workbook
-        *url
-        *api
-        *service
-    end note
-
-    rectangle "Store Object" as so {
-
-
-
-        rectangle "Store Attribute" as sa {
-           note as n3
-                **examples**
-                *field
-                *column
-                *index
-                *key
-            end note
-        }
-
-        rectangle "Store Instance" as si {
-           note as n4
-                **examples**
-                *row
-                *scalar
-                *value
-            end note
-        }
-
-        
-
-        note as n2
-            **examples**
-            *table
-            *document
-            *json
-            *xml
-            *file
-            *csv
-            *tsv
-            *worksheet
-        end note
-    
-    }
-
-
-}
-
+graph TD
+  sc["Store Container: has other Containers or Objects"] --> so["Store Object"]
+  so --> sa["Store Attribute"]
+  so --> si["Store Instance"]
+  n1["examples"] --> n2["examples"]
+  n3["examples"] --> sa
+  n4["examples"] --> si
 ```
