@@ -112,10 +112,10 @@ rectangle "Store Container: has other Containers or Objects" as sc {
 
 ```mermaid
 graph TD
-  sc["Store Container: has other Containers or Objects"] --> so["Store Object"]
-  so --> sa["Store Attribute"]
-  so --> si["Store Instance"]
-  n1["examples"] --> n2["examples"]
-  n3["examples"] --> sa
-  n4["examples"] --> si
+subgraph OuterRect
+  A[Outer Rectangle]
+  subgraph InnerRect
+    B[Inner Rectangle]
+  end
+end
 ```
