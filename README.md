@@ -135,6 +135,13 @@ so they should have different target frames.
 
 ## diagrams
 
+```mermaid
+erDiagram
+    CONTAINER ||--O{ CONTAINER: "contains"
+    CONTAINER ||--O{ FRAME: "contains"
+```
+
+
 <details>
 <summary>abstract eel dataflow</summary>
 
