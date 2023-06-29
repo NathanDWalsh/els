@@ -26,19 +26,30 @@ eel.py test.xlsx ./output/       #load all test.xlsx worksheets to ./output/*.cs
 eel.py ./datdir/ ./output/       #load all ./datdir/ data files to ./output/*.csv
 ```
 
+These are two basic examples for getting started, more advanced usage requires more advanced concepts.
+
 ## Supported file types
 
 eel automatically recognizes certain file types as valid data files:
 
-| Type    | Extension | eel model | mvp1 | mvp2 |
+| Type    | Extension | eel object | mvp1 | mvp2 |
 | ------- | --------- | --------- | ---- | ---- |
-| Excel   | xls[x,b,m]  | Container | :heavy_check_mark:     |      |
-| text    | csv,tsv   | Frame     |      |      |
-| parquet | parquet   | Frame     |      |      |
-| pickle  | pickle    | Frame     |      |      |
+| Excel   | xls[x,b,m]  | Container | :white_check_mark:     |      |
+| text    | csv,tsv   | Frame     | :white_check_mark:     |      |
+| parquet | parquet   | Frame     |      | :white_large_square:     |
+| pickle  | pickle    | Frame     |      | :white_large_square:     |
 
-These are two basic examples for getting started,
-more advanced usage requires more advanced concepts.
+## Supported databases
+
+Database connections can be configured in an .eel.yml file and the following are supported for mvp1:
+
+| Type     | eel object | mvp1 | mvp2 |
+| -------- | --------- | ---- | ---- |
+| mssql    | Container | :white_check_mark:     |      |
+| duckdb   | Container | :white_check_mark:     |      |
+| mysql    | Container |      | :white_large_square:     |
+| postgres | Container |      | :white_large_square:     |
+| sqllite  | Container |      | :white_large_square:     |
 
 ## data project: folder/file based
 
@@ -134,6 +145,13 @@ so they should have different target frames.
 * **frameless:** no member frames, may contain other containers
 
 ## diagrams
+
+```mermaid
+erDiagram
+    CONTAINER ||--O{ CONTAINER: "contains"
+    CONTAINER ||--O{ FRAME: "contains"
+```
+
 
 <details>
 <summary>abstract eel dataflow</summary>
