@@ -32,7 +32,7 @@ eel automatically recognizes certain file types as valid data files:
 
 | Type    | Extension | eel model | mvp1 | mvp2 |
 | ------- | --------- | --------- | ---- | ---- |
-| Excel   | xls[x,b,m]  | Container | &check;     |      |
+| Excel   | xls[x,b,m]  | Container | :heavy_check_mark:     |      |
 | text    | csv,tsv   | Frame     |      |      |
 | parquet | parquet   | Frame     |      |      |
 | pickle  | pickle    | Frame     |      |      |
