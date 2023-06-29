@@ -42,14 +42,14 @@ erDiagram
 
 ```
 
-### **Frame:** a tabular data object represented in:
+### **Frame:** a tabular data object
 
 * table
 * csv
 * tsv
 * worksheet
 
-### **Container:** a grouping of frames or other containers represented in:
+### **Container:** a grouping of frames or other containers
 
 * database
 * schema
@@ -79,7 +79,7 @@ Containers can be
 so they may share the same target frame.
 * **heterogeneous:** all member frames have different structure,
 so they should have different target frames.
-* **frameless:** no member frames, may contain other containers
+* **frameless:** no member frames
 
 ```mermaid
 ---
@@ -110,17 +110,25 @@ end
 
 In the above dataflow diagram:
 
-* outer boxes are containers
 * inner boxes are frames
+* all other boxes are containers
 * transactions.xlsx (left) is a homogeneous container
 * sql db (top-right) is a frameless container
 * all other containers are heterogeneous
 
-## Supported data formats and databases
+## Supported containers and frames
 
-The following are supported as both source and target containers and frames.
+The following are supported as both sources and targets.
 
-### Supported file types
+### Directory
+
+by default, eel considers a folder as a container:
+
+|                    | Type                  | eel object |
+| ------------------ | --------------------- | ---------- |
+| :white_check_mark: | file folder/directory | Container  |
+
+### Data files
 
 eel recognizes certain file extensions as valid data files:
 
@@ -131,7 +139,7 @@ eel recognizes certain file extensions as valid data files:
 | :white_large_square: | parquet | parquet    | Frame      |
 | :white_large_square: | pickle  | pickle     | Frame      |
 
-### Supported databases
+### Databases
 
 Database connections can be configured in an .eel.yml file and the following are supported for mvp1:
 
