@@ -147,11 +147,14 @@ so they should have different target frames.
 ## diagrams
 
 ```mermaid
+---
+theme default
+---
 erDiagram
     CONTAINER ||--O{ CONTAINER: "contains"
     CONTAINER ||--O{ FRAME: "contains"
-```
 
+```
 
 <details>
 <summary>abstract eel dataflow</summary>
