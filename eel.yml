@@ -1,9 +1,0 @@
-source:
-  type: mssql
-  server: localhost
-  database: bimx
-  table: "[dbo].[dbMarketKnobloch]"
-
-target:
-  type: csv
-  file_path: 'test_export.csv'

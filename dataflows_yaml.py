@@ -1,5 +1,7 @@
 import pyodbc
 import pandas as pd
+import yaml
+import os
 
 def get_dataframe_from_sql(source):
     db_type = source["type"]
@@ -45,10 +47,6 @@ def get_dataframe_from_sql(source):
     except pyodbc.Error as e:
         print(f"Error connecting to the database: {e}")
         return None
-
-
-import yaml
-import os
 
 def load_store_info(eldef, store_id):
     

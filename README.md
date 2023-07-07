@@ -1,6 +1,6 @@
 # eel
 
-eel enables flow of data between multiple sources with minimal configuation.
+eel enables flow of data between multiple sources.
 
 ## Dependencies
 
@@ -10,23 +10,33 @@ eel is python based and relies on the pandas library.
 pip install pandas
 ```
 
-## Basic usage
+## Basic usage: no yml
 
-Pass a path and the contents of the file/folder will be output to the console.
+When working with data files the command line will work. Pass a path and the contents of the file/folder will be output to the console.
 
 ```bash
 eel.py test.xlsx       #output all worksheets in test.xlsx to screen
 eel.py ./datdir/       #output all data files in ./datdir/ to screen
 ```
 
-Passing two arguments explicitly defines the target:
+Passing more than one arguments explicitly defines the target (first arg) and the sources (next arguments):
 
 ```bash
-eel.py test.xlsx ./output/       #load all test.xlsx worksheets to ./output/*.csv
-eel.py ./datdir/ ./output/       #load all ./datdir/ data files to ./output/*.csv
+eel.py ./output/ test.xlsx       #load all test.xlsx worksheets to ./output/*.csv
+eel.py ./output/ ./datdir/       #load all ./datdir/ data files to ./output/*.csv
+eel.py .janfeb.csv jan.csv feb.csv       #load jan.csv and feb.csv to janfeb.csv
 ```
 
-These are two basic examples for getting started, more advanced usage requires more advanced concepts.
+## One target : many source convention
+
+Define a target (cntainer or frame) and then one or more sources (cntainer or frame) facilitates:
+
+* Do not Repeat Yourself (DRY) approach for typical ELT environments where a single target database is the typical use case.
+* use case where multiple frames feed a single table.
+
+## Advanced usage
+
+When using databases and remote files, the .eel.yml files will have to be used.
 
 ## eel object model
 
@@ -75,10 +85,8 @@ erDiagram
 
 Containers can be
 
-* **homogeneous:** all member frames have the same structure,
-so they may share the same target frame.
-* **heterogeneous:** all member frames have different structure,
-so they should have different target frames.
+* **homogeneous:** all member frames have the same structure, so they may share the same target frame. (only supported as a source)
+* **heterogeneous:** all member frames have different structure, so they should have different target frames.
 * **frameless:** no member frames
 
 ```mermaid
@@ -115,6 +123,15 @@ In the above dataflow diagram:
 * transactions.xlsx (left) is a homogeneous container
 * sql db (top-right) is a frameless container
 * all other containers are heterogeneous
+
+Another way to think about the eel object model is that they form a tree with branches and leafs:
+
+| eel object              | tree analog |
+| :---------------------- | :---------- |
+| frame                   | leaf        |
+| container-homogeneous   | leaf        |
+| container-heterogeneous | branch      |
+| container-frameless     | branch      |
 
 ## Supported containers and frames
 
@@ -155,30 +172,71 @@ Database connections can be configured in an .eel.yml file and the following are
 
 All data sources are defined in the file system, normally contained in a single data source folder.
 
-* standard data files are treated as source files and do not require configuration
-  * yourdata.csv
-  * yourdata.xlsx
-* standard data files can optionally be accompanied by a configuration file
-  * yourdata.csv.eel.yml
-  * yourdata.xlsx.eel.yml
-* other sources and targets such as databases or remote files can be defined in a separate configuration file
-  * yourconn.eel.yml
-* folders can have a global configuration file which by default propagates to all containing files and subfolders
-  * .eel.yml
+### Recognized data files are treated as source files and do not require configuration
 
-There are three scenarios for defining a source (frame or container):
+```bash
+yourdata.csv
+yourdata.xlsx
+```
 
-* a data file (.csv, .xlsx)
-* a data file with an accompanying .eel.yml (eel pair)
-* an .eel.yml defining a connection or path to a data file
+### Recognized data files can optionally be accompanied by a .eel.yml configuration file
 
-or:
+```bash
+yourdata.csv
+yourdata.csv.eel.yml
+yourdata.xlsx
+yourdata.xlsx.eel.yml
+```
 
-* lone data: default behavious executed based on file type
-* eel pair: same as above, except defaults are overridden by eel.yml definition
-* eel.yml: similar to above, except source has to be explicitly defined
+### Other stores such as databases or remote files can be defined in a .eel.yml configuration file
+
+```bash
+yourconn.eel.yml
+```
+
+### Folders can have a global configuration file which by default propagates to all containing files and subfolders
+
+```bash
+.eel.yml
+```
+
+## Sources and Targets
+
+An eel flow involves a single data source and target. Sources have some similarities and differences outlines below:
+
+
+
+## Sources (the extract bit)
+
+Here are some scenarios for defining a source frame or container:
+
+|           |                                      | file               | dir                | db                 |
+| :-------- | :----------------------------------- | :----------------- | :----------------- | :----------------- |
+| lone data | data file (.csv, .xlsx)              | :white_check_mark: |                    |                    |
+| eel pair  | data file with accompanying .eel.yml | :white_check_mark: |                    |                    |
+| lone eel  | .eel.yml with source defined         | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+
+* lone data and eel pair sources can be either a frame or a container
+* lone eel sources can be either be a database connection and point to a table or schema or a remote file
+
+## Targets (the load bit)
 
 There are three scenarios for defining a target:
+
+
+| source type             |    target file     |    target table    |     target dir     |     target db      |
+| :---------------------- | :----------------: | :----------------: | :----------------: | :----------------: |
+| frame                   | :white_check_mark: | :white_check_mark: |                    |                    |
+| homogeneous container   | :white_check_mark: | :white_check_mark: |                    |                    |
+| heterogeneous container |                    |                    | :white_check_mark: | :white_check_mark: |
+
+Supported source to target types.
+
+| source type             |    target frame    |  target container  |
+| :---------------------- | :----------------: | :----------------: |
+| frame                   | :white_check_mark: |                    |
+| homogeneous container   | :white_check_mark: |                    |
+| heterogeneous container |                    | :white_check_mark: |
 
 * eel.yml
 * second argument in the cli call
