@@ -1,0 +1,22 @@
+flow:
+  process_parallel: yes # yes/no
+  hetergeneous: yes # yes/no
+  config_to_children: yes # yes/no/skip?
+  data_file_types: [csv,tsv,fwf,xls,xlsx,xlsm]
+  sample_n: 1000 # #n or no
+target:
+  type: mssql
+  server: localhost
+  database: bitt
+  schema: raw
+  if_exists: append_rows # append_rows, append_cols, append_both, drop, truncate
+# transforms:
+  # row_index: eel_id
+  # load_date: eel_date
+  # data_file_name: eel_data_file
+  # data_frame_name: eel_data_frame
+  # eel_yml_name: eel_yml_file
+  # data_file_hash: no
+  # frame_hash: no
+  # eel_yml_hash: no
+  # melt: no

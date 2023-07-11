@@ -63,8 +63,10 @@ erDiagram
 
 * database
 * schema
-* directory
 * workbook
+* directory
+* .eel.yml file
+* .eel.yml document
 
 Below are two examples of how containers and frames relate to files and databases:
 
