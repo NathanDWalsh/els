@@ -262,11 +262,20 @@ folder_config='.eel.yml'
 file_config='.eel.yml'
 type_to_filter='file'
 
+# result = fc.recursive_listdir(folder_path)
 result = fc.process_folder(folder_path,file_types,folder_config,file_config,type_to_filter)
 print(result)
 
 
-for item in result.items():
-    key, value = item
-    ingest(key, value)
+# for item in result.items():
+#     key, value = item
+#     ingest(key, value)
 
+# def recursive_listdir(path):
+#     for root, _, files in os.walk(path):
+#         print('d' + root)
+#         for file in files:
+#             file_path = os.path.join(root, file)
+#             print('f' + file_path)
+
+# recursive_listdir(folder_path)
