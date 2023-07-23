@@ -298,3 +298,15 @@ Some intra-frame transformations are supported:
 * include file details
 * include frame specific properties from homogeneous containers
 * include custom columns defined in eel.yaml
+
+```mermaid
+graph LR
+    file --> config --> dataflow --> containers --> frames --> I/O 
+    config --> taskflow --> DAG
+    dataflow --> taskflow
+
+    fs[fs:list] --> fs_config[fs_config:dict] --> implied_config[implied_config:dict]
+    implied_config --> dataflow2
+    fs2[fs:list hierarchy] --> dataflow2[dataflow:list hierarchy]
+    dataflow2 --> taskflow2
+```
