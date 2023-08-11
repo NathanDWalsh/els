@@ -1,17 +1,8 @@
-import os
 import pandas as pd
 import sqlalchemy as sa
 import pyodbc
-
-import multiprocessing
 from joblib import Parallel, delayed
-
-import fscon as fc
-
-
-def get_load_parallel_string(load_parallel):
-    return 'parallel' if load_parallel else 'serial'
-
+import multiprocessing
 
 def get_db_connection_string(source):
     db_type = source["type"]
@@ -123,7 +114,6 @@ def load_dataframe_to_sql(df: pd.DataFrame, target: dict, add_cols: dict):
     elif table_consistency == -1:
         print(target["table"] + " Inconsistent, not saved.")
 
-
 def check_table_consistency(engine, table_name, schema_name, dataframe, add_cols):
     inspector = sa.inspect(engine)
 
@@ -149,7 +139,6 @@ def check_table_consistency(engine, table_name, schema_name, dataframe, add_cols
 
     return 1  # Table exists and has the same field names and types
 
-
 def generate_create_table_query(table, dataframe):
     columns = ", ".join(
         [f"{col} {get_sql_data_type(dataframe[col].dtype)}" for col in dataframe.columns])
@@ -171,47 +160,23 @@ def get_sql_data_type(dtype):
     else:
         return "VARCHAR(MAX)"
 
-
 def generate_insert_query(table, dataframe):
     columns = ", ".join(dataframe.columns)
     placeholders = ", ".join(["?" for _ in dataframe.columns])
     query = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
     return query
 
-
 def get_dataframe_from_csv(file_path, **kwargs):
     df = pd.read_csv(file_path, **kwargs)
     return df
 
-# def load_yaml_file(file_path):
-#     with open(file_path, 'r') as file:
-#         data = yaml.safe_load(file)
-#     return data
-
-
-def get_file_type_from_filename(filename):
-    file_parts = filename.split('.')
-    if len(file_parts) >= 2:
-        file_type = file_parts[-2]
-    else:
-        file_type = ""
-    return file_type
-
-
-def get_file_type_from_path(file_path):
-    _, file_extension = os.path.splitext(file_path)
-    return file_extension
-
-
-def get_file_base_ext(file_path):
-    file_name, file_extension = os.path.splitext(os.path.basename(file_path))
-    return [file_name, file_extension[1:]]
-
+def get_dataframe_from_excel(file_path, **kwargs):
+    df = pd.read_excel(file_path, **kwargs)
+    return df
 
 def table_exists(sqeng: sa.engine, table_name: str):
     inspector = sa.inspect(sqeng)
     return inspector.has_table(table_name)
-
 
 def merge_source_kwargs(source, source_key):
     kwargs = {}
@@ -230,11 +195,11 @@ def merge_source_kwargs(source, source_key):
     return kwargs
 
 
-def ingest(elfile, eldef):
+def ingest(config):
 
-    target = eldef.get('target', None)
-    source = eldef.get('source', {})
-    add_cols = eldef.get('add_cols', None)
+    target = config.get('target', None)
+    source = config.get('source', {})
+    add_cols = config.get('add_cols', None)
 
     # elfile_base, elfile_ext = get_file_base_ext(elfile)
     # if source == None:
@@ -255,7 +220,8 @@ def ingest(elfile, eldef):
             kwargs['sep'] = '\t'
         df = get_dataframe_from_csv(source['file_path'], **kwargs)
     elif source_type in ('excel', 'xls', 'xlsx', 'xlsb', 'xlsm'):
-        pass
+        kwargs = merge_source_kwargs(source, 'read_excel')
+        df = get_dataframe_from_excel(source['file_path'], **kwargs)
     if df is not None:
         if target is None:
             print('no target defined, printing first 100 rows:')
@@ -270,56 +236,3 @@ def ingest(elfile, eldef):
             else:
                 pass
 
-
-class eel(fc.fscon):
-
-    def __init__(self, path, config_extension='.eel.yml'):
-        super().__init__(path, config_extension)
-        self.container_hierarchy = self.get_custom_hierarchy(self.file_hierarchy, folder_attributes={'type': 'container', 'is_homog': {'config_path': ['source', 'is_homog'], 'default': False}, 'load_parallel': {
-                                                             'config_path': ['source', 'load_parallel'], 'default': False}}, file_attributes={'type': {'config_path': ['source', 'type']}})
-        self.taskflow = self.get_taskflow()
-        self.num_cores = multiprocessing.cpu_count()
-
-    def get_taskflow(self):
-        return self.get_taskflow_container(self.container_hierarchy)[0]
-
-    def get_taskflow_container(self, container_hierarchy):
-        result = []
-        for item_path, item_cs in container_hierarchy.items():
-            if item_cs['type'] == 'container':
-                contents = self.get_taskflow_container(item_cs['contents'])
-                item_res = (get_load_parallel_string(
-                    item_cs['load_parallel']), contents)
-                if item_cs['is_homog']:
-                    table = fc.get_dict_item(
-                        self.configs, [item_path, 'target', 'table'])
-                    for c in contents:
-                        self.configs[c]['target']['table'] = table
-                    if fc.get_dict_item(self.configs, [item_path, 'target', 'if_exists']) == 'replace':
-                        for c in contents[1:]:
-                            self.configs[c]['target']['if_exists'] = 'append'
-                        item_res = 'serial', [contents[0], (get_load_parallel_string(
-                            item_cs['load_parallel']), contents[1:])]
-            else:
-                item_res = item_path
-
-            result.append(item_res)
-
-        return result
-
-    def process_tasks(self):
-        self.process_task(self.taskflow)
-
-    def process_task(self, task):
-        if isinstance(task, tuple):
-            parallelizable = True if task[0] == 'parallel' else False
-            subtasks = task[1]
-            if parallelizable:
-                Parallel(n_jobs=self.num_cores)(
-                    delayed(self.process_task)(t) for t in subtasks)
-            else:
-                for t in subtasks:
-                    self.process_task(t)
-        else:
-            task_config = self.configs[task]
-            ingest(task, task_config)
