@@ -1,8 +1,12 @@
 import pandas as pd
 import sqlalchemy as sa
-import pyodbc
-from joblib import Parallel, delayed
-import multiprocessing
+from sqlalchemy.orm import sessionmaker
+# import pyodbc
+# from joblib import Parallel, delayed
+# import multiprocessing
+import logging
+
+open_files = {}
 
 def get_db_connection_string(source):
     db_type = source["type"]
@@ -20,37 +24,41 @@ def get_db_connection_string(source):
 
     return connection_string
 
+def get_dataframe_from_sql(config, nrows=None):
+    table = config["table"]
+    if 'schema' in config:
+        table = config['schema'] + '.' + table
 
-def get_dataframe_from_sql(source):
-    table = source["table"]
+    connection_string = get_db_connection_string(config)
 
-    connection_string = get_db_connection_string(source)
 
-    # Connect to the database
-    conn = pyodbc.connect(connection_string)
+    # with sa.create_engine(connection_string).connect() as sqeng:
+    #     Session = sessionmaker(bind=sqeng)
+    #     session = Session()
 
-    # Create a cursor
-    cursor = conn.cursor()
+    #     stmt = sa.select(sa.text('*')).select_from(sa.text(table)).limit(nrows)
 
-    # Execute the SQL query
-    query = f"SELECT * FROM {table}"
-    cursor.execute(query)
+    #     rows = session.execute(stmt).fetchall()
 
-    # Fetch all rows from the result set
-    rows = cursor.fetchall()
+    #     df = pd.DataFrame(rows, columns=rows[0].keys())
 
-    # Get the column names
-    column_names = [column[0] for column in cursor.description]
+    # return df
 
-    # Create a pandas DataFrame from the rows and column names
-    df = pd.DataFrame.from_records(rows, columns=column_names)
 
-    # Close the cursor and connection
-    cursor.close()
-    conn.close()
+    with sa.create_engine(connection_string).connect() as sqeng:
+        
 
-    # Return the DataFrame
+        # Session = sessionmaker(bind=sqeng)
+        # session = Session()
+
+        stmt = sa.select(sa.text('*')).select_from(sa.text(table)).limit(nrows)
+
+        # rows = session.execute(stmt).fetchall()
+
+        df = pd.read_sql(stmt,  con= sqeng)
+
     return df
+
 
 
 def load_dataframe_structure_to_sql(df: pd.DataFrame, target: dict, add_cols: dict, sqeng):
@@ -89,7 +97,7 @@ def load_dataframe_structure_to_sql(df: pd.DataFrame, target: dict, add_cols: di
     sqeng.connection.commit()
 
 
-def load_dataframe_to_sql(df: pd.DataFrame, target: dict, add_cols: dict):
+def load_dataframe_to_sql(source_df: pd.DataFrame, target: dict, add_cols: dict, build: bool):
     # conns = 'mssql+pyodbc://localhost/bi' + config['Country']['Country'] + '?driver=ODBC+Driver+17+for+SQL+Server'
     connection_string = get_db_connection_string(target)
     sqeng = sa.create_engine(
@@ -97,47 +105,61 @@ def load_dataframe_to_sql(df: pd.DataFrame, target: dict, add_cols: dict):
 
     schema = target.get('schema', None)
     if_exists = target.get('if_exists', None)
-    table_consistency = check_table_consistency(
-        sqeng, target["table"], schema, df, add_cols)
-    if table_consistency == 0 or if_exists == 'replace':
-        load_dataframe_structure_to_sql(df, target, add_cols, sqeng)
+    if build:
+        load_dataframe_structure_to_sql(source_df, target, add_cols, sqeng)
+        return True
+    if not if_exists == 'replace':
+        target_df = get_dataframe_from_sql(target,100)
+        table_consistency = check_df_consistency(source_df, target_df, add_cols.values())
+
+    if if_exists == 'replace' : #or table_consistency == 0 redundant
+        load_dataframe_structure_to_sql(source_df, target, add_cols, sqeng)
         table_consistency = 1
         if_exists = 'append'
     if table_consistency >= 0 and if_exists == 'truncate':
         pass  # TODO
     if table_consistency >= 0 or (target['consistency'] == 'ignore'):
         kwargs = target.get('to_sql', {})
-        df.to_sql(target["table"], sqeng, schema,
+        source_df.to_sql(target["table"], sqeng, schema,
                   index=False, if_exists=if_exists, **kwargs)
         sqeng.connection.commit()
-        print(target["table"] + " Data saved successfully.")
+        sqeng.close()
+        # logging.info(target["table"] + ": Data saved successfully.")
+        return True
     elif table_consistency == -1:
-        print(target["table"] + " Inconsistent, not saved.")
+        logging.info(target["table"] + ": Inconsistent, not saved.")
+        sqeng.close()
+        return False
+    else:
+        logging.info( target["table"] + ": something went wrong.")
+        sqeng.close()
+        return False
+    
+    
 
-def check_table_consistency(engine, table_name, schema_name, dataframe, add_cols):
-    inspector = sa.inspect(engine)
-
-    # Check if the table exists
-    if not inspector.has_table(table_name, schema_name):
-        return 0  # Table does not exist
-
-    # Get the table columns
-    table_columns = inspector.get_columns(table_name, schema_name)
-
+def check_df_consistency(source_df, target_df, ignore_cols=[]):
+    result = 1
+    ignore_cols=set(ignore_cols)
     # Compare the column names and types
-    dataframe_columns = dataframe.columns.tolist()
-    dataframe_columns.extend(add_cols.values())
+    source_cols = set(source_df.columns.tolist())-ignore_cols
+    target_cols = set(target_df.columns.tolist())-ignore_cols
+    
+    if source_cols != target_cols:
+        in_source = source_cols - target_cols
+        in_target = target_cols - source_cols 
+        if in_source:
+            logging.info('source has more columns:' + str(in_source))
+        if in_target:
+            logging.info('target has more columns:' + str(in_target))
+        result = -1 
+    else:
+        for col in source_cols:
+            # TODO fix this: create equivalencies between df types and possible sql types
+            if target_df[col].dtype != 'object' and source_df[col].dtype != target_df[col].dtype:
+                logging.info(col + ' has a different data type source ' + source_df[col].dtype +  ' target ' + target_df[col].dtype)
+                result = -1  
 
-    if len(table_columns) != len(dataframe_columns):
-        return -1  # Table has different field names
-    for table_col, df_col in zip(table_columns, dataframe_columns):
-        if table_col["name"] != df_col:
-            return -1  # Table has different field names
-        # TODO fix this: create equivalencies between df types and possible sql types
-        # if str(table_col["type"]) != str(dataframe[df_col].dtype):
-        #     return -1  # Table has different field types
-
-    return 1  # Table exists and has the same field names and types
+    return result  # Table exists and has the same field names and types
 
 def generate_create_table_query(table, dataframe):
     columns = ", ".join(
@@ -195,44 +217,68 @@ def merge_source_kwargs(source, source_key):
     return kwargs
 
 
-def ingest(config):
+def get_df(config,build):
+    source_type = config['type']
+
+    if source_type in ('mssql', 'postgres', 'duckdb'):
+        df = get_dataframe_from_sql(config)
+    elif source_type in ('csv', 'tsv'):
+        kwargs = merge_source_kwargs(config, 'read_csv')
+        if build:
+            kwargs['nrows'] = 100
+        if source_type == 'tsv':
+            kwargs['sep'] = '\t'
+        df = get_dataframe_from_csv(config['file_path'], **kwargs)
+    elif source_type in ('excel', 'xls', 'xlsx', 'xlsb', 'xlsm'):
+        kwargs = merge_source_kwargs(config, 'read_excel')
+        if build:
+            kwargs['nrows'] = 100
+        file_path = config['file_path']
+        if file_path in open_files:
+            file = open_files[file_path]
+        else:
+            file = file_path
+        df = get_dataframe_from_excel(file, **kwargs)
+
+    return df
+
+def put_df(df,target,add_cols,build):
+    result = False
+    if df is not None:
+        if target is None or not 'type' in target:
+            logging.info('no target defined, printing first 100 rows:')
+            print(df.head(100))
+            result = True
+        else:
+            if target['type'] in ('csv'):
+                df.to_csv(target['file_path'], index=False)
+                result = True
+            elif target['type'] in ('mssql', 'postgres', 'duckdb'):
+                # if 'table' not in target:
+                #     target['table'] = elfile_base
+                result = load_dataframe_to_sql(df, target, add_cols,build)
+            else:
+                pass
+    return result
+
+def get_configs(config):
 
     target = config.get('target', None)
     source = config.get('source', {})
     add_cols = config.get('add_cols', None)
 
-    # elfile_base, elfile_ext = get_file_base_ext(elfile)
-    # if source == None:
-    #     source = {}
-    # if 'file_path' not in source:
-    #     source['file_path'] = elfile
-    # if 'type' not in source:
-    #     source['type'] = elfile_ext
+    return target, source, add_cols
 
-    # if source != None:
-    source_type = source['type']
 
-    if source_type in ('mssql', 'postgres', 'duckdb'):
-        df = get_dataframe_from_sql(source)
-    elif source_type in ('csv', 'tsv'):
-        kwargs = merge_source_kwargs(source, 'read_csv')
-        if source_type == 'tsv':
-            kwargs['sep'] = '\t'
-        df = get_dataframe_from_csv(source['file_path'], **kwargs)
-    elif source_type in ('excel', 'xls', 'xlsx', 'xlsb', 'xlsm'):
-        kwargs = merge_source_kwargs(source, 'read_excel')
-        df = get_dataframe_from_excel(source['file_path'], **kwargs)
-    if df is not None:
-        if target is None:
-            print('no target defined, printing first 100 rows:')
-            print(df.head(100))
-        else:
-            if target['type'] in ('csv'):
-                df.to_csv(target['file_path'], index=False)
-            elif target['type'] in ('mssql', 'postgres', 'duckdb'):
-                # if 'table' not in target:
-                #     target['table'] = elfile_base
-                load_dataframe_to_sql(df, target, add_cols)
-            else:
-                pass
+def ingest(config, build):
 
+    target, source, add_cols = get_configs(config)
+    df = get_df(source,build)
+    return put_df(df,target,add_cols,build)
+    # print(result, source[''])
+    
+def detect(config):
+
+    _, source, _ = get_configs(config)
+    df = get_df(source)
+    print(df.dtypes.to_dict())
