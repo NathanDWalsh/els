@@ -1,0 +1,80 @@
+definitions:
+  read_csv:
+    properties:
+      encoding:
+        type: string
+      low_memory:
+        default: false
+        type: boolean
+      sep:
+        type: string
+    type: object
+  read_excel:
+    properties:
+      dtype:
+        type: object
+      names:
+        items: {}
+        type: array
+      sheet_name:
+        default: _file_system_base
+        type: string
+    type: object
+  source:
+    properties:
+      file_path:
+        default: _file_path
+        type: string
+      load_parallel:
+        default: false
+        type: boolean
+      nrows:
+        type: integer
+      read_csv:
+        $ref: '#/definitions/read_csv'
+      read_excel:
+        $ref: '#/definitions/read_excel'
+      type:
+        default: _file_extension
+        type: string
+    type: object
+  target:
+    properties:
+      consistency:
+        default: strict
+        pattern: ^(strict|ignore)$
+        type: string
+      database:
+        type: string
+      dbschema:
+        type: string
+      if_exists:
+        default: fail
+        pattern: ^(fail|replace|append|truncate)$
+        type: string
+      server:
+        type: string
+      table:
+        default: _file_system_base
+        type: string
+      to_sql:
+        $ref: '#/definitions/to_sql'
+      type:
+        type: string
+    required:
+    - type
+    type: object
+  to_sql:
+    properties:
+      chunksize:
+        type: integer
+    type: object
+properties:
+  source:
+    $ref: '#/definitions/source'
+  sub_path:
+    default: .
+    type: string
+  target:
+    $ref: '#/definitions/target'
+type: object

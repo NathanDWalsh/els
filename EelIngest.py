@@ -108,11 +108,12 @@ def load_dataframe_to_sql(source_df: pd.DataFrame, target: dict, add_cols: dict,
     if build:
         load_dataframe_structure_to_sql(source_df, target, add_cols, sqeng)
         return True
+    
     if not if_exists == 'replace':
         target_df = get_dataframe_from_sql(target,100)
         table_consistency = check_df_consistency(source_df, target_df, add_cols.values())
 
-    if if_exists == 'replace' : #or table_consistency == 0 redundant
+    if if_exists == 'replace' or table_consistency == 0 :
         load_dataframe_structure_to_sql(source_df, target, add_cols, sqeng)
         table_consistency = 1
         if_exists = 'append'

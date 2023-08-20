@@ -1,32 +1,19 @@
 import os
+import zipfile
 import yaml
 from openpyxl import load_workbook
-import copy 
 import logging 
+import re
 import pandas as pd
-import psutil
-import atexit
-import signal
-import EelIngest as ei
 
 from joblib import Parallel, delayed
 import multiprocessing
-# from threading import Lock
-# from multiprocessing import active_children
-import zipfile
-import re
-
 from joblib.externals.loky import get_reusable_executor
 
-
-def parallel_str(load_parallel):
-    return 'parallel' if load_parallel else 'serial'
-
-def parallel_int(load_parallel):
-    return 4 if load_parallel else 1
+import EelIngest as ei
+import EelConfig as ec
 
 def get_dict_item(dict_:dict, item_path:list, default=None):
-
     current_key = item_path[0]
     if current_key in dict_:
         next_dict = dict_[current_key]
@@ -38,15 +25,22 @@ def get_dict_item(dict_:dict, item_path:list, default=None):
     else:
         return default
 
+
+
+def merge_configs(*configs: ec.Config):
+    dicts = []
+    for config in configs:
+        dicts.append(config.dict())
+    dict_result = merge_dicts_by_top_level_keys(*dicts)
+    return ec.Config(**dict_result) 
+
 def merge_dicts_by_top_level_keys(*dicts):
     merged_dict = {}
     for dict_ in dicts:
         for key, value in dict_.items():
-            if key in merged_dict:
-                # Perform merge operation on the value of the existing key
-                if isinstance(value, dict) and isinstance(merged_dict[key], dict):
-                    merged_dict[key].update(value)
-            else:
+            if key in merged_dict and isinstance(value, dict) and (not merged_dict[key] is None):
+                merged_dict[key].update(value)
+            elif not value is None:
                 # Add a new key-value pair to the merged dictionary
                 merged_dict[key] = value
     return merged_dict
@@ -61,11 +55,10 @@ def replace_dict_vals(dictionary, find_replace_dict):
             dictionary[key] = find_replace_dict[value]
 
 class GenericNode:
-    def __init__(self, name, parent=None, config=None):
+    def __init__(self, name:str, parent:'GenericNode'=None, config:ec.Config=None):
         self.name = name
         self.parent = parent
         self.config_explicit = config
-        self.config_override = {}
         
     def get_part_path(self, absolute=False):
         path_parts = []
@@ -78,20 +71,20 @@ class GenericNode:
         part_path = os.path.normpath("/".join(path_parts))
         return part_path
     
-    def apply_special_attributes_configs(self, config):
+    def apply_special_attributes_configs(self, config: ec.Config):
+        config_dict = config.dict()
         file_extension = self.file_extension
         if self.parent is None:
             file_base = os.path.basename(self.name)
         else:
             file_base = self.name
-            # if file_extension:
-            #     file_base = file_base.replace('.'+file_extension,'')
         if isinstance(self,FilePart):
             file_path = self.parent.get_part_path(absolute=True)
         else:
             file_path = self.get_part_path(absolute=True)
         find_replace = {'_file_system_base':file_base, '_file_extension':file_extension,'_file_path':file_path}
-        replace_dict_vals(config,find_replace)
+        replace_dict_vals(config_dict,find_replace)
+        return ec.Config(**config_dict)
 
     # def apply_flow_attributes_config(self):
     #     if self.has_children and self.is_homog:
@@ -108,27 +101,24 @@ class GenericNode:
     @property
     def config_inherited(self):
         if self.parent is None:
-            return {}
+            return ec.Config()
         else:
             return self.parent.config_combined
     
     @property
     def config_combined(self):
-        config_inherited=copy.deepcopy(self.config_inherited)
+        config_inherited=self.config_inherited.copy(deep=True)
         if self.config_explicit is None:
-            config_combined = merge_dicts_by_top_level_keys(config_inherited,self.config_override)
+            return config_inherited
         else:
-            config_combined = merge_dicts_by_top_level_keys(config_inherited,self.config_explicit,self.config_override)
-        return config_combined
+            # return merge_configs(config_inherited,self.config_explicit)
+            return ec.deep_merge(config_inherited,self.config_explicit)
     
-    # def set_config_override(self,config_override):
-    #     self.config_override = config_override
-
     @property
     def config(self):
-        config=copy.deepcopy(self.config_combined)
+        config=self.config_combined.copy(deep=True)
         # config=self.config_combined
-        self.apply_special_attributes_configs(config)
+        config = self.apply_special_attributes_configs(config)
         # self.apply_flow_attributes_config(config)
         return config
 
@@ -194,7 +184,7 @@ class LeafNodeMixin:
         if item_path:
             output = get_dict_item(self.config, item_path)
         else:
-            output = self.config
+            output = self.config.dict()
         print(file_path, output)
 
     @property
@@ -304,7 +294,11 @@ class BranchNodeMixin:
 
     @property
     def load_parallel(self):
-        return get_dict_item(self.config, ['source', 'load_parallel'], False)
+        if self.config and self.config.source:
+            return self.config.source.load_parallel
+        else:
+            return False
+        # return get_dict_item(self.config, ['source', 'load_parallel'], False)
     
     @property 
     def par_cores(self):
@@ -338,7 +332,9 @@ class BranchNodeMixin:
                     item_res = leaf.get_part_path()
                     sub_result.append(item_res)
                     # if len(result) > 0 or len(sub_result) > 1:
-                    leaf.config_override={'target':{'if_exists':'append'}}
+                    if leaf.config_explicit:
+                        leaf.config_explicit.target.if_exists = 'append'
+                    # config_override={'target':{'if_exists':'append'}}
                     # leaf.display(['target','if_exists'])
                 if file.file_extension == 'xlsx':
                     file_path = file.get_part_path(absolute=True)
@@ -381,18 +377,18 @@ class BranchNodeMixin:
         return result
 
 class Folder(GenericNode, BranchNodeMixin):
-    def __init__(self, name, parent=None):
-        super().__init__(name, parent)
+    def __init__(self, name:str, parent:BranchNodeMixin=None, config:ec.Config=None):
+        super().__init__(name, parent, config)
         BranchNodeMixin.__init__(self)
     
 class File(GenericNode, BranchNodeMixin):
-    def __init__(self, name, parent=None):
-        super().__init__(name, parent)
+    def __init__(self, name:str, parent:Folder=None, config:ec.Config=None):
+        super().__init__(name, parent, config)
         BranchNodeMixin.__init__(self)
     
 class FilePart(GenericNode, LeafNodeMixin):
-    def __init__(self, name, parent):
-        super().__init__(name, parent)
+    def __init__(self, name:str, parent:File, config:ec.Config=None):
+        super().__init__(name, parent, config)
         LeafNodeMixin.__init__(self)
         self.size = None
         # self.content = content
@@ -421,8 +417,7 @@ class EelTree():
         self.index['.'] = self.root
         return node
     
-    def add_node(self, node, parent, config):
-        node.config_explicit = config
+    def add_node(self, node: GenericNode, parent: GenericNode) -> GenericNode:
         if parent is None:
             return self.add_root_node(node)
         else:
@@ -450,9 +445,9 @@ class EelTree():
     def display_tree(self,item_path=None):
         self.root.display(item_path)
 
-    def populate_tree(self, basepath, parent=None):
+    def populate_tree(self, basepath: str, parent:BranchNodeMixin=None) -> None:
         if os.path.isdir(basepath):
-            config = self.get_paired_config_doc(basepath)
+            config = self.get_paired_config(basepath)
             folder = self.add_folder(basepath, parent, config)
             skip_configs = [self.config_ext]
             for item in os.listdir(basepath):
@@ -464,30 +459,31 @@ class EelTree():
                     #TODO complete
                     print('sole ymls not covered')
                     print(item)
-        elif basepath.find("~$") == -1 : # exclude hidden excel files, TODO not ideal
-            config = self.get_paired_config_doc(basepath)
+        elif basepath.find("~$") == -1 : # exclude hidden excel temps, TODO not ideal
+            config = self.get_paired_config(basepath)
             file = self.add_file(basepath, parent, config)
             file_path = file.get_part_path(absolute=True)
             if file.file_extension == 'xlsx':
                 sheet_deets = get_sheeet_deets(file_path)
                 for ws_name, ws_size in sheet_deets.items():
-                    config = self.get_paired_config_doc(basepath,ws_name)
+                    config = self.get_paired_config(basepath,ws_name)
                     self.add_file_part(ws_name, file,config, ws_size)
             else:
                 file_size = os.path.getsize(file_path)
                 self.add_file_part(file.file_base_name,file, size=file_size)
 
-    def get_paired_config_doc(self,item_path,sub_path=None):
+    def get_paired_config(self,item_path : str,sub_path:str='.') -> ec.Config:
         config_path = self.get_paired_config_file(item_path)
         if config_path:
-            documents = get_yml_docs(config_path)
-            if sub_path is None:
-                return documents[0] #TODO always assumes first doc is scoped to container (file/folder)
-            else:
-                for doc in documents:
-                    if 'sub-path' in doc:
-                        if sub_path == doc['sub-path']:
-                            return doc                
+            configs = get_yml_configs(config_path)
+            for config in configs:
+                if sub_path == config.sub_path:
+                    return config
+            logging.error('ERROR: config sub path not found')
+            return None
+        else:
+            logging.error("ERROR: config not found")
+            return None
 
     def get_paired_config_file(self,item_path):
         if os.path.isdir(item_path):
@@ -501,22 +497,22 @@ class EelTree():
             return config_path
         return None
 
-    def add_folder(self, name, parent=None, config=None):
+    def add_folder(self, name:str, parent=None, config:ec.Config=None) -> Folder:
         if not parent is None:
             name = os.path.basename(name)
-        folder = Folder(name, parent)
-        return self.add_node(folder, parent, config)
+        folder = Folder(name, parent, config)
+        return self.add_node(folder, parent)
 
-    def add_file(self, name, parent=None, config=None):
+    def add_file(self, name:str, parent=None, config:ec.Config=None) -> File:
         if not parent is None:
             name = os.path.basename(name)
-        file = File(name, parent)
-        return self.add_node(file, parent, config)
+        file = File(name, parent, config)
+        return self.add_node(file, parent)
 
-    def add_file_part(self, name, parent, config=None, size=None):
-        file_part = FilePart(name, parent)
+    def add_file_part(self, name:str, parent=None, config:ec.Config=None, size:int=None) -> FilePart:
+        file_part = FilePart(name, parent, config)
         file_part.size = size
-        return self.add_node(file_part, parent, config)
+        return self.add_node(file_part, parent)
 
     @property
     def taskflow(self):
@@ -614,7 +610,7 @@ class EelTree():
                     del ei.open_files[task]
                     logging.info('CLOSE: ' + task)
             else:
-                task_config = task_node.config
+                task_config = task_node.config.dict()
                 if build:
                     logging.info('BUILD: ' + task)
                 else:
@@ -658,7 +654,7 @@ class EelTree():
                     self.detect_dtype(t)
         else:
             task_node = self.get_node_by_path(task)
-            task_config = task_node.config
+            task_config = task_node.config.dict()
             ei.detect(task_config)
 
 def natural_sort_key(s):
@@ -688,19 +684,35 @@ def get_sheeet_deets(file_path):
     sizes = get_sheet_sizes(file_path)
     return dict(zip(names,sizes))
 
-def get_yml_docs(file_path):
+def get_yml_docs(file_path: str) -> list[dict]:
     with open(file_path, 'r') as file:
         yaml_text = file.read()
         documents = list(yaml.safe_load_all(yaml_text))
-        return documents
+    return documents
+        
+def get_configs(ymls: dict) -> list[ec.Config]:
+    configs = []
+    for yml in ymls:
+        config = ec.Config(**yml)
+        configs.append(config)
+    return configs
+
+def get_yml_configs(file_path: str) -> list[ec.Config]:
+    ymls = get_yml_docs(file_path)
+    configs = get_configs(ymls)
+    return configs
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(relativeCreated)d - %(levelname)s - %(message)s')
     logging.info('Getting Started')
 
-    root_path = 'D:\\test_data'
+    root_path = 'D:\\test_data3'
 
     ft = EelTree(root_path)
+
+    # ft.display_tree()
+    print('ft.root.first_leaf.config')
+    # print(ft.root.first_leaf.config)
     logging.info('Tree Created')
     print(ft.taskflow)
 
