@@ -1,80 +1,101 @@
-definitions:
-  read_csv:
+$defs:
+  AddColumns:
     properties:
-      encoding:
-        type: string
-      low_memory:
-        default: false
-        type: boolean
-      sep:
+      row_index:
+        default: null
         type: string
     type: object
-  read_excel:
+  ReadCsv:
+    properties:
+      encoding:
+        default: null
+        type: string
+      low_memory:
+        default: null
+        type: boolean
+      sep:
+        default: null
+        type: string
+    type: object
+  ReadExcel:
     properties:
       dtype:
+        default: null
         type: object
       names:
+        default: null
         items: {}
         type: array
       sheet_name:
-        default: _file_system_base
+        default: null
         type: string
     type: object
-  source:
+  Source:
     properties:
       file_path:
-        default: _file_path
+        default: null
         type: string
       load_parallel:
-        default: false
+        default: null
         type: boolean
       nrows:
+        default: null
         type: integer
       read_csv:
-        $ref: '#/definitions/read_csv'
+        allOf:
+        - $ref: '#/$defs/ReadCsv'
+        default: null
       read_excel:
-        $ref: '#/definitions/read_excel'
+        allOf:
+        - $ref: '#/$defs/ReadExcel'
+        default: null
       type:
-        default: _file_extension
+        default: null
         type: string
     type: object
-  target:
+  Target:
     properties:
       consistency:
-        default: strict
+        default: null
         pattern: ^(strict|ignore)$
         type: string
       database:
+        default: null
         type: string
       dbschema:
+        default: null
         type: string
       if_exists:
-        default: fail
+        default: null
         pattern: ^(fail|replace|append|truncate)$
         type: string
       server:
+        default: null
         type: string
       table:
-        default: _file_system_base
+        default: null
         type: string
       to_sql:
-        $ref: '#/definitions/to_sql'
+        default: null
+        type: 'null'
       type:
+        default: null
         type: string
-    required:
-    - type
-    type: object
-  to_sql:
-    properties:
-      chunksize:
-        type: integer
     type: object
 properties:
+  add_cols:
+    allOf:
+    - $ref: '#/$defs/AddColumns'
+    default: null
   source:
-    $ref: '#/definitions/source'
+    allOf:
+    - $ref: '#/$defs/Source'
+    default: null
   sub_path:
     default: .
     type: string
   target:
-    $ref: '#/definitions/target'
+    allOf:
+    - $ref: '#/$defs/Target'
+    default: null
 type: object
