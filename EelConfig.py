@@ -15,6 +15,13 @@ class Target(BaseModel):
     to_sql: to_sql = None
     table: str = None
 
+    @property
+    def sqn(self):
+        if self.dbschema:
+            return "[" + self.dbschema + "].[" + self.table + "]"
+        else:
+            return "[" + self.table + "]"
+
 
 class ReadCsv(BaseModel):
     encoding: str = None
@@ -46,14 +53,6 @@ class Config(BaseModel):
     target: Target = None
     source: Source = None
     add_cols: AddColumns = None
-
-
-def remove_titles_from_schema(schema):
-    if "title" in schema:
-        del schema["title"]
-    for key, value in schema.items():
-        if isinstance(value, dict):
-            remove_titles_from_schema(value)
 
 
 def del_nones_from_base(base: BaseModel) -> dict:
@@ -89,12 +88,3 @@ def deep_merge(base: BaseModel, update: BaseModel) -> BaseModel:
             base_dict[k] = v
     res = base.model_copy(update=base_dict)
     return res
-
-
-# import yaml
-# json_schema = Config.model_json_schema()
-# remove_titles_from_schema(json_schema)
-# yaml_schema = yaml.dump(json_schema, default_flow_style=False)
-# print(yaml_schema)
-# with open('eel_schema.yml', 'w') as file:
-#     file.write(yaml_schema)

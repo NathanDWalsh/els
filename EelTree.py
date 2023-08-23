@@ -12,6 +12,7 @@ from joblib.externals.loky import get_reusable_executor
 
 import EelIngest as ei
 import EelConfig as ec
+import EelFlow as ef
 
 
 def get_dict_item(dict_: dict, item_path: list, default=None):
@@ -333,63 +334,41 @@ class BranchNodeMixin:
             yield child
 
     @property
-    def taskflow_container(self):
+    def get_task_list(self, execute_fn=ei.ingest) -> list[ef.FlowNodeMixin]:
         result = []
-        # isBranchNode =  isinstance(self,BranchNodeMixin)
         if (
             isinstance(self, BranchNodeMixin)
             and self.leaf_tables_same
             and self.leaf_count > 0
         ):
-            build_target = True
-            build_result = []
+            # build_target = True
+            file_wrappers = []
             for file in self.all_files:
-                sub_result = []
+                part_wrappers = []
                 for leaf in file.all_leafs:
                     item_res = leaf.get_part_path()
-                    sub_result.append(item_res)
-                    # if len(result) > 0 or len(sub_result) > 1:
-                    # if leaf.config_explicit.target:
-                    #     leaf.config_explicit.target.if_exists = 'append'
-                    # config_override={'target':{'if_exists':'append'}}
-                    # leaf.display(['target','if_exists'])
+                    task = ef.EelExecute(item_res, leaf.config)
+                    part_wrappers.append(task)
                 if file.file_extension == "xlsx":
                     file_path = file.get_part_path(absolute=True)
-                    # parallel = parallel_int(file.load_parallel)
                     parallel = file.par_cores
-                    if build_target:
-                        # result.append( (1, [file_path, 'build:' + sub_result[0], (parallel, sub_result), file_path ]) )
-                        build_result = [(1, [(parallel, sub_result), file_path])]
-                        if self.load_parallel:
-                            par_files = self.all_file_count
-                        else:
-                            par_files = 1
-                        result.append(
-                            (
-                                1,
-                                [
-                                    file_path,
-                                    "build:" + sub_result[0],
-                                    (par_files, build_result),
-                                ],
-                            )
+                    file_task_body = ef.EelFlow(part_wrappers, parallel)
+                    file_wrapper = ef.EelXlsxWrapper(file_path, file_task_body)
+                    if not file_wrappers:
+                        file_group_wrapper = ef.EelFileGroupWrapper(
+                            file_wrappers, self.load_parallel
                         )
-                    else:
-                        build_result.append(
-                            (1, [file_path, (parallel, sub_result), file_path])
-                        )
-                    build_target = False
+                        result.append(file_group_wrapper)
+                    file_wrappers.append(file_wrapper)
+
                 else:
-                    result += sub_result
+                    result += part_wrappers
         else:
             for child in self.children.values():
                 if isinstance(child, BranchNodeMixin) and child.leaf_count > 0:
-                    # parallel = parallel_int(child.load_parallel)
                     parallel = child.par_cores
-                    gchildren = child.taskflow_container
-                    # item_res = (parallel, gchildren)
-                    item_res = (len(gchildren), gchildren)
-                    # if parallel == 'parallel':
+                    gchildren = child.get_task_list
+                    item_res = ef.EelFlow(gchildren, len(gchildren))
                     if (
                         parallel > 1
                         and len(gchildren) > 1
@@ -399,7 +378,8 @@ class BranchNodeMixin:
                     ):
                         serial_starter = gchildren[0]
                         parallel_body = gchildren[1:]
-                        item_res = (1, [serial_starter, (parallel - 1, parallel_body)])
+                        task = ef.EelFlow(parallel_body, parallel - 1)
+                        item_res = ef.EelFlow([serial_starter, task], 1)
                     result.append(item_res)
         return result
 
@@ -533,88 +513,20 @@ class EelTree:
         return self.add_node(file, parent)
 
     def add_file_part(
-        self, name: str, parent, config: ec.Config, size: int = None
+        self, name: str, parent, config: ec.Config = ec.Config(), size: int = None
     ) -> FilePart:
         file_part = FilePart(name, parent, config)
         file_part.size = size
         return self.add_node(file_part, parent)
 
     @property
-    def taskflow(self):
-        taskflow = self.root.taskflow_container
+    def taskflow(self) -> ef.EelFlow:
+        taskflow = self.root.get_task_list
         if self.root.load_parallel:
-            par_cor = len(taskflow)
+            n_jobs = len(taskflow)
         else:
-            par_cor = 1
-        return (par_cor, taskflow)
-
-    def process_task(self, task):
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(relativeCreated)d - %(levelname)s - %(message)s",
-        )
-        if isinstance(task, tuple):
-            pjobs = task[0]
-            subtasks = task[1]
-
-            with Parallel(
-                n_jobs=pjobs, max_nbytes=None, mmap_mode=None, backend="loky"
-            ) as parallel:
-                parallel(delayed(self.process_task)(t) for t in subtasks)
-                get_reusable_executor().shutdown(wait=True)
-        else:
-            if task.startswith("build:"):
-                build = True
-                task = task[6:]
-            else:
-                build = False
-
-            task_node = self.get_node_by_path(task)
-            if os.path.isfile(task) and task_node.file_extension == "xlsx":
-                if not task in ei.open_files:
-                    logging.info("OPEN: " + task)
-                    file = pd.ExcelFile(task)
-                    ei.open_files[task] = file
-                else:
-                    logging.info("CLOSE: " + task)
-                    file = ei.open_files[task]
-                    file.close()
-                    del ei.open_files[task]
-            else:
-                # model_dump() triggers some Pydantic serializer warnings
-                task_config = task_node.config.model_dump(warnings=False)
-                if build:
-                    logging.info("BUILD: " + task)
-                else:
-                    logging.info("INGEST: " + task)
-                if ei.ingest(task_config, build):
-                    pass
-                else:
-                    logging.info("FAILED: " + task)
-
-    def process_tasks(self):
-        self.num_cores = multiprocessing.cpu_count()
-        self.process_task(self.taskflow)
-
-    def detect_dtypes(self):
-        self.num_cores = multiprocessing.cpu_count()
-        self.detect_dtype(self.taskflow)
-
-    def detect_dtype(self, task):
-        if isinstance(task, tuple):
-            parallelizable = True if task[0] == "parallel" else False
-            subtasks = task[1]
-            if parallelizable:
-                cores = min(self.num_cores, len(subtasks))
-
-                Parallel(n_jobs=cores)(delayed(self.detect_dtype)(t) for t in subtasks)
-            else:
-                for t in subtasks:
-                    self.detect_dtype(t)
-        else:
-            task_node = self.get_node_by_path(task)
-            task_config = task_node.config.dict()
-            ei.detect(task_config)
+            n_jobs = 1
+        return ef.EelFlow(taskflow, n_jobs)
 
 
 def natural_sort_key(s):
@@ -673,16 +585,8 @@ def get_yml_configs(file_path: str) -> list[ec.Config]:
     return configs
 
 
-import warnings
-
-# Convert UserWarning to error
-warnings.simplefilter("error", UserWarning)
-
-
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(relativeCreated)d - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(relativeCreated)d - %(message)s")
     logging.info("Getting Started")
 
     root_path = "D:\\test_data2"
@@ -692,8 +596,8 @@ if __name__ == "__main__":
     # ft.display_tree()
     # print(ft.root.first_leaf.config)
     logging.info("Tree Created")
-    print(ft.taskflow)
+    print(ft.taskflow.to_tuple)
 
-    ft.process_tasks()
+    ft.taskflow.execute()
 
     logging.info("Fin")
