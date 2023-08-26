@@ -1,45 +1,84 @@
 from pydantic import BaseModel, constr
+from typing import Optional
+import sqlalchemy as sa
 
 
 class ToSql(BaseModel):
-    chunksize: int = None
+    chunksize: Optional[int] = None
 
 
-class Target(BaseModel):
+class Frame(BaseModel):
     type: str = None
     server: str = None
     database: str = None
     dbschema: str = None
+    table: str = None
+    file_path: str = None
+
+
+class Target(Frame):
     consistency: constr(pattern="^(strict|ignore)$") = None
     if_exists: constr(pattern="^(fail|replace|append|truncate)$") = None
     to_sql: to_sql = None
-    table: str = None
+
+    @property
+    def db_connection_string(self) -> str:
+        # Define the connection string based on the database type
+        if self.type == "mssql":
+            res = f"mssql+pyodbc://localhost/bitt?driver=ODBC+Driver+17+for+SQL+Server"
+        elif self.type == "postgres":
+            res = (
+                f"Driver={{PostgreSQL}};Server={self.server};Database={self.database};"
+            )
+        elif self.type == "duckdb":
+            res = f"Driver={{DuckDB}};Database={self.database};"
+        else:
+            res = None
+        return res
 
     @property
     def sqn(self):
         if self.dbschema:
-            return "[" + self.dbschema + "].[" + self.table + "]"
+            res = "[" + self.dbschema + "].[" + self.table + "]"
         else:
-            return "[" + self.table + "]"
+            res = "[" + self.table + "]"
+        return res
+
+    @property
+    def table_exists(self) -> bool:
+        with sa.create_engine(self.db_connection_string).connect() as sqeng:
+            inspector = sa.inspect(sqeng)
+            res = inspector.has_table(self.table, self.dbschema)
+        return res
+
+    @property
+    def preparation_action(self) -> str:
+        if not self.table_exists or self.if_exists == "replace":
+            res = "create_replace"
+        elif self.if_exists == "truncate":
+            res = "truncate"
+        elif self.if_exists == "fail":
+            res = "fail"
+        else:
+            res = "no_action"
+        return res
 
 
 class ReadCsv(BaseModel):
-    encoding: str = None
-    low_memory: bool = None
-    sep: str = None
+    encoding: Optional[str] = None
+    low_memory: Optional[bool] = None
+    sep: Optional[str] = None
 
 
 class ReadExcel(BaseModel):
-    sheet_name: str = None
-    dtype: dict = None
-    names: list = None
+    sheet_name: Optional[str] = None
+    dtype: Optional[dict] = None
+    names: Optional[list] = None
 
 
-class Source(BaseModel):
+class Source(Frame):
     load_parallel: bool = None
     nrows: int = None
-    type: str = None
-    file_path: str = None
     read_csv: ReadCsv = None
     read_excel: ReadExcel = None
 

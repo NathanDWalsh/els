@@ -10,33 +10,50 @@ $defs:
     additionalProperties: false
     properties:
       encoding:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
       low_memory:
+        anyOf:
+        - type: boolean
+        - type: 'null'
         default: null
-        type: boolean
       sep:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
     type: object
   ReadExcel:
     additionalProperties: false
     properties:
       dtype:
-        additionalProperties: false
+        anyOf:
+        - type: object
+        - type: 'null'
         default: null
-        type: object
       names:
+        anyOf:
+        - items: {}
+          type: array
+        - type: 'null'
         default: null
-        items: {}
-        type: array
       sheet_name:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
     type: object
   Source:
     additionalProperties: false
     properties:
+      database:
+        default: null
+        type: string
+      dbschema:
+        default: null
+        type: string
       file_path:
         default: null
         type: string
@@ -54,6 +71,12 @@ $defs:
         allOf:
         - $ref: '#/$defs/ReadExcel'
         default: null
+      server:
+        default: null
+        type: string
+      table:
+        default: null
+        type: string
       type:
         default: null
         type: string
@@ -69,6 +92,9 @@ $defs:
         default: null
         type: string
       dbschema:
+        default: null
+        type: string
+      file_path:
         default: null
         type: string
       if_exists:

@@ -39,7 +39,7 @@ class EelExecute(FlowNodeMixin):
         if self.execute_fn(self.config):
             pass
         else:
-            logging.info(type(self.execute_fn) + " FAILED: " + self.name)
+            logging.info("EXECUTE FAILED: " + self.name)
 
 
 class EelFlow(FlowNodeMixin):
@@ -54,11 +54,15 @@ class EelFlow(FlowNodeMixin):
 
 
 class BuildWrapperMixin:
-    def build_target(self):
-        if ei.build(self.eel_flow.items[0].config):
-            pass
+    def build_target(self) -> bool:
+        build_item = self.eel_flow.items[0]
+        if ei.build(build_item.config):
+            res = True
         else:
-            logging.info("BUILD FAILED: " + self.name)
+            res = False
+            logging.error("BUILD FAILED: " + build_item.name)
+            # raise Exception("BUILD FAILED: " + build_item.name)
+        return res
 
 
 class EelCsvWrapper(FlowNodeMixin, BuildWrapperMixin):
@@ -70,17 +74,35 @@ class EelCsvWrapper(FlowNodeMixin, BuildWrapperMixin):
         self.eel_flow.execute()
 
 
-class EelXlsxWrapper(FlowNodeMixin, SerialNodeMixin, BuildWrapperMixin):
+# class EelFileWrapper(FlowNodeMixin, SerialNodeMixin, BuildWrapperMixin):
+#     def __init__(self) -> None:
+#         super().__init__()
+
+
+class EelFileWrapper(FlowNodeMixin, SerialNodeMixin, BuildWrapperMixin):
     def __init__(self, file_path: str, eel_flow: FlowNodeMixin) -> None:
         self.file_path = file_path
         self.eel_flow = eel_flow
-        self.items = [self.eel_flow]
+        self.items = [eel_flow]
 
     def open(self):
-        if self.file_path in ei.open_files:
-            # logging.info("File already opened: " + self.file_path)
-            pass
-        else:
+        pass
+
+    def execute(self):
+        self.open()
+        self.eel_flow.execute()
+        self.close()
+
+    def close(self):
+        pass
+
+
+class EelXlsxWrapper(EelFileWrapper):
+    def __init__(self, file_path: str, eel_flow: FlowNodeMixin) -> None:
+        super().__init__(file_path, eel_flow)
+
+    def open(self):
+        if not self.file_path in ei.open_files:
             logging.info("OPEN: " + self.file_path)
             file = pd.ExcelFile(self.file_path)
             ei.open_files[self.file_path] = file
@@ -98,14 +120,15 @@ class EelXlsxWrapper(FlowNodeMixin, SerialNodeMixin, BuildWrapperMixin):
 
 
 class EelFileGroupWrapper(FlowNodeMixin, SerialNodeMixin):
-    def __init__(self, files: list[EelXlsxWrapper], exec_parallel: bool) -> None:
+    def __init__(self, files: list[EelFileWrapper], exec_parallel: bool) -> None:
         self.items = files
         self.exec_parallel = exec_parallel
 
     def execute(self):
         self.items[0].open()
-        self.items[0].build_target()
-
-        n_jobs = len(self.items) if self.exec_parallel else 1
-        ingest_files = EelFlow(self.items, n_jobs)
-        ingest_files.execute()
+        if self.items[0].build_target():
+            n_jobs = len(self.items) if self.exec_parallel else 1
+            ingest_files = EelFlow(self.items, n_jobs)
+            ingest_files.execute()
+        else:
+            self.items[0].close()

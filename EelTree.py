@@ -5,10 +5,7 @@ from openpyxl import load_workbook
 import logging
 import re
 import pandas as pd
-
-from joblib import Parallel, delayed
-import multiprocessing
-from joblib.externals.loky import get_reusable_executor
+from typing import Callable
 
 import EelIngest as ei
 import EelConfig as ec
@@ -187,6 +184,18 @@ class GenericNode:
     def all_root_leafs(self):
         return self.root.all_leafs
 
+    @property
+    def is_homog_branch(self):
+        return (
+            isinstance(self, BranchNodeMixin)
+            and self.leaf_tables_same
+            and self.leaf_count > 0
+        )
+
+    @property
+    def is_non_empty_branch(self):
+        return isinstance(self, BranchNodeMixin) and self.leaf_count > 0
+
 
 class LeafNodeMixin:
     def __init__(self):
@@ -197,22 +206,30 @@ class LeafNodeMixin:
         file_path = self.get_part_path()
         # if file_path == 'export_g2n_veeva_mx_w_prods.tsv\\0':
         if item_path:
-            output = get_dict_item(self.config, item_path)
+            output = get_dict_item(self.config.model_dump(), item_path)
         else:
             output = self.config.dict()
         print(file_path, output)
 
     @property
     def type(self):
-        return get_dict_item(self.config, ["source", "type"])
+        return self.config.source.type
 
     @property
     def table(self):
-        return get_dict_item(self.config, ["target", "table"])
+        return self.config.target.table
 
     @property
     def load_parallel(self):
-        return get_dict_item(self.config, ["source", "load_parallel"], False)
+        return self.config.source.load_parallel
+
+    @property
+    def file_path(self):
+        return self.parent.get_part_path(absolute=True)
+
+    def get_eel_executor(self, execute_fn=ei.ingest):
+        item_res = self.get_part_path()
+        return ef.EelExecute(item_res, self.config, execute_fn)
 
 
 class BranchNodeMixin:
@@ -313,10 +330,9 @@ class BranchNodeMixin:
             return self.config.source.load_parallel
         else:
             return False
-        # return get_dict_item(self.config, ['source', 'load_parallel'], False)
 
     @property
-    def par_cores(self):
+    def n_jobs(self):
         if self.load_parallel:
             cpu_cores = os.cpu_count()
             # proportion = self.size_weighted / self.root.size_weighted
@@ -333,55 +349,116 @@ class BranchNodeMixin:
         for child in sorted(self.children.values(), key=lambda x: x.size, reverse=True):
             yield child
 
-    @property
-    def get_task_list(self, execute_fn=ei.ingest) -> list[ef.FlowNodeMixin]:
-        result = []
-        if (
-            isinstance(self, BranchNodeMixin)
-            and self.leaf_tables_same
-            and self.leaf_count > 0
-        ):
-            # build_target = True
-            file_wrappers = []
-            for file in self.all_files:
-                part_wrappers = []
-                for leaf in file.all_leafs:
-                    item_res = leaf.get_part_path()
-                    task = ef.EelExecute(item_res, leaf.config)
-                    part_wrappers.append(task)
-                if file.file_extension == "xlsx":
-                    file_path = file.get_part_path(absolute=True)
-                    parallel = file.par_cores
-                    file_task_body = ef.EelFlow(part_wrappers, parallel)
-                    file_wrapper = ef.EelXlsxWrapper(file_path, file_task_body)
-                    if not file_wrappers:
-                        file_group_wrapper = ef.EelFileGroupWrapper(
-                            file_wrappers, self.load_parallel
-                        )
-                        result.append(file_group_wrapper)
-                    file_wrappers.append(file_wrapper)
+    # def get_eel_executors(self, execute_fn=ei.ingest):
+    #     eel_executers = []
+    #     for leaf in self.all_leafs:
+    #         eel_exec = leaf.get_eel_executor(execute_fn=ei.ingest)
+    #         eel_executers.append(eel_exec)
+    #     return eel_executers
 
-                else:
-                    result += part_wrappers
-        else:
-            for child in self.children.values():
-                if isinstance(child, BranchNodeMixin) and child.leaf_count > 0:
-                    parallel = child.par_cores
-                    gchildren = child.get_task_list
-                    item_res = ef.EelFlow(gchildren, len(gchildren))
-                    if (
-                        parallel > 1
-                        and len(gchildren) > 1
-                        and child.leaf_tables_same
-                        and child.leaf_parallels_same
-                        and child.first_leaf.load_parallel
-                    ):
-                        serial_starter = gchildren[0]
-                        parallel_body = gchildren[1:]
-                        task = ef.EelFlow(parallel_body, parallel - 1)
-                        item_res = ef.EelFlow([serial_starter, task], 1)
-                    result.append(item_res)
-        return result
+    @property
+    def get_leaf_df(self) -> pd.DataFrame:
+        def leaf_to_dict(leaf):
+            properties = [
+                "name",
+                "file_path",
+                "type",
+                "table",
+                "load_parallel",
+                "config",
+            ]
+            # data = vars(leaf)
+            data = {}
+            for prop in properties:
+                data[prop] = getattr(leaf, prop)
+            return data
+
+        data = [leaf_to_dict(leaf) for leaf in self.all_leafs]
+        df = pd.DataFrame(data)
+        return df
+
+    def get_file_wrappers(
+        self, df: pd.DataFrame, execute_fn: Callable[[ec.Config], bool]
+    ) -> list[ef.EelFileWrapper]:
+        res = []
+        for file, file_gb in df.groupby(["file_path", "type"]):
+            executes = []
+            if file[1] == "xlsx":
+                file_wrapper = ef.EelXlsxWrapper(file[0], ef.EelFlow(executes, 1))
+            else:
+                file_wrapper = ef.EelFileWrapper(file[0], ef.EelFlow(executes, 1))
+            for task_row in file_gb[["name", "config"]].itertuples():
+                task_flow = ef.EelExecute(task_row.name, task_row.config, execute_fn)
+                executes.append(task_flow)
+            res.append(file_wrapper)
+        return res
+
+    def get_ingest_taskflow(self) -> ef.EelFlow:
+        df = self.get_leaf_df
+        root_flows = []
+        res = ef.EelFlow(root_flows, 1)
+        for _, table_gb in df.groupby("table"):
+            file_group_flows = self.get_file_wrappers(table_gb, ei.ingest)
+            file_group_wrapper = ef.EelFileGroupWrapper(file_group_flows, False)
+            root_flows.append(file_group_wrapper)
+        return res
+
+    def get_detect_taskflow(self) -> ef.EelFlow:
+        df = self.get_leaf_df
+        root_flows = self.get_file_wrappers(df, ei.detect)
+        res = ef.EelFlow(root_flows, 1)
+        return res
+
+    # @property
+    # def get_tasks(self, execute_fn=ei.ingest) -> ef.EelFlow:
+    #     tasks = []
+    #     if self.is_homog_branch:
+    #         file_wrappers = []
+    #         for file in self.all_files:
+    #             part_wrappers = file.get_eel_executors(execute_fn)
+    #             if file.file_extension == "xlsx" and execute_fn == ei.ingest:
+    #                 file_path = file.get_part_path(absolute=True)
+    #                 file_task_body = ef.EelFlow(part_wrappers, file.n_jobs)
+    #                 file_wrapper = ef.EelXlsxWrapper(file_path, file_task_body)
+    #                 if not file_wrappers:
+    #                     file_group_wrapper = ef.EelFileGroupWrapper(
+    #                         file_wrappers, self.load_parallel
+    #                     )
+    #                     tasks.append(file_group_wrapper)
+    #                 file_wrappers.append(file_wrapper)
+    #             else:
+    #                 tasks += part_wrappers
+    #     elif isinstance(self, LeafNodeMixin):
+    #         eel_executor = self.get_eel_executor(execute_fn)
+    #         tasks.append(eel_executor)
+    #     else:  # assumes non-homog branch
+    #         for child in self.children.values():
+    #             item_res = child.get_tasks(execute_fn)
+    #             tasks.append(item_res)
+    #         # for child in self.children.values():
+    #         #     if child.is_non_empty_branch:
+    #         #         gchildren = child.get_tasks
+    #         #         if (
+    #         #             child.n_jobs > 1
+    #         #             and len(gchildren) > 1
+    #         #             and child.leaf_tables_same
+    #         #             and child.leaf_parallels_same
+    #         #             and child.first_leaf.load_parallel
+    #         #         ):
+    #         #             serial_starter = gchildren[0]
+    #         #             parallel_body = gchildren[1:]
+    #         #             eel_flow = ef.EelFlow(parallel_body, child.n_jobs - 1)
+    #         #             item_res = ef.EelFlow([serial_starter, eel_flow], 1)
+    #         #         else:
+    #         #             item_res = ef.EelFlow(gchildren, len(gchildren))
+    #         #         tasks.append(item_res)
+    #     if self == self.root:  # for the root node
+    #         if self.load_parallel:
+    #             n_jobs = len(tasks)
+    #         else:
+    #             n_jobs = 1
+    #         return ef.EelFlow(tasks, n_jobs)
+    #     return tasks
 
 
 class Folder(GenericNode, BranchNodeMixin):
@@ -410,7 +487,7 @@ class EelTree:
         # self.pool = None
         self.populate_tree(path)
 
-    def add_root_node(self, node):
+    def add_root_node(self, node: GenericNode):
         self.root = node
         self.index = {}
         self.index["."] = self.root
@@ -480,9 +557,9 @@ class EelTree:
             for config in configs:
                 if sub_path == config.sub_path:
                     return config
-            logging.error(
-                "ERROR: config sub path not found for " + item_path + " " + sub_path
-            )
+            # logging.error(
+            #     "ERROR: config sub path not found for " + item_path + " " + sub_path
+            # ) #orphaned yml sub_path
             return ec.Config()
         # else:
         #     logging.info("config not found for " + item_path + ' ' + sub_path)
@@ -518,15 +595,6 @@ class EelTree:
         file_part = FilePart(name, parent, config)
         file_part.size = size
         return self.add_node(file_part, parent)
-
-    @property
-    def taskflow(self) -> ef.EelFlow:
-        taskflow = self.root.get_task_list
-        if self.root.load_parallel:
-            n_jobs = len(taskflow)
-        else:
-            n_jobs = 1
-        return ef.EelFlow(taskflow, n_jobs)
 
 
 def natural_sort_key(s):
@@ -589,15 +657,17 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(relativeCreated)d - %(message)s")
     logging.info("Getting Started")
 
-    root_path = "D:\\test_data2"
+    root_path = "D:\\test_data"
 
     ft = EelTree(root_path)
 
     # ft.display_tree()
     # print(ft.root.first_leaf.config)
     logging.info("Tree Created")
-    print(ft.taskflow.to_tuple)
 
-    ft.taskflow.execute()
+    taskflow = ft.root.get_ingest_taskflow()
+    print(taskflow.to_tuple)
+
+    taskflow.execute()
 
     logging.info("Fin")

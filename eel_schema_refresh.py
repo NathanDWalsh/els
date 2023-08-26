@@ -13,7 +13,7 @@ def remove_titles_from_schema(schema):
 def add_additional_properties(schema):
     if isinstance(schema, dict):
         # If the current dictionary represents an object schema
-        if schema.get("type") == "object":
+        if schema.get("type") == "object" and ("properties" in schema):
             schema["additionalProperties"] = False
         # Recurse into the dictionary's values
         for value in schema.values():
