@@ -20,10 +20,15 @@ def add_additional_properties(schema):
             add_additional_properties(value)
 
 
-json_schema = ec.Config.model_json_schema()
-remove_titles_from_schema(json_schema)
-add_additional_properties(json_schema)
-yaml_schema = yaml.dump(json_schema, default_flow_style=False)
-print(yaml_schema)
-with open("eel_schema.yml", "w") as file:
-    file.write(yaml_schema)
+def main():
+    json_schema = ec.Config.model_json_schema()
+    remove_titles_from_schema(json_schema)
+    add_additional_properties(json_schema)
+    yaml_schema = yaml.dump(json_schema, default_flow_style=False)
+    # print(yaml_schema)
+    with open("eel_schema.yml", "w") as file:
+        file.write(yaml_schema)
+
+
+if __name__ == "__main__":
+    main()

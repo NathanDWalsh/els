@@ -203,10 +203,11 @@ def get_configs(config):
 def ingest(config: ec.Config) -> bool:
     target, source, add_cols = get_configs(config)
     if (
-        frames_consistent(source, target, add_cols.model_dump().values())
+        not target
+        or frames_consistent(source, target, add_cols.model_dump().values())
         or target.consistency == "ignore"
     ):
-        source_df = get_df(source, 100)
+        source_df = get_df(source, config.nrows)
         return put_df(source_df, target, add_cols)
     else:
         logging.error(target.table + ": Inconsistent, not saved.")
@@ -215,15 +216,18 @@ def ingest(config: ec.Config) -> bool:
 
 def build(config: ec.Config) -> bool:
     target, source, add_cols = get_configs(config)
-    action = target.preparation_action
-    if action == "create_replace":
-        df = get_df(source, 100)
-        res = build_sql_table(df, target, add_cols)
-    elif action == "truncate":
-        res = truncate_sql_table(target)
-    elif action == "fail":
-        logging.error("Table Exists, failing")
-        res = False
+    if target:
+        action = target.preparation_action
+        if action == "create_replace":
+            df = get_df(source, 100)
+            res = build_sql_table(df, target, add_cols)
+        elif action == "truncate":
+            res = truncate_sql_table(target)
+        elif action == "fail":
+            logging.error("Table Exists, failing")
+            res = False
+        else:
+            res = True
     else:
         res = True
     return res

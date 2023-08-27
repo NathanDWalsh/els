@@ -61,9 +61,7 @@ def replace_dict_vals(dictionary, find_replace_dict):
 
 
 class GenericNode:
-    def __init__(
-        self, name: str, parent: "GenericNode" = None, config: ec.Config = ec.Config()
-    ):
+    def __init__(self, name: str, parent: "GenericNode" = None, config: dict = {}):
         self.name = name
         self.parent = parent
         self.config_explicit = config
@@ -102,21 +100,21 @@ class GenericNode:
         return res
 
     @property
-    def has_children(self):
+    def has_children(self) -> bool:
         if isinstance(self, BranchNodeMixin) and len(self.children) > 0:
             return True
         else:
             return False
 
     @property
-    def config_inherited(self):
+    def config_inherited(self) -> ec.Config:
         if self.parent is None:
             return ec.Config()
         else:
             return self.parent.config_combined
 
     @property
-    def config_combined(self):
+    def config_combined(self) -> ec.Config:
         config_inherited = self.config_inherited.model_copy(deep=True)
         if self.config_explicit is None:
             return config_inherited
@@ -126,11 +124,9 @@ class GenericNode:
         # return self.config_inherited.model_copy(deep=True, update=self.config_explicit.model_dump(exclude_unset=True))
 
     @property
-    def config(self):
+    def config(self) -> ec.Config:
         config = self.config_combined.model_copy(deep=True)
-        # config=self.config_combined
         config = self.apply_special_attributes_configs(config)
-        # self.apply_flow_attributes_config(config)
         return config
 
     @property
@@ -217,7 +213,10 @@ class LeafNodeMixin:
 
     @property
     def table(self):
-        return self.config.target.table
+        if self.config.target:
+            return self.config.target.table
+        else:
+            return None
 
     @property
     def load_parallel(self):
@@ -397,7 +396,7 @@ class BranchNodeMixin:
         df = self.get_leaf_df
         root_flows = []
         res = ef.EelFlow(root_flows, 1)
-        for _, table_gb in df.groupby("table"):
+        for _, table_gb in df.groupby("table", dropna=False):
             file_group_flows = self.get_file_wrappers(table_gb, ei.ingest)
             file_group_wrapper = ef.EelFileGroupWrapper(file_group_flows, False)
             root_flows.append(file_group_wrapper)
@@ -550,22 +549,19 @@ class EelTree:
                 file_size = os.path.getsize(file_path)
                 self.add_file_part(file.file_base_name, file, size=file_size)
 
-    def get_paired_config(self, item_path: str, sub_path: str = ".") -> ec.Config:
-        config_path = self.get_paired_config_file(item_path)
+    # def get_paired_config(self, item_path: str, sub_path: str = ".") -> ec.Config:
+    def get_paired_config(self, item_path: str, sub_path: str = ".") -> dict:
+        config_path = self.get_paired_config_path(item_path)
         if config_path:
-            configs = get_yml_configs(config_path)
-            for config in configs:
+            ymls = get_yml_docs(config_path)
+            configs = get_configs(ymls)
+            for config, yml in zip(configs, ymls):
                 if sub_path == config.sub_path:
-                    return config
-            # logging.error(
-            #     "ERROR: config sub path not found for " + item_path + " " + sub_path
-            # ) #orphaned yml sub_path
-            return ec.Config()
-        # else:
-        #     logging.info("config not found for " + item_path + ' ' + sub_path)
-        #     return ec.Config()
+                    return yml
+            return {}
+            # return ec.Config()
 
-    def get_paired_config_file(self, item_path):
+    def get_paired_config_path(self, item_path: str) -> str:
         if os.path.isdir(item_path):
             config_path = os.path.join(item_path, self.config_ext)
         elif os.path.isfile(item_path):
@@ -577,20 +573,20 @@ class EelTree:
             return config_path
         return None
 
-    def add_folder(self, name: str, parent, config: ec.Config) -> Folder:
+    def add_folder(self, name: str, parent, config: dict) -> Folder:
         if not parent is None:
             name = os.path.basename(name)
         folder = Folder(name, parent, config)
         return self.add_node(folder, parent)
 
-    def add_file(self, name: str, parent, config: ec.Config) -> File:
+    def add_file(self, name: str, parent, config: dict) -> File:
         if not parent is None:
             name = os.path.basename(name)
         file = File(name, parent, config)
         return self.add_node(file, parent)
 
     def add_file_part(
-        self, name: str, parent, config: ec.Config = ec.Config(), size: int = None
+        self, name: str, parent, config: dict = {}, size: int = None
     ) -> FilePart:
         file_part = FilePart(name, parent, config)
         file_part.size = size
@@ -639,7 +635,7 @@ def get_yml_docs(file_path: str) -> list[dict]:
     return documents
 
 
-def get_configs(ymls: dict) -> list[ec.Config]:
+def get_configs(ymls: list[dict]) -> list[ec.Config]:
     configs = []
     for yml in ymls:
         config = ec.Config(**yml)
@@ -647,17 +643,17 @@ def get_configs(ymls: dict) -> list[ec.Config]:
     return configs
 
 
-def get_yml_configs(file_path: str) -> list[ec.Config]:
-    ymls = get_yml_docs(file_path)
-    configs = get_configs(ymls)
-    return configs
+# def get_yml_configs(file_path: str) -> list[ec.Config]:
+#     ymls = get_yml_docs(file_path)
+#     configs = get_configs(ymls)
+#     return configs
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(relativeCreated)d - %(message)s")
     logging.info("Getting Started")
 
-    root_path = "D:\\test_data"
+    root_path = "D:\\test_data2"
 
     ft = EelTree(root_path)
 

@@ -55,10 +55,10 @@ $defs:
         default: null
         type: string
       file_path:
-        default: null
+        default: _file_path
         type: string
       load_parallel:
-        default: null
+        default: false
         type: boolean
       nrows:
         default: null
@@ -78,14 +78,14 @@ $defs:
         default: null
         type: string
       type:
-        default: null
+        default: _file_extension
         type: string
     type: object
   Target:
     additionalProperties: false
     properties:
       consistency:
-        default: null
+        default: strict
         pattern: ^(strict|ignore)$
         type: string
       database:
@@ -98,14 +98,14 @@ $defs:
         default: null
         type: string
       if_exists:
-        default: null
+        default: fail
         pattern: ^(fail|replace|append|truncate)$
         type: string
       server:
         default: null
         type: string
       table:
-        default: null
+        default: _file_system_base
         type: string
       to_sql:
         default: null
@@ -123,7 +123,17 @@ properties:
   source:
     allOf:
     - $ref: '#/$defs/Source'
-    default: null
+    default:
+      database: null
+      dbschema: null
+      file_path: _file_path
+      load_parallel: false
+      nrows: null
+      read_csv: null
+      read_excel: null
+      server: null
+      table: null
+      type: _file_extension
   sub_path:
     default: .
     type: string

@@ -17,9 +17,11 @@ class Frame(BaseModel):
 
 
 class Target(Frame):
-    consistency: constr(pattern="^(strict|ignore)$") = None
-    if_exists: constr(pattern="^(fail|replace|append|truncate)$") = None
+    consistency: constr(pattern="^(strict|ignore)$") = "strict"
+    if_exists: constr(pattern="^(fail|replace|append|truncate)$") = "fail"
     to_sql: to_sql = None
+
+    table: str = "_file_system_base"
 
     @property
     def db_connection_string(self) -> str:
@@ -77,7 +79,10 @@ class ReadExcel(BaseModel):
 
 
 class Source(Frame):
-    load_parallel: bool = None
+    type: str = "_file_extension"
+    file_path: str = "_file_path"
+
+    load_parallel: bool = False
     nrows: int = None
     read_csv: ReadCsv = None
     read_excel: ReadExcel = None
@@ -90,8 +95,16 @@ class AddColumns(BaseModel):
 class Config(BaseModel):
     sub_path: str = "."
     target: Target = None
-    source: Source = None
+    source: Source = Source()
     add_cols: AddColumns = None
+
+    @property
+    def nrows(self):
+        if self.target:
+            res = self.source.nrows
+        else:
+            res = 100
+        return res
 
 
 def del_nones_from_base(base: BaseModel) -> dict:
@@ -111,18 +124,19 @@ def del_nones_from_dict_recursive(base_dict: dict) -> dict:
     return res
 
 
-def deep_merge(base: BaseModel, update: BaseModel) -> BaseModel:
+def deep_merge(base: BaseModel, update_dict: BaseModel) -> BaseModel:
     # model_dump triggers some Pydantic serializer warnings
     base_dict = base.model_dump(warnings=False)
-    update_dict = del_nones_from_base(update)
+    # update_dict = del_nones_from_base(update)
 
     for k, v in update_dict.items():
         if isinstance(v, dict) and k in base_dict and isinstance(base_dict[k], dict):
             v = del_nones_from_dict(v)
             base_dict[k] = del_nones_from_dict(base_dict[k])
             base_nested_model = base.model_fields[k].annotation(**base_dict[k])
-            update_nested_model = base.model_fields[k].annotation(**v)
-            base_dict[k] = deep_merge(base_nested_model, update_nested_model)
+            # update_nested_model = base.model_fields[k].annotation(**v)
+            # base_dict[k] = deep_merge(base_nested_model, update_nested_model)
+            base_dict[k] = deep_merge(base_nested_model, v)
         else:
             base_dict[k] = v
     res = base.model_copy(update=base_dict)
