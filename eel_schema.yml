@@ -1,132 +1,225 @@
 $defs:
   AddColumns:
-    additionalProperties: false
-    properties:
-      row_index:
-        default: null
-        type: string
+    additionalProperties:
+      anyOf:
+      - $ref: '#/$defs/DynamicPathValue'
+      - $ref: '#/$defs/DynamicColumnValue'
+      - type: string
+      - type: integer
+      - type: number
+      - type: 'null'
+      default: null
+      title: Additionalproperties
+    title: AddColumns
     type: object
+  DynamicColumnValue:
+    const: _row_index
+    title: DynamicColumnValue
+  DynamicPathValue:
+    enum:
+    - _full_path_abs
+    - _full_path_rel
+    - _file_path_abs
+    - _file_path_rel
+    - _folder_path_abs
+    - _folder_path_rel
+    - _leaf_name
+    - _file_name_full
+    - _file_name_base
+    - _file_extension
+    - _folder_name
+    - _parent_folder_name
+    title: DynamicPathValue
+    type: string
   ReadCsv:
-    additionalProperties: false
+    additionalProperties: true
     properties:
       encoding:
         anyOf:
         - type: string
         - type: 'null'
         default: null
+        title: Encoding
       low_memory:
         anyOf:
         - type: boolean
         - type: 'null'
         default: null
+        title: Low Memory
       sep:
         anyOf:
         - type: string
         - type: 'null'
         default: null
+        title: Sep
+    title: ReadCsv
     type: object
   ReadExcel:
-    additionalProperties: false
+    additionalProperties: true
     properties:
       dtype:
         anyOf:
         - type: object
         - type: 'null'
         default: null
+        title: Dtype
       names:
         anyOf:
         - items: {}
           type: array
         - type: 'null'
         default: null
+        title: Names
       sheet_name:
         anyOf:
         - type: string
         - type: 'null'
-        default: null
+        default: _leaf_name
+        title: Sheet Name
+    title: ReadExcel
     type: object
   Source:
     additionalProperties: false
     properties:
       database:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
+        title: Database
       dbschema:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
+        title: Dbschema
       file_path:
-        default: _file_path
-        type: string
+        anyOf:
+        - type: string
+        - type: 'null'
+        default: _file_path_abs
+        title: File Path
       load_parallel:
         default: false
+        title: Load Parallel
         type: boolean
       nrows:
+        anyOf:
+        - type: integer
+        - type: 'null'
         default: null
-        type: integer
+        title: Nrows
       read_csv:
-        allOf:
+        anyOf:
         - $ref: '#/$defs/ReadCsv'
+        - type: 'null'
         default: null
       read_excel:
-        allOf:
+        anyOf:
         - $ref: '#/$defs/ReadExcel'
+        - type: 'null'
         default: null
       server:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
+        title: Server
       table:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
+        title: Table
       type:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: _file_extension
-        type: string
+        title: Type
+    title: Source
     type: object
   Target:
     additionalProperties: false
     properties:
       consistency:
+        allOf:
+        - $ref: '#/$defs/TargetConsistencyValue'
         default: strict
-        pattern: ^(strict|ignore)$
-        type: string
       database:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
+        title: Database
       dbschema:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
+        title: Dbschema
       file_path:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
+        title: File Path
       if_exists:
+        allOf:
+        - $ref: '#/$defs/TargetIfExistsValue'
         default: fail
-        pattern: ^(fail|replace|append|truncate)$
-        type: string
       server:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
+        title: Server
       table:
-        default: _file_system_base
-        type: string
+        anyOf:
+        - type: string
+        - type: 'null'
+        default: _leaf_name
+        title: Table
       to_sql:
         default: null
+        title: To Sql
         type: 'null'
       type:
+        anyOf:
+        - type: string
+        - type: 'null'
         default: null
-        type: string
+        title: Type
+    title: Target
     type: object
+  TargetConsistencyValue:
+    enum:
+    - strict
+    - ignore
+    title: TargetConsistencyValue
+    type: string
+  TargetIfExistsValue:
+    enum:
+    - fail
+    - replace
+    - append
+    - truncate
+    title: TargetIfExistsValue
+    type: string
 additionalProperties: false
 properties:
   add_cols:
     allOf:
     - $ref: '#/$defs/AddColumns'
-    default: null
+    default:
+      additionalProperties: null
   source:
     allOf:
     - $ref: '#/$defs/Source'
     default:
       database: null
       dbschema: null
-      file_path: _file_path
+      file_path: _file_path_abs
       load_parallel: false
       nrows: null
       read_csv: null
@@ -136,9 +229,20 @@ properties:
       type: _file_extension
   sub_path:
     default: .
+    title: Sub Path
     type: string
   target:
     allOf:
     - $ref: '#/$defs/Target'
-    default: null
+    default:
+      consistency: strict
+      database: null
+      dbschema: null
+      file_path: null
+      if_exists: fail
+      server: null
+      table: _leaf_name
+      to_sql: null
+      type: null
+title: Config
 type: object

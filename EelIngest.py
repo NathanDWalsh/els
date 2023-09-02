@@ -14,9 +14,7 @@ def get_dataframe_from_sql(frame: ec.Frame, nrows=None):
     return df
 
 
-def build_sql_table(
-    df: pd.DataFrame, target: ec.Frame, add_cols: ec.AddColumns
-) -> bool:
+def build_sql_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
     with sa.create_engine(target.db_connection_string).connect() as sqeng:
         sqeng.execute(sa.text(f"drop table if exists {target.sqn}"))
 
@@ -26,13 +24,15 @@ def build_sql_table(
         # Delete the temporary row from the table
         sqeng.execute(sa.text(f"DELETE FROM {target.sqn}"))
 
-        if add_cols and add_cols.row_index:
-            # Add an identity column to the table
-            sqeng.execute(
-                sa.text(
-                    f"ALTER TABLE {target.sqn} ADD {add_cols.row_index} int identity(1,1) PRIMARY KEY "
-                )
-            )
+        if add_cols:
+            for col_name, col_val in add_cols.items():
+                if col_val == ec.DynamicColumnValue.ROW_INDEX.value:
+                    # Add an identity column to the table
+                    sqeng.execute(
+                        sa.text(
+                            f"ALTER TABLE {target.sqn} ADD {col_name} int identity(1,1) PRIMARY KEY "
+                        )
+                    )
 
         sqeng.connection.commit()
     return True
@@ -46,7 +46,7 @@ def truncate_sql_table(target: ec.Target) -> bool:
 
 
 def load_dataframe_to_sql(
-    source_df: pd.DataFrame, target: ec.Target, add_cols: ec.AddColumns
+    source_df: pd.DataFrame, target: ec.Target, add_cols: dict
 ) -> bool:
     with sa.create_engine(
         target.db_connection_string, fast_executemany=True
@@ -66,10 +66,17 @@ def load_dataframe_to_sql(
         return True
 
 
-def frames_consistent(
-    source: ec.Frame, target: ec.Frame, ignore_cols: list = []
-) -> bool:
+def frames_consistent(config: ec.Config) -> bool:
+    target, source, add_cols = get_configs(config)
+
+    ignore_cols = []
+    if add_cols:
+        for k, v in add_cols.items():
+            if v == ec.DynamicColumnValue.ROW_INDEX.value:
+                ignore_cols.append(k)
+
     source_df = get_df(source, 100)
+    source_df = add_columns(source_df, add_cols)
     target_df = get_df(target, 100)
     return data_frames_consistent(source_df, target_df, ignore_cols)
 
@@ -87,9 +94,9 @@ def data_frames_consistent(
         in_source = source_cols - target_cols
         in_target = target_cols - source_cols
         if in_source:
-            logging.info("df1 has more columns:" + str(in_source))
+            logging.info("source has more columns:" + str(in_source))
         if in_target:
-            logging.info("df2 has more columns:" + str(in_target))
+            logging.info("target has more columns:" + str(in_target))
         res = False
     else:
         for col in source_cols:
@@ -159,12 +166,12 @@ def get_nrows_kwargs(source_key, nrows: int = None):
 def get_df(frame: ec.Frame, nrows: int = None) -> pd.DataFrame:
     if frame.type in ("mssql", "postgres", "duckdb"):
         df = get_dataframe_from_sql(frame)
-    elif frame.type in ("csv", "tsv"):
+    elif frame.type in (".csv", ".tsv"):
         kwargs = get_nrows_kwargs(frame.read_csv, nrows)
-        if frame.type == "tsv":
+        if frame.type == ".tsv":
             kwargs["sep"] = "\t"
         df = get_dataframe_from_csv(frame.file_path, **kwargs)
-    elif frame.type in ("excel", "xls", "xlsx", "xlsb", "xlsm"):
+    elif frame.type in (".xlsx"):
         kwargs = get_nrows_kwargs(frame.read_excel, nrows)
         if frame.file_path in open_files:
             file = open_files[frame.file_path]
@@ -174,7 +181,7 @@ def get_df(frame: ec.Frame, nrows: int = None) -> pd.DataFrame:
     return df
 
 
-def put_df(df: pd.DataFrame, target: ec.Target, add_cols: ec.AddColumns) -> bool:
+def put_df(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
     res = False
     if df is not None:
         if not target or not target.type:
@@ -182,7 +189,7 @@ def put_df(df: pd.DataFrame, target: ec.Target, add_cols: ec.AddColumns) -> bool
             print(df.head(100))
             res = True
         else:
-            if target.type in ("csv"):
+            if target.type in (".csv"):
                 df.to_csv(target.file_path, index=False)
                 res = True
             elif target.type in ("mssql", "postgres", "duckdb"):
@@ -195,19 +202,32 @@ def put_df(df: pd.DataFrame, target: ec.Target, add_cols: ec.AddColumns) -> bool
 def get_configs(config):
     target = config.target
     source = config.source
-    add_cols = config.add_cols
+    add_cols = config.add_cols.model_dump()
 
     return target, source, add_cols
 
 
+def add_columns(df: pd.DataFrame, add_cols: dict) -> pd.DataFrame:
+    if add_cols:
+        for k, v in add_cols.items():
+            if (
+                k != "additionalProperties"
+                and v != ec.DynamicColumnValue.ROW_INDEX.value
+            ):
+                df[k] = v
+    return df
+
+
 def ingest(config: ec.Config) -> bool:
     target, source, add_cols = get_configs(config)
+
     if (
         not target
-        or frames_consistent(source, target, add_cols.model_dump().values())
-        or target.consistency == "ignore"
+        or frames_consistent(config)
+        or target.consistency == ec.TargetConsistencyValue.IGNORE
     ):
         source_df = get_df(source, config.nrows)
+        source_df = add_columns(source_df, add_cols)
         return put_df(source_df, target, add_cols)
     else:
         logging.error(target.table + ": Inconsistent, not saved.")
@@ -220,6 +240,7 @@ def build(config: ec.Config) -> bool:
         action = target.preparation_action
         if action == "create_replace":
             df = get_df(source, 100)
+            df = add_columns(df, add_cols)
             res = build_sql_table(df, target, add_cols)
         elif action == "truncate":
             res = truncate_sql_table(target)
@@ -241,3 +262,7 @@ def detect(config: ec.Config) -> bool:
     df = get_df(source)
     print(df.dtypes.to_dict())
     return True
+
+
+def write_config(config: ec.Config) -> bool:
+    target, source, _ = get_configs(config)

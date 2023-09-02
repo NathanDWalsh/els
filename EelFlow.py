@@ -2,7 +2,7 @@ import logging
 import pandas as pd
 
 import EelConfig as ec
-import EelIngest as ei
+import EelIngest as ee
 
 from joblib import Parallel, delayed
 from joblib.externals.loky import get_reusable_executor
@@ -27,7 +27,7 @@ class SerialNodeMixin:
 
 class EelExecute(FlowNodeMixin):
     def __init__(
-        self, name: str, config: ec.Config = None, execute_fn=ei.ingest
+        self, name: str, config: ec.Config = None, execute_fn=ee.ingest
     ) -> None:
         if config is None:
             logging.error("INGEST without config")
@@ -56,7 +56,7 @@ class EelFlow(FlowNodeMixin):
 class BuildWrapperMixin:
     def build_target(self) -> bool:
         build_item = self.eel_flow.items[0]
-        if ei.build(build_item.config):
+        if ee.build(build_item.config):
             res = True
         else:
             res = False
@@ -97,15 +97,20 @@ class EelFileWrapper(FlowNodeMixin, SerialNodeMixin, BuildWrapperMixin):
         pass
 
 
+# class EelFileWriteWrapper(EelFileWrapper):
+#     def __init__(self, file_path: str, eel_flow: FlowNodeMixin) -> None:
+#         super().__init__(file_path, eel_flow)
+
+
 class EelXlsxWrapper(EelFileWrapper):
     def __init__(self, file_path: str, eel_flow: FlowNodeMixin) -> None:
         super().__init__(file_path, eel_flow)
 
     def open(self):
-        if not self.file_path in ei.open_files:
+        if not self.file_path in ee.open_files:
             logging.info("OPEN: " + self.file_path)
             file = pd.ExcelFile(self.file_path)
-            ei.open_files[self.file_path] = file
+            ee.open_files[self.file_path] = file
 
     def execute(self):
         self.open()
@@ -113,9 +118,9 @@ class EelXlsxWrapper(EelFileWrapper):
         self.close()
 
     def close(self):
-        file = ei.open_files[self.file_path]
+        file = ee.open_files[self.file_path]
         file.close()
-        del ei.open_files[self.file_path]
+        del ee.open_files[self.file_path]
         logging.info("CLOSED: " + self.file_path)
 
 

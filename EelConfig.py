@@ -1,33 +1,73 @@
-from pydantic import BaseModel, constr
-from typing import Optional
+from pydantic import BaseModel
+from typing import Optional, Union
 import sqlalchemy as sa
+from ContentAwarePath import ContentAwarePath as CAPath
+from ContentAwarePath import HumanPathPropertiesMixin as PathProps
+from enum import Enum
 
 
-class ToSql(BaseModel):
+def generate_enum_from_properties(cls, enum_name):
+    properties = {
+        name.upper(): "_" + name
+        for name, value in vars(cls).items()
+        if isinstance(value, property)
+    }
+    return Enum(enum_name, properties)
+
+
+DynamicPathValue = generate_enum_from_properties(PathProps, "DynamicPathValue")
+
+
+class DynamicColumnValue(Enum):
+    ROW_INDEX = "_row_index"
+
+
+class TargetConsistencyValue(Enum):
+    STRICT = "strict"
+    IGNORE = "ignore"
+
+
+class TargetIfExistsValue(Enum):
+    FAIL = "fail"
+    REPLACE = "replace"
+    APPEND = "append"
+    TRUNCATE = "truncate"
+
+
+class ToSql(BaseModel, extra="allow"):
     chunksize: Optional[int] = None
 
 
 class Frame(BaseModel):
-    type: str = None
-    server: str = None
-    database: str = None
-    dbschema: str = None
-    table: str = None
-    file_path: str = None
+    # sub_path: str = None
+
+    type: Optional[str] = None
+    server: Optional[str] = None
+    database: Optional[str] = None
+    dbschema: Optional[str] = None
+    table: Optional[str] = None
+    file_path: Optional[str] = None
+
+    @property
+    def path(self):
+        if self.sub_path:
+            return CAPath(self.sub_path)
+        else:
+            return None
 
 
-class Target(Frame):
-    consistency: constr(pattern="^(strict|ignore)$") = "strict"
-    if_exists: constr(pattern="^(fail|replace|append|truncate)$") = "fail"
+class Target(Frame, extra="forbid"):
+    consistency: TargetConsistencyValue = TargetConsistencyValue.STRICT.value
+    if_exists: TargetIfExistsValue = TargetIfExistsValue.FAIL.value
     to_sql: to_sql = None
 
-    table: str = "_file_system_base"
+    table: Optional[str] = "_" + PathProps.leaf_name.fget.__name__
 
     @property
     def db_connection_string(self) -> str:
         # Define the connection string based on the database type
         if self.type == "mssql":
-            res = f"mssql+pyodbc://localhost/bitt?driver=ODBC+Driver+17+for+SQL+Server"
+            res = f"mssql+pyodbc://{self.server}/{self.database}?driver=ODBC+Driver+17+for+SQL+Server"
         elif self.type == "postgres":
             res = (
                 f"Driver={{PostgreSQL}};Server={self.server};Database={self.database};"
@@ -55,61 +95,90 @@ class Target(Frame):
 
     @property
     def preparation_action(self) -> str:
-        if not self.table_exists or self.if_exists == "replace":
+        if not self.table_exists or self.if_exists == TargetIfExistsValue.REPLACE:
             res = "create_replace"
-        elif self.if_exists == "truncate":
+        elif self.if_exists == TargetIfExistsValue.TRUNCATE:
             res = "truncate"
-        elif self.if_exists == "fail":
+        elif self.if_exists == TargetIfExistsValue.FAIL:
             res = "fail"
         else:
             res = "no_action"
         return res
 
 
-class ReadCsv(BaseModel):
+class ReadCsv(BaseModel, extra="allow"):
     encoding: Optional[str] = None
     low_memory: Optional[bool] = None
     sep: Optional[str] = None
 
 
-class ReadExcel(BaseModel):
-    sheet_name: Optional[str] = None
+class ReadExcel(BaseModel, extra="allow"):
+    sheet_name: Optional[str] = "_" + PathProps.leaf_name.fget.__name__
     dtype: Optional[dict] = None
     names: Optional[list] = None
 
 
-class Source(Frame):
-    type: str = "_file_extension"
-    file_path: str = "_file_path"
+class Source(Frame, extra="forbid"):
+    type: Optional[str] = "_" + PathProps.file_extension.fget.__name__
+    file_path: Optional[str] = "_" + PathProps.file_path_abs.fget.__name__
 
     load_parallel: bool = False
-    nrows: int = None
-    read_csv: ReadCsv = None
-    read_excel: ReadExcel = None
+    nrows: Optional[int] = None
+    read_csv: Optional[ReadCsv] = None
+    read_excel: Optional[ReadExcel] = None
 
 
-class AddColumns(BaseModel):
-    row_index: str = None
+class AddColumns(BaseModel, extra="allow"):
+    additionalProperties: Optional[
+        Union[DynamicPathValue, DynamicColumnValue, str, int, float]
+    ] = None
 
 
-class Config(BaseModel):
+class Config(BaseModel, extra="forbid"):
     sub_path: str = "."
-    target: Target = None
+    target: Target = Target()
     source: Source = Source()
-    add_cols: AddColumns = None
+    add_cols: AddColumns = AddColumns()
+
+    # def dict(self):
 
     @property
-    def nrows(self):
+    def nrows(self) -> int:
         if self.target:
             res = self.source.nrows
         else:
             res = 100
         return res
 
+    @property
+    def path(self):
+        return CAPath(self.sub_path)
 
-def del_nones_from_base(base: BaseModel) -> dict:
-    base_dict = base.model_dump()
-    return del_nones_from_dict(base_dict)
+    @staticmethod
+    def get_path_props_find_replace(path: CAPath):
+        res = {}
+        for member in DynamicPathValue:
+            path_val = getattr(path, member.value[1:])
+            res[member.value] = path_val
+        return res
+
+    def eval_dynamic_attributes(self):
+        config_dict = self.model_dump(exclude_none=True)
+        find_replace = self.get_path_props_find_replace(self.path)
+        swap_dict_vals(config_dict, find_replace)
+        # config_dict = del_nones_from_dict_recursive(config_dict)
+        res = Config(**config_dict)
+        return res
+
+
+def swap_dict_vals(dictionary, find_replace_dict):
+    for key, value in dictionary.items():
+        if isinstance(value, dict):
+            swap_dict_vals(dictionary[key], find_replace_dict)
+        elif isinstance(value, list):
+            pass
+        elif value in find_replace_dict:
+            dictionary[key] = find_replace_dict[value]
 
 
 def del_nones_from_dict(base_dict: dict) -> dict:
@@ -121,23 +190,4 @@ def del_nones_from_dict_recursive(base_dict: dict) -> dict:
     for k, v in res.items():
         if isinstance(v, dict):
             res[k] = del_nones_from_dict_recursive(v)
-    return res
-
-
-def deep_merge(base: BaseModel, update_dict: BaseModel) -> BaseModel:
-    # model_dump triggers some Pydantic serializer warnings
-    base_dict = base.model_dump(warnings=False)
-    # update_dict = del_nones_from_base(update)
-
-    for k, v in update_dict.items():
-        if isinstance(v, dict) and k in base_dict and isinstance(base_dict[k], dict):
-            v = del_nones_from_dict(v)
-            base_dict[k] = del_nones_from_dict(base_dict[k])
-            base_nested_model = base.model_fields[k].annotation(**base_dict[k])
-            # update_nested_model = base.model_fields[k].annotation(**v)
-            # base_dict[k] = deep_merge(base_nested_model, update_nested_model)
-            base_dict[k] = deep_merge(base_nested_model, v)
-        else:
-            base_dict[k] = v
-    res = base.model_copy(update=base_dict)
     return res
