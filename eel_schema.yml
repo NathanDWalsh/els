@@ -125,6 +125,11 @@ $defs:
         - type: 'null'
         default: null
         title: Server
+      stack:
+        anyOf:
+        - $ref: '#/$defs/Stack'
+        - type: 'null'
+        default: null
       table:
         anyOf:
         - type: string
@@ -138,6 +143,24 @@ $defs:
         default: _file_extension
         title: Type
     title: Source
+    type: object
+  Stack:
+    additionalProperties: false
+    properties:
+      fixed_columns:
+        title: Fixed Columns
+        type: integer
+      stack_header:
+        default: 0
+        title: Stack Header
+        type: integer
+      stack_name:
+        default: stack_column
+        title: Stack Name
+        type: string
+    required:
+    - fixed_columns
+    title: Stack
     type: object
   Target:
     additionalProperties: false
@@ -225,6 +248,7 @@ properties:
       read_csv: null
       read_excel: null
       server: null
+      stack: null
       table: null
       type: _file_extension
   sub_path:

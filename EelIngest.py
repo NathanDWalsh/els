@@ -1,7 +1,7 @@
 import pandas as pd
 import sqlalchemy as sa
 import logging
-
+from typing import Union
 import EelConfig as ec
 
 open_files = {}
@@ -163,7 +163,7 @@ def get_nrows_kwargs(source_key, nrows: int = None):
     return kwargs
 
 
-def get_df(frame: ec.Frame, nrows: int = None) -> pd.DataFrame:
+def get_df(frame: Union[ec.Source, ec.Target], nrows: int = None) -> pd.DataFrame:
     if frame.type in ("mssql", "postgres", "duckdb"):
         df = get_dataframe_from_sql(frame)
     elif frame.type in (".csv", ".tsv"):
@@ -177,7 +177,49 @@ def get_df(frame: ec.Frame, nrows: int = None) -> pd.DataFrame:
             file = open_files[frame.file_path]
         else:
             file = frame.file_path
+        # kwargs["dtype"] = {1: "str"}
         df = get_dataframe_from_excel(file, **kwargs)
+    if isinstance(df.columns, pd.MultiIndex):
+        if frame.stack:
+            df = stack_columns(df, frame.stack)
+        else:
+            df = multiindex_to_singleindex(df)
+    return df
+
+
+def stack_columns(df, stack: ec.Stack):
+    # Define the primary column headers based on the first four columns
+    primary_headers = list(df.columns[: stack.fixed_columns])
+
+    # Extract the top-level column names from the primary headers
+    top_level_headers, _ = zip(*primary_headers)
+
+    # Set the DataFrame's index to the primary headers
+    df = df.set_index(primary_headers)
+
+    # Get the names of the newly set indices
+    current_index_names = list(df.index.names[: stack.fixed_columns])
+
+    # Create a dictionary to map the current index names to the top-level headers
+    index_name_mapping = dict(zip(current_index_names, top_level_headers))
+
+    # Rename the indices using the created mapping
+    df.index.rename(index_name_mapping, inplace=True)
+
+    # Stack the DataFrame based on the top-level columns
+    df = df.stack(level=stack.stack_header)
+
+    # Rename the new index created by the stacking operation
+    df.index.rename({None: stack.stack_name}, inplace=True)
+
+    # Reset the index for the resulting DataFrame
+    df.reset_index(inplace=True)
+
+    return df
+
+
+def multiindex_to_singleindex(df, separator="_"):
+    df.columns = [separator.join(map(str, col)).strip() for col in df.columns.values]
     return df
 
 
@@ -220,10 +262,10 @@ def add_columns(df: pd.DataFrame, add_cols: dict) -> pd.DataFrame:
 
 def ingest(config: ec.Config) -> bool:
     target, source, add_cols = get_configs(config)
-
+    consistent = frames_consistent(config)
     if (
         not target
-        or frames_consistent(config)
+        or consistent
         or target.consistency == ec.TargetConsistencyValue.IGNORE
     ):
         source_df = get_df(source, config.nrows)

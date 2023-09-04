@@ -118,6 +118,12 @@ class ReadExcel(BaseModel, extra="allow"):
     names: Optional[list] = None
 
 
+class Stack(BaseModel, extra="forbid"):
+    fixed_columns: int
+    stack_header: int = 0
+    stack_name: str = "stack_column"
+
+
 class Source(Frame, extra="forbid"):
     type: Optional[str] = "_" + PathProps.file_extension.fget.__name__
     file_path: Optional[str] = "_" + PathProps.file_path_abs.fget.__name__
@@ -126,6 +132,7 @@ class Source(Frame, extra="forbid"):
     nrows: Optional[int] = None
     read_csv: Optional[ReadCsv] = None
     read_excel: Optional[ReadExcel] = None
+    stack: Optional[Stack] = None
 
 
 class AddColumns(BaseModel, extra="allow"):

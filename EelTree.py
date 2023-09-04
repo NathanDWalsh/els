@@ -596,7 +596,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(relativeCreated)d - %(message)s")
     logging.info("Getting Started")
 
-    os.chdir("D:\\test_data4")
+    os.chdir("D:\\test_data")
     base_path = CAPath()
 
     ft = EelTree(base_path)
@@ -611,8 +611,8 @@ if __name__ == "__main__":
     logging.info("Tree Created")
     # ft.save_eel_yml_preview()
 
-    taskflow = ft.base.get_ingest_taskflow()
-    print(taskflow.to_tuple)
-    taskflow.execute()
+    # taskflow = ft.base.get_ingest_taskflow()
+    # print(taskflow.to_tuple)
+    # taskflow.execute()
 
     logging.info("Fin")
