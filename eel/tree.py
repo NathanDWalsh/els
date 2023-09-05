@@ -7,7 +7,7 @@ import re
 import pandas as pd
 from typing import Callable, Optional, Union
 
-from eel.content_path import ContentAwarePath as CAPath
+from path import ContentAwarePath as CAPath
 
 import eel.execute as ee
 import eel.config as ec
