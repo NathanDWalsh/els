@@ -1,7 +1,7 @@
 import sys
 import pandas as pd
-import EelConfig as ec
-import EelIngest as ei
+import eel.config as ec
+import eel.execute as ei
 
 
 def process_input(yaml_string: str) -> pd.DataFrame:

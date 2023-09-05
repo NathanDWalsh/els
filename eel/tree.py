@@ -7,11 +7,11 @@ import re
 import pandas as pd
 from typing import Callable, Optional, Union
 
-from ContentAwarePath import ContentAwarePath as CAPath
+from eel.content_path import ContentAwarePath as CAPath
 
-import EelIngest as ee
-import EelConfig as ec
-import EelFlow as ef
+import eel.execute as ee
+import eel.config as ec
+import eel.flow as ef
 
 
 class GenericNode:

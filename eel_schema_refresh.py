@@ -1,5 +1,5 @@
 import yaml
-import EelConfig as ec
+import eel.config as ec
 from copy import deepcopy
 
 

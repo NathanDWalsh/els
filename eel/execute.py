@@ -2,7 +2,7 @@ import pandas as pd
 import sqlalchemy as sa
 import logging
 from typing import Union
-import EelConfig as ec
+import eel.config as ec
 
 open_files = {}
 

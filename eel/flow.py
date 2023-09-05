@@ -1,8 +1,8 @@
 import logging
 import pandas as pd
 
-import EelConfig as ec
-import EelIngest as ee
+import eel.config as ec
+import eel.execute as ee
 
 from joblib import Parallel, delayed
 from joblib.externals.loky import get_reusable_executor

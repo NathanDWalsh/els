@@ -1,8 +1,8 @@
 from pydantic import BaseModel
 from typing import Optional, Union
 import sqlalchemy as sa
-from ContentAwarePath import ContentAwarePath as CAPath
-from ContentAwarePath import HumanPathPropertiesMixin as PathProps
+from eel.content_path import ContentAwarePath as CAPath
+from eel.content_path import HumanPathPropertiesMixin as PathProps
 from enum import Enum
 
 
