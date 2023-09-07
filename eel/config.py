@@ -1,9 +1,61 @@
 from pydantic import BaseModel
 from typing import Optional, Union
 import sqlalchemy as sa
-from eel.path import ContentAwarePath as CAPath
-from eel.path import HumanPathPropertiesMixin as PathProps
+
+# from eel.path import ContentAwarePath as CAPath
+
+# from eel.path import HumanPathPropertiesMixin as PathProps
 from enum import Enum
+
+
+class HumanPathPropertiesMixin:
+    @property
+    def full_path_abs(self) -> str:
+        return self.absolute().str
+
+    @property
+    def full_path_rel(self) -> str:
+        return self.str
+
+    @property
+    def file_path_abs(self) -> str:
+        return self.file.absolute().str if self.file else "not_file"
+
+    @property
+    def file_path_rel(self) -> str:
+        return self.file.str if self.file else "not_file"
+
+    @property
+    def folder_path_abs(self) -> str:
+        return self.dir.absolute().str
+
+    @property
+    def folder_path_rel(self) -> str:
+        return self.dir.str
+
+    @property
+    def leaf_name(self) -> str:
+        return self.name
+
+    @property
+    def file_name_full(self) -> str:
+        return self.file.name if self.file else "not_file"
+
+    @property
+    def file_name_base(self) -> str:
+        return self.file.stem if self.file else "not_file"
+
+    @property
+    def file_extension(self) -> str:
+        return self.file.ext if self.file else "is_folder"
+
+    @property
+    def folder_name(self) -> str:
+        return self.dir.name
+
+    @property
+    def parent_folder_name(self) -> str:
+        return self.dir.parent.name if self.dir.parent else "no_parent"
 
 
 def generate_enum_from_properties(cls, enum_name):
@@ -15,7 +67,9 @@ def generate_enum_from_properties(cls, enum_name):
     return Enum(enum_name, properties)
 
 
-DynamicPathValue = generate_enum_from_properties(PathProps, "DynamicPathValue")
+DynamicPathValue = generate_enum_from_properties(
+    HumanPathPropertiesMixin, "DynamicPathValue"
+)
 
 
 class DynamicColumnValue(Enum):
@@ -48,12 +102,13 @@ class Frame(BaseModel):
     table: Optional[str] = None
     file_path: Optional[str] = None
 
-    @property
-    def path(self):
-        if self.sub_path:
-            return CAPath(self.sub_path)
-        else:
-            return None
+    # @property
+    # def path(self):
+    #     if self.sub_path:
+    #         return CAPath(self.sub_path)
+    #         # return "todo"
+    #     else:
+    #         return None
 
 
 class Target(Frame, extra="forbid"):
@@ -61,16 +116,19 @@ class Target(Frame, extra="forbid"):
     if_exists: TargetIfExistsValue = TargetIfExistsValue.FAIL.value
     to_sql: to_sql = None
 
-    table: Optional[str] = "_" + PathProps.leaf_name.fget.__name__
+    table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
 
     @property
     def db_connection_string(self) -> str:
         # Define the connection string based on the database type
         if self.type == "mssql":
-            res = f"mssql+pyodbc://{self.server}/{self.database}?driver=ODBC+Driver+17+for+SQL+Server"
+            res = (
+                f"mssql+pyodbc://{self.server}/{self.database}"
+                "?driver=ODBC+Driver+17+for+SQL+Server"
+            )
         elif self.type == "postgres":
             res = (
-                f"Driver={{PostgreSQL}};Server={self.server};Database={self.database};"
+                "Driver={PostgreSQL};" f"Server={self.server};Database={self.database};"
             )
         elif self.type == "duckdb":
             res = f"Driver={{DuckDB}};Database={self.database};"
@@ -113,7 +171,7 @@ class ReadCsv(BaseModel, extra="allow"):
 
 
 class ReadExcel(BaseModel, extra="allow"):
-    sheet_name: Optional[str] = "_" + PathProps.leaf_name.fget.__name__
+    sheet_name: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
     dtype: Optional[dict] = None
     names: Optional[list] = None
 
@@ -125,8 +183,10 @@ class Stack(BaseModel, extra="forbid"):
 
 
 class Source(Frame, extra="forbid"):
-    type: Optional[str] = "_" + PathProps.file_extension.fget.__name__
-    file_path: Optional[str] = "_" + PathProps.file_path_abs.fget.__name__
+    type: Optional[str] = "_" + HumanPathPropertiesMixin.file_extension.fget.__name__
+    file_path: Optional[str] = (
+        "_" + HumanPathPropertiesMixin.file_path_abs.fget.__name__
+    )
 
     load_parallel: bool = False
     nrows: Optional[int] = None
@@ -156,36 +216,6 @@ class Config(BaseModel, extra="forbid"):
         else:
             res = 100
         return res
-
-    @property
-    def path(self):
-        return CAPath(self.sub_path)
-
-    @staticmethod
-    def get_path_props_find_replace(path: CAPath):
-        res = {}
-        for member in DynamicPathValue:
-            path_val = getattr(path, member.value[1:])
-            res[member.value] = path_val
-        return res
-
-    def eval_dynamic_attributes(self):
-        config_dict = self.model_dump(exclude_none=True)
-        find_replace = self.get_path_props_find_replace(self.path)
-        swap_dict_vals(config_dict, find_replace)
-        # config_dict = del_nones_from_dict_recursive(config_dict)
-        res = Config(**config_dict)
-        return res
-
-
-def swap_dict_vals(dictionary, find_replace_dict):
-    for key, value in dictionary.items():
-        if isinstance(value, dict):
-            swap_dict_vals(dictionary[key], find_replace_dict)
-        elif isinstance(value, list):
-            pass
-        elif value in find_replace_dict:
-            dictionary[key] = find_replace_dict[value]
 
 
 def del_nones_from_dict(base_dict: dict) -> dict:

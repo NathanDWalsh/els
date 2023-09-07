@@ -1,4 +1,3 @@
-import sys
 import pandas as pd
 import yaml
 import eel.config as ec

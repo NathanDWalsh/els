@@ -30,7 +30,10 @@ def build_sql_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
                     # Add an identity column to the table
                     sqeng.execute(
                         sa.text(
-                            f"ALTER TABLE {target.sqn} ADD {col_name} int identity(1,1) PRIMARY KEY "
+                            (
+                                f"ALTER TABLE {target.sqn} ADD {col_name}"
+                                " int identity(1,1) PRIMARY KEY "
+                            )
                         )
                     )
 
@@ -100,7 +103,7 @@ def data_frames_consistent(
         res = False
     else:
         for col in source_cols:
-            # TODO fix this: create equivalencies between df types and possible sql types
+            # if nulls are returned from sql and object type is set in df
             if df2[col].dtype != "object" and df1[col].dtype != df2[col].dtype:
                 logging.info(
                     col
@@ -112,14 +115,6 @@ def data_frames_consistent(
                 res = False
 
     return res  # Table exists and has the same field names and types
-
-
-# def generate_create_table_query(table_name: str, df: pd.DataFrame) -> str:
-#     columns = ", ".join(
-#         [f"{col} {get_sql_data_type(df[col].dtype)}" for col in df.columns]
-#     )
-#     query = f"CREATE TABLE {table_name} ({columns})"
-#     return query
 
 
 def get_sql_data_type(dtype):
@@ -135,13 +130,6 @@ def get_sql_data_type(dtype):
         return "DATETIME"
     else:
         return "VARCHAR(MAX)"
-
-
-# def generate_insert_query(table, dataframe):
-#     columns = ", ".join(dataframe.columns)
-#     placeholders = ", ".join(["?" for _ in dataframe.columns])
-#     query = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
-#     return query
 
 
 def get_dataframe_from_csv(file_path, **kwargs):

@@ -107,7 +107,7 @@ class EelXlsxWrapper(EelFileWrapper):
         super().__init__(file_path, eel_flow)
 
     def open(self):
-        if not self.file_path in ee.open_files:
+        if self.file_path not in ee.open_files:
             logging.info("OPEN: " + self.file_path)
             file = pd.ExcelFile(self.file_path)
             ee.open_files[self.file_path] = file
