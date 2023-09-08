@@ -216,35 +216,42 @@ class ContentAwarePath(
         return df
 
     @staticmethod
-    def get_file_wrappers(
-        df: pd.DataFrame, execute_fn: Callable[[ec.Config], bool]
-    ) -> list[ef.EelFileWrapper]:
-        res = []
+    def apply_file_wrappers(
+        parent: ef.FlowNodeMixin,
+        df: pd.DataFrame,
+        execute_fn: Callable[[ec.Config], bool],
+    ) -> None:
+        ingest_files = ef.EelFlow(parent=parent, n_jobs=1)
         for file, file_gb in df.groupby(["file_path", "type"]):
-            executes = []
             if file[1] == ".xlsx":
-                file_wrapper = ef.EelXlsxWrapper(file[0], ef.EelFlow(executes, 1))
+                file_wrapper = ef.EelXlsxWrapper(parent=ingest_files, file_path=file[0])
             else:
-                file_wrapper = ef.EelFileWrapper(file[0], ef.EelFlow(executes, 1))
+                file_wrapper = ef.EelFileWrapper(parent=ingest_files, file_path=file[0])
+            exe_flow = ef.EelFlow(parent=file_wrapper, n_jobs=1)
             for task_row in file_gb[["name", "config"]].itertuples():
-                task_flow = ef.EelExecute(task_row.name, task_row.config, execute_fn)
-                executes.append(task_flow)
-            res.append(file_wrapper)
-        return res
+                ef.EelExecute(
+                    parent=exe_flow,
+                    name=task_row.name,
+                    config=task_row.config,
+                    execute_fn=execute_fn,
+                )
 
     def get_ingest_taskflow(self) -> ef.EelFlow:
         df = self.get_leaf_df
-        root_flows = []
-        res = ef.EelFlow(root_flows, 1)
+        root_flow = ef.EelFlow()
         for _, table_gb in df.groupby("table", dropna=False):
-            file_group_flows = ContentAwarePath.get_file_wrappers(table_gb, ee.ingest)
-            file_group_wrapper = ef.EelFileGroupWrapper(file_group_flows, False)
-            root_flows.append(file_group_wrapper)
-        return res
+            file_group_wrapper = ef.EelFileGroupWrapper(
+                parent=root_flow, exec_parallel=False
+            )
+            ContentAwarePath.apply_file_wrappers(
+                parent=file_group_wrapper, df=table_gb, execute_fn=ee.ingest
+            )
+
+        return root_flow
 
     def get_detect_taskflow(self) -> ef.EelFlow:
         df = self.get_leaf_df
-        root_flows = ContentAwarePath.get_file_wrappers(df, ee.detect)
+        root_flows = ContentAwarePath.apply_file_wrappers(df, ee.detect)
         res = ef.EelFlow(root_flows, 1)
         return res
 

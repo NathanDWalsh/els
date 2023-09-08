@@ -1,5 +1,7 @@
 import logging
 import pandas as pd
+from anytree import NodeMixin, RenderTree
+from typing import Callable
 
 import eel.config as ec
 import eel.execute as ee
@@ -8,15 +10,10 @@ from joblib import Parallel, delayed
 from joblib.externals.loky import get_reusable_executor
 
 
-class FlowNodeMixin:
-    @property
-    def to_tuple(self):
-        # Check each item in task_list; if it's MyClass, get its tuple representation
-        processed_list = [
-            item.to_tuple if not isinstance(item, EelExecute) else item.name
-            for item in self.items
-        ]
-        return (self.n_jobs, processed_list)
+class FlowNodeMixin(NodeMixin):
+    def display_tree(self):
+        for pre, fill, node in RenderTree(self):
+            print("%s%s" % (pre, node.name))
 
 
 class SerialNodeMixin:
@@ -27,10 +24,15 @@ class SerialNodeMixin:
 
 class EelExecute(FlowNodeMixin):
     def __init__(
-        self, name: str, config: ec.Config = None, execute_fn=ee.ingest
+        self,
+        parent: FlowNodeMixin,
+        name: str,
+        config: ec.Config,
+        execute_fn: Callable = ee.ingest,
     ) -> None:
-        if config is None:
+        if not isinstance(config, ec.Config):
             logging.error("INGEST without config")
+        self.parent = parent
         self.name = name
         self.config = config
         self.execute_fn = execute_fn
@@ -43,68 +45,55 @@ class EelExecute(FlowNodeMixin):
 
 
 class EelFlow(FlowNodeMixin):
-    def __init__(self, items: list[FlowNodeMixin], n_jobs) -> None:
-        self.items = items
+    def __init__(self, parent: FlowNodeMixin = None, n_jobs: int = 1) -> None:
+        self.parent = parent
         self.n_jobs = n_jobs
 
     def execute(self):
         with Parallel(n_jobs=self.n_jobs, backend="loky") as parallel:
-            parallel(delayed(t.execute)() for t in self.items)
+            parallel(delayed(t.execute)() for t in self.children)
             get_reusable_executor().shutdown(wait=True)
+
+    @property
+    def name(self):
+        return "Flow"
 
 
 class BuildWrapperMixin:
     def build_target(self) -> bool:
-        build_item = self.eel_flow.items[0]
+        build_item = self.eel_flow.children[0]
         if ee.build(build_item.config):
             res = True
         else:
             res = False
             logging.error("BUILD FAILED: " + build_item.name)
-            # raise Exception("BUILD FAILED: " + build_item.name)
         return res
 
 
-class EelCsvWrapper(FlowNodeMixin, BuildWrapperMixin):
-    def __init__(self, file_path: str, eel_flow: FlowNodeMixin) -> None:
-        self.file_path = file_path
-        self.eel_flow = eel_flow
-
-    def execute(self):
-        self.eel_flow.execute()
-
-
-# class EelFileWrapper(FlowNodeMixin, SerialNodeMixin, BuildWrapperMixin):
-#     def __init__(self) -> None:
-#         super().__init__()
-
-
 class EelFileWrapper(FlowNodeMixin, SerialNodeMixin, BuildWrapperMixin):
-    def __init__(self, file_path: str, eel_flow: FlowNodeMixin) -> None:
+    def __init__(self, parent: FlowNodeMixin, file_path: str) -> None:
+        self.parent = parent
         self.file_path = file_path
-        self.eel_flow = eel_flow
-        self.items = [eel_flow]
 
     def open(self):
         pass
 
     def execute(self):
         self.open()
-        self.eel_flow.execute()
+        self.children[0].execute()
         self.close()
 
     def close(self):
         pass
 
-
-# class EelFileWriteWrapper(EelFileWrapper):
-#     def __init__(self, file_path: str, eel_flow: FlowNodeMixin) -> None:
-#         super().__init__(file_path, eel_flow)
+    @property
+    def name(self):
+        return self.file_path
 
 
 class EelXlsxWrapper(EelFileWrapper):
-    def __init__(self, file_path: str, eel_flow: FlowNodeMixin) -> None:
-        super().__init__(file_path, eel_flow)
+    def __init__(self, parent: FlowNodeMixin, file_path: str) -> None:
+        super().__init__(parent, file_path)
 
     def open(self):
         if self.file_path not in ee.open_files:
@@ -114,7 +103,7 @@ class EelXlsxWrapper(EelFileWrapper):
 
     def execute(self):
         self.open()
-        self.eel_flow.execute()
+        self.children[0].execute()
         self.close()
 
     def close(self):
@@ -125,15 +114,19 @@ class EelXlsxWrapper(EelFileWrapper):
 
 
 class EelFileGroupWrapper(FlowNodeMixin, SerialNodeMixin):
-    def __init__(self, files: list[EelFileWrapper], exec_parallel: bool) -> None:
-        self.items = files
+    def __init__(self, parent: FlowNodeMixin, exec_parallel: bool) -> None:
+        self.parent = parent
         self.exec_parallel = exec_parallel
 
     def execute(self):
-        self.items[0].open()
-        if self.items[0].build_target():
-            n_jobs = len(self.items) if self.exec_parallel else 1
-            ingest_files = EelFlow(self.items, n_jobs)
-            ingest_files.execute()
+        flow_child = self.children[0]
+        file_child = flow_child.children[0]
+        file_child.open()
+        if file_child.build_target():
+            flow_child.execute()
         else:
-            self.items[0].close()
+            file_child.close()
+
+    @property
+    def name(self):
+        return "FileGroupWrapper"

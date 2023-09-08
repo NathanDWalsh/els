@@ -27,12 +27,12 @@ class EelTree:
                 path / self.get_folder_config_name(),
                 CAPath() / self.CONFIG_PREVIEW_FILE_NAME,
             ]
-            for path_item in path.iterdir():
+            for path_item in folder.iterdir():
                 if not path_item.str.endswith(self.CONFIG_FILE_EXT):
                     ignore_configs.append(CAPath(path_item.str + self.CONFIG_FILE_EXT))
                     self.grow_tree(path_item, parent=folder)
                 elif path_item not in ignore_configs:
-                    # TODO complete
+                    # TODO
                     logging.error("ERROR: sole ymls not covered: " + path_item.str)
         elif path.is_file() and not path.is_hidden():
             config = EelTree.get_paired_config(path)

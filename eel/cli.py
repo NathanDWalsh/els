@@ -28,13 +28,13 @@ def tree():
 def flow():
     tree = create_tree()
     taskflow = tree.root.get_ingest_taskflow()
-    print(taskflow.to_tuple)
+    taskflow.display_tree()
     # taskflow.execute()
     logging.info("Fin")
 
 
 # @app.command()
-# def prev():
+# def preview():
 #     tree = create_tree()
 #     tree.root.save_eel_yml_preview()
 
