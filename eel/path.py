@@ -1,7 +1,8 @@
 from pathlib import Path
-from anytree import NodeMixin
+from anytree import NodeMixin, RenderTree, PreOrderIter
 import pandas as pd
 import os
+import yaml
 from typing import Union, Callable
 import eel.config as ec
 import eel.flow as ef
@@ -107,9 +108,9 @@ class ContentAwarePath(
         self.parent = parent
         self._config = config
 
-    # @property
-    # def parent(self) -> "ContentAwarePath":
-    #     return ContentAwarePath(super().parent)
+    def display_tree(self):
+        for pre, fill, node in RenderTree(self):
+            print("%s%s" % (pre, node.name))
 
     @property
     def parent(self):
@@ -247,41 +248,43 @@ class ContentAwarePath(
         res = ef.EelFlow(root_flows, 1)
         return res
 
-    # @property
-    # def size(self):
-    #     res = 0
-    #     for leaf in self.all_leafs:
-    #         res += leaf.size
-    #     return res
+    def save_eel_yml_preview(self):
+        ymls = []
+        # for path, node in self.index.items():
+        for node in [node for node in PreOrderIter(self.root)]:
+            node_config = node.config.model_dump(exclude_none=True)
+            node_config["sub_path"] = node.str
+            if node.is_root:
+                save_yml_dict = node_config
+            else:
+                parent_config = node.parent.config.model_dump(exclude_none=True)
+                save_yml_dict = dict_diff(parent_config, node_config)
+            ymls.append(save_yml_dict)
+        save_path = self.root.path / self.CONFIG_PREVIEW_FILE_NAME
+        with save_path.open("w", encoding="utf-8") as file:
+            yaml.safe_dump_all(ymls, file, sort_keys=False, allow_unicode=True)
 
-    # @property
-    # def size_weighted(self):
-    #     res = 0
-    #     for leaf in self.all_leafs:
-    #         res += leaf.size * len(leaf.siblings)
-    #     return res
 
+def dict_diff(dict1: dict, dict2: dict) -> dict:
+    """
+    Return elements that are in dict2 but not in dict1.
 
-if __name__ == "__main__":
-    capath = ContentAwarePath("d:\\test_data\\empty_container", parent=None)
-    print(capath.get_total_files())
-    print(capath.is_dir())
-    # print(capath.is_dir())
-    # print(capath.parent)
+    :param dict1: First dictionary
+    :param dict2: Second dictionary
+    :return: A dictionary with elements only from dict2 that are not in dict1
+    """
+    diff = {}
 
-    # capath.config = "tets"
+    for key, value in dict2.items():
+        # If key is not present in dict1, add the item
+        if key not in dict1:
+            diff[key] = value
+        # If key is present in both dicts and both values are dicts, recurse
+        elif isinstance(value, dict) and isinstance(dict1[key], dict):
+            nested_diff = dict_diff(dict1[key], value)
+            if nested_diff:
+                diff[key] = nested_diff
+        elif dict1[key] != value:
+            diff[key] = value
 
-    # childpath = ContentAwarePath("D:\\test_data\\emp", parent=capath)
-    # print(childpath.is_dir())
-    # print(childpath.parent.str)
-
-    # print(type(childpath.parent))
-    # print(isinstance(childpath.parent, NodeMixin))
-
-    # for pre, fill, node in RenderTree(capath):
-    #     print("%s%s" % (pre, node.name))
-
-    # print(RenderTree(capath))
-    # print(capath.children)
-    # print(childpath.children)
-    # # childpath.parent = capath
+    return diff
