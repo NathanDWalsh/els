@@ -17,6 +17,12 @@ def create_tree() -> et.EelTree:
     return tree
 
 
+def get_taskflow():
+    tree = create_tree()
+    taskflow = tree.root.get_ingest_taskflow()
+    return taskflow
+
+
 @app.command()
 def tree():
     tree = create_tree()
@@ -26,10 +32,16 @@ def tree():
 
 @app.command()
 def flow():
-    tree = create_tree()
-    taskflow = tree.root.get_ingest_taskflow()
+    taskflow = get_taskflow()
     taskflow.display_tree()
     # taskflow.execute()
+    logging.info("Fin")
+
+
+@app.command()
+def execute():
+    taskflow = get_taskflow()
+    taskflow.execute()
     logging.info("Fin")
 
 

@@ -61,7 +61,8 @@ class EelFlow(FlowNodeMixin):
 
 class BuildWrapperMixin:
     def build_target(self) -> bool:
-        build_item = self.eel_flow.children[0]
+        flow_child = self.children[0]
+        build_item = flow_child.children[0]
         if ee.build(build_item.config):
             res = True
         else:
