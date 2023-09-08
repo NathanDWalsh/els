@@ -2,8 +2,7 @@ from pathlib import Path
 from anytree import NodeMixin, RenderTree, PreOrderIter
 import pandas as pd
 import os
-import yaml
-from typing import Union, Callable
+from typing import Union, Callable, List
 import eel.config as ec
 import eel.flow as ef
 import eel.execute as ee
@@ -127,7 +126,10 @@ class ContentAwarePath(
         Check if the path points to a content inside a file.
         A naive check is to see if the parent exists as a file.
         """
-        return self.parent.is_file()
+        if self.is_root:
+            return False
+        else:
+            return self.parent.is_file()
 
     def get_total_files(self) -> int:
         """Return the total number of files in a folder and subfolders."""
@@ -255,10 +257,10 @@ class ContentAwarePath(
         res = ef.EelFlow(root_flows, 1)
         return res
 
-    def save_eel_yml_preview(self):
+    def get_eel_yml_preview(self) -> List[dict]:
         ymls = []
         # for path, node in self.index.items():
-        for node in [node for node in PreOrderIter(self.root)]:
+        for node in [node for node in PreOrderIter(self)]:
             node_config = node.config.model_dump(exclude_none=True)
             node_config["sub_path"] = node.str
             if node.is_root:
@@ -267,9 +269,10 @@ class ContentAwarePath(
                 parent_config = node.parent.config.model_dump(exclude_none=True)
                 save_yml_dict = dict_diff(parent_config, node_config)
             ymls.append(save_yml_dict)
-        save_path = self.root.path / self.CONFIG_PREVIEW_FILE_NAME
-        with save_path.open("w", encoding="utf-8") as file:
-            yaml.safe_dump_all(ymls, file, sort_keys=False, allow_unicode=True)
+        return ymls
+        # save_path = self.root.path / self.CONFIG_PREVIEW_FILE_NAME
+        # with save_path.open("w", encoding="utf-8") as file:
+        #     yaml.safe_dump_all(ymls, file, sort_keys=False, allow_unicode=True)
 
 
 def dict_diff(dict1: dict, dict2: dict) -> dict:

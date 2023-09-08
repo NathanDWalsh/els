@@ -1,10 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, root_validator
 from typing import Optional, Union
 import sqlalchemy as sa
-
-# from eel.path import ContentAwarePath as CAPath
-
-# from eel.path import HumanPathPropertiesMixin as PathProps
 from enum import Enum
 
 
@@ -88,13 +84,20 @@ class TargetIfExistsValue(Enum):
     TRUNCATE = "truncate"
 
 
+class EnumToValueMixin(BaseModel):
+    @root_validator(skip_on_failure=True)
+    def convert_enums(cls, values):
+        for key, value in values.items():
+            if isinstance(value, Enum):
+                values[key] = value.value
+        return values
+
+
 class ToSql(BaseModel, extra="allow"):
     chunksize: Optional[int] = None
 
 
 class Frame(BaseModel):
-    # sub_path: str = None
-
     type: Optional[str] = None
     server: Optional[str] = None
     database: Optional[str] = None
@@ -102,18 +105,10 @@ class Frame(BaseModel):
     table: Optional[str] = None
     file_path: Optional[str] = None
 
-    # @property
-    # def path(self):
-    #     if self.sub_path:
-    #         return CAPath(self.sub_path)
-    #         # return "todo"
-    #     else:
-    #         return None
 
-
-class Target(Frame, extra="forbid"):
-    consistency: TargetConsistencyValue = TargetConsistencyValue.STRICT.value
-    if_exists: TargetIfExistsValue = TargetIfExistsValue.FAIL.value
+class Target(Frame, EnumToValueMixin, extra="forbid"):
+    consistency: TargetConsistencyValue = TargetConsistencyValue.STRICT
+    if_exists: TargetIfExistsValue = TargetIfExistsValue.FAIL
     to_sql: to_sql = None
 
     table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__

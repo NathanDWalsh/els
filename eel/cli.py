@@ -1,5 +1,11 @@
 import typer
 import logging
+import yaml
+from pygments import highlight
+from pygments.lexers import YamlLexer
+from pygments.formatters import TerminalFormatter
+import sys
+import os
 
 import eel.tree as et
 
@@ -34,7 +40,6 @@ def tree():
 def flow():
     taskflow = get_taskflow()
     taskflow.display_tree()
-    # taskflow.execute()
     logging.info("Fin")
 
 
@@ -45,10 +50,13 @@ def execute():
     logging.info("Fin")
 
 
-# @app.command()
-# def preview():
-#     tree = create_tree()
-#     tree.root.save_eel_yml_preview()
+@app.command()
+def preview():
+    tree = create_tree()
+    ymls = tree.root.get_eel_yml_preview()
+    yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
+    colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
+    sys.stdout.write(colored_yaml)
 
 
 def main():
@@ -57,4 +65,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    os.chdir("D:\\test_data")
+    preview()
