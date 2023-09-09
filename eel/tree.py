@@ -44,8 +44,8 @@ def grow_leaves(path: CAPath) -> None:
     if path.suffix == ".xlsx":
         sheet_names = get_sheet_names(path.str)
         for ws_name in sheet_names:
-            content = CAPath(path.str, parent=path)
-            content._config = get_paired_config(content, ws_name)
+            content = CAPath(path / ws_name, parent=path)
+            content._config = get_paired_config(path, ws_name)
     else:
         content = CAPath((path / path.stem).str, parent=path)
         content._config = {}

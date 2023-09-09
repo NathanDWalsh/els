@@ -56,7 +56,10 @@ class EelFlow(FlowNodeMixin):
 
     @property
     def name(self):
-        return "Flow"
+        if self.is_root:
+            return "root"
+        else:
+            return "flow"
 
 
 class BuildWrapperMixin:
