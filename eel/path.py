@@ -16,25 +16,19 @@ class PathToStringMixin:
 
 class ConfigInheritanceMixin:
     @property
-    def config_inherited(self) -> ec.Config:
-        if self.parent is None:
-            return ec.Config()
-        else:
-            return self.parent.config_combined
-
-    @property
-    def config_combined(self) -> ec.Config:
-        config_inherited = self.config_inherited.model_copy(deep=True)
-        if self._config is None:
-            return config_inherited
-        else:
-            return ConfigInheritanceMixin.merge_configs(config_inherited, self._config)
-
-    @property
     def config(self) -> ec.Config:
-        config = self.config_combined.model_copy(deep=True)
-        config.sub_path = self.str
-        return self.eval_dynamic_attributes(config)
+        config_line = []
+        # if root eel config is mandatory, this "default dump line" is not required
+        config_line.append(ec.Config().model_dump(exclude_none=True))
+
+        for node in self.ancestors + (self,):
+            if node._config:
+                config_line.append(node._config)
+        config_merged = ConfigInheritanceMixin.merge_configs(*config_line)
+        config_copied = config_merged.model_copy(deep=True)
+        config_copied.sub_path = self.str
+        config_evaled = self.eval_dynamic_attributes(config_copied)
+        return config_evaled
 
     def get_path_props_find_replace(self) -> dict:
         res = {}
@@ -100,12 +94,8 @@ class ContentAwarePath(
 ):
     _flavour = type(Path())._flavour
 
-    def __init__(self, *args, parent=None, config={}, **kwargs):
-        # super().__init__()
-        # self._parent = tree_parent
-        # NodeMixin().parent = tree_parent
+    def __init__(self, *args, parent=None, **kwargs):
         self.parent = parent
-        self._config = config
 
     def display_tree(self):
         for pre, fill, node in RenderTree(self):
@@ -115,6 +105,10 @@ class ContentAwarePath(
     def parent(self):
         # return NodeMixin().parent
         return NodeMixin.parent.fget(self)
+
+    @property
+    def root(self):
+        return NodeMixin.root.fget(self)
 
     @parent.setter
     def parent(self, value):
@@ -241,9 +235,9 @@ class ContentAwarePath(
     def get_ingest_taskflow(self) -> ef.EelFlow:
         df = self.get_leaf_df
         root_flow = ef.EelFlow()
-        for _, table_gb in df.groupby("table", dropna=False):
+        for table, table_gb in df.groupby("table", dropna=False):
             file_group_wrapper = ef.EelFileGroupWrapper(
-                parent=root_flow, exec_parallel=False
+                parent=root_flow, name=table, exec_parallel=False
             )
             ContentAwarePath.apply_file_wrappers(
                 parent=file_group_wrapper, df=table_gb, execute_fn=ee.ingest

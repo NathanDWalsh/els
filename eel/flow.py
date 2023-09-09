@@ -115,8 +115,9 @@ class EelXlsxWrapper(EelFileWrapper):
 
 
 class EelFileGroupWrapper(FlowNodeMixin, SerialNodeMixin):
-    def __init__(self, parent: FlowNodeMixin, exec_parallel: bool) -> None:
+    def __init__(self, parent: FlowNodeMixin, name: str, exec_parallel: bool) -> None:
         self.parent = parent
+        self.name = name
         self.exec_parallel = exec_parallel
 
     def execute(self):
@@ -127,7 +128,3 @@ class EelFileGroupWrapper(FlowNodeMixin, SerialNodeMixin):
             flow_child.execute()
         else:
             file_child.close()
-
-    @property
-    def name(self):
-        return "FileGroupWrapper"
