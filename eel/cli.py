@@ -8,6 +8,7 @@ import sys
 import os
 
 import eel.tree as et
+from eel.path import ContentAwarePath as CAPath
 
 app = typer.Typer()
 
@@ -17,22 +18,22 @@ def start_logging():
     logging.info("Getting Started")
 
 
-def create_tree() -> et.EelTree:
-    tree = et.EelTree()
+def plant_tree() -> CAPath:
+    root = et.grow_branches()
     logging.info("Tree Created")
-    return tree
+    return root
 
 
 def get_taskflow():
-    tree = create_tree()
-    taskflow = tree.root.get_ingest_taskflow()
+    tree = plant_tree()
+    taskflow = tree.get_ingest_taskflow()
     return taskflow
 
 
 @app.command()
 def tree():
-    tree = create_tree()
-    tree.root.display_tree()
+    tree = plant_tree()
+    tree.display_tree()
     logging.info("Fin")
 
 
@@ -52,11 +53,14 @@ def execute():
 
 @app.command()
 def preview():
-    tree = create_tree()
-    ymls = tree.root.get_eel_yml_preview()
+    tree = plant_tree()
+    ymls = tree.get_eel_yml_preview()
     yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
-    colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
-    sys.stdout.write(colored_yaml)
+    if sys.stdout.isatty():
+        colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
+        sys.stdout.write(colored_yaml)
+    else:
+        sys.stdout.write(yaml_str)
 
 
 def main():
@@ -66,4 +70,4 @@ def main():
 
 if __name__ == "__main__":
     os.chdir("D:\\test_data")
-    preview()
+    tree()
