@@ -3,9 +3,11 @@ from anytree import NodeMixin, RenderTree, PreOrderIter
 import pandas as pd
 import os
 from typing import Union, Callable, List
+
 import eel.config as ec
 import eel.flow as ef
 import eel.execute as ee
+from eel.pathprops import HumanPathPropertiesMixin
 
 
 class PathToStringMixin:
@@ -88,7 +90,7 @@ class ConfigInheritanceMixin:
 class ContentAwarePath(
     Path,
     PathToStringMixin,
-    ec.HumanPathPropertiesMixin,
+    HumanPathPropertiesMixin,
     NodeMixin,
     ConfigInheritanceMixin,
 ):
