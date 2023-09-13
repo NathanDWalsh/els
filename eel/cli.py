@@ -54,12 +54,15 @@ def execute():
 
 
 @app.command()
-def preview():
+def preview(verbose: bool = False):
     root = find_root()
     cwd = Path(os.getcwd())
     if root == cwd:
         tree = plant_tree()
-        ymls = tree.get_eel_yml_preview()
+        if verbose:
+            ymls = tree.get_eel_yml_preview(diff=False)
+        else:
+            ymls = tree.get_eel_yml_preview(diff=True)
         yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
         if sys.stdout.isatty():
             colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
@@ -106,4 +109,4 @@ def main():
 
 if __name__ == "__main__":
     os.chdir("D:\\test_data2")
-    flow()
+    execute()

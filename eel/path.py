@@ -253,7 +253,7 @@ class ContentAwarePath(
         res = ef.EelFlow(root_flows, 1)
         return res
 
-    def get_eel_yml_preview(self) -> List[dict]:
+    def get_eel_yml_preview(self, diff: bool = True) -> List[dict]:
         ymls = []
         # for path, node in self.index.items():
         for node in [node for node in PreOrderIter(self)]:
@@ -263,7 +263,10 @@ class ContentAwarePath(
                 save_yml_dict = node_config
             else:
                 parent_config = node.parent.config.model_dump(exclude_none=True)
-                save_yml_dict = dict_diff(parent_config, node_config)
+                if diff:
+                    save_yml_dict = dict_diff(parent_config, node_config)
+                else:
+                    save_yml_dict = node_config
             ymls.append(save_yml_dict)
         return ymls
         # save_path = self.root.path / self.CONFIG_PREVIEW_FILE_NAME

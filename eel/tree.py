@@ -30,7 +30,7 @@ def grow_branches(
                 grow_branches(path_item, parent=folder)
             elif path_item not in ignore_configs:
                 # TODO
-                logging.error("ERROR: sole ymls not covered: " + path_item.str)
+                logging.error("ERROR: sole ymls not supported: " + path_item.str)
         return folder
     elif path.is_file() and not path.is_hidden():
         file = CAPath(path.str, parent=parent)
@@ -92,7 +92,7 @@ def merge_dicts_by_top_level_keys(*dicts: list[dict]) -> dict:
             if (
                 key in merged_dict
                 and isinstance(value, dict)
-                and (not merged_dict[key] is None)
+                and (merged_dict[key] is not None)
             ):
                 merged_dict[key].update(value)
             elif value is not None:

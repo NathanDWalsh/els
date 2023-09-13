@@ -100,11 +100,11 @@ class Target(Frame, EnumToValueMixin, extra="forbid"):
 
     @property
     def preparation_action(self) -> str:
-        if not self.table_exists or self.if_exists == TargetIfExistsValue.REPLACE:
+        if not self.table_exists or self.if_exists == TargetIfExistsValue.REPLACE.value:
             res = "create_replace"
-        elif self.if_exists == TargetIfExistsValue.TRUNCATE:
+        elif self.if_exists == TargetIfExistsValue.TRUNCATE.value:
             res = "truncate"
-        elif self.if_exists == TargetIfExistsValue.FAIL:
+        elif self.if_exists == TargetIfExistsValue.FAIL.value:
             res = "fail"
         else:
             res = "no_action"
