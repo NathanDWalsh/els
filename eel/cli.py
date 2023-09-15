@@ -9,8 +9,10 @@ import os
 from pathlib import Path
 from typing import Union
 
-import eel.tree as et
 from eel.path import ContentAwarePath as CAPath
+from eel.path import get_root_config_name
+from eel.path import grow_branches
+
 
 app = typer.Typer()
 
@@ -21,7 +23,7 @@ def start_logging():
 
 
 def plant_tree() -> CAPath:
-    root = et.grow_branches()
+    root = grow_branches()
     logging.info("Tree Created")
     return root
 
@@ -89,7 +91,7 @@ def find_dir_with_file(start_dir: Path, target_file: str) -> Path:
 
 def find_root() -> Union[Path, None]:
     cwd = Path(os.getcwd())
-    root = find_dir_with_file(cwd, et.get_root_config_name())
+    root = find_dir_with_file(cwd, get_root_config_name())
     if not root:
         logging.error("eel root not found")
         return None
@@ -108,5 +110,6 @@ def main():
 
 
 if __name__ == "__main__":
-    os.chdir("D:\\test_data2")
+    start_logging()
+    os.chdir("D:\\test_data")
     execute()

@@ -12,6 +12,58 @@ $defs:
       title: Additionalproperties
     title: AddColumns
     type: object
+  Config:
+    additionalProperties: false
+    properties:
+      add_cols:
+        allOf:
+        - $ref: '#/$defs/AddColumns'
+        default:
+          additionalProperties: null
+      children:
+        anyOf:
+        - items:
+            additionalProperties:
+              $ref: '#/$defs/Config'
+            type: object
+          type: array
+        - items:
+            type: string
+          type: array
+        - type: string
+        - type: 'null'
+        default: null
+        title: Children
+      source:
+        allOf:
+        - $ref: '#/$defs/Source'
+        default:
+          database: null
+          dbschema: null
+          file_path: _file_path_abs
+          load_parallel: false
+          nrows: null
+          read_csv: null
+          read_excel: null
+          server: null
+          stack: null
+          table: null
+          type: _file_extension
+      target:
+        allOf:
+        - $ref: '#/$defs/Target'
+        default:
+          consistency: strict
+          database: null
+          dbschema: null
+          file_path: null
+          if_exists: fail
+          server: null
+          table: _leaf_name
+          to_sql: null
+          type: null
+    title: Config
+    type: object
   DynamicColumnValue:
     const: _row_index
     title: DynamicColumnValue
@@ -229,44 +281,5 @@ $defs:
     - truncate
     title: TargetIfExistsValue
     type: string
-additionalProperties: false
-properties:
-  add_cols:
-    allOf:
-    - $ref: '#/$defs/AddColumns'
-    default:
-      additionalProperties: null
-  source:
-    allOf:
-    - $ref: '#/$defs/Source'
-    default:
-      database: null
-      dbschema: null
-      file_path: _file_path_abs
-      load_parallel: false
-      nrows: null
-      read_csv: null
-      read_excel: null
-      server: null
-      stack: null
-      table: null
-      type: _file_extension
-  sub_path:
-    default: .
-    title: Sub Path
-    type: string
-  target:
-    allOf:
-    - $ref: '#/$defs/Target'
-    default:
-      consistency: strict
-      database: null
-      dbschema: null
-      file_path: null
-      if_exists: fail
-      server: null
-      table: _leaf_name
-      to_sql: null
-      type: null
-title: Config
-type: object
+allOf:
+- $ref: '#/$defs/Config'

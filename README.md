@@ -29,9 +29,9 @@ eel.py .janfeb.csv jan.csv feb.csv       #load jan.csv and feb.csv to janfeb.csv
 
 ## One target : many source convention
 
-Define a target (cntainer or frame) and then one or more sources (cntainer or frame) facilitates:
+Define a target (container or frame) and then one or more sources (container or frame) facilitates:
 
-* Do not Repeat Yourself (DRY) approach for typical ELT environments where a single target database is the typical use case.
+* Do not Repeat Yourself (DRY) approach for typical ELT environments where a single target database is a common use case.
 * use case where multiple frames feed a single table.
 
 ## Advanced usage
@@ -64,7 +64,7 @@ erDiagram
 * database
 * schema
 * workbook
-* directory
+* directory with files
 * .eel.yml file
 * .eel.yml document
 
@@ -199,14 +199,12 @@ yourconn.eel.yml
 ### Folders can have a global configuration file which by default propagates to all containing files and subfolders
 
 ```bash
-.eel.yml
+_.eel.yml
 ```
 
 ## Sources and Targets
 
 An eel flow involves a single data source and target. Sources have some similarities and differences outlines below:
-
-
 
 ## Sources (the extract bit)
 

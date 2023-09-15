@@ -1,5 +1,5 @@
 from pydantic import BaseModel, root_validator
-from typing import Optional, Union
+from typing import Optional, Union, Dict, List
 import sqlalchemy as sa
 from enum import Enum
 
@@ -149,12 +149,11 @@ class AddColumns(BaseModel, extra="allow"):
 
 
 class Config(BaseModel, extra="forbid"):
-    sub_path: str = "."
+    # sub_path: str = "."
     target: Target = Target()
     source: Source = Source()
     add_cols: AddColumns = AddColumns()
-
-    # def dict(self):
+    children: Union[List[Dict[str, "Config"]], List[str], str, None] = None
 
     @property
     def nrows(self) -> int:
@@ -163,15 +162,3 @@ class Config(BaseModel, extra="forbid"):
         else:
             res = 100
         return res
-
-
-def del_nones_from_dict(base_dict: dict) -> dict:
-    return {k: v for k, v in base_dict.items() if v is not None}
-
-
-def del_nones_from_dict_recursive(base_dict: dict) -> dict:
-    res = {k: v for k, v in base_dict.items() if v is not None}
-    for k, v in res.items():
-        if isinstance(v, dict):
-            res[k] = del_nones_from_dict_recursive(v)
-    return res
