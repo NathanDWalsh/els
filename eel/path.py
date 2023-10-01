@@ -2,7 +2,9 @@ from pathlib import Path
 from anytree import NodeMixin, RenderTree, PreOrderIter
 import pandas as pd
 import os
-from typing import Union, Callable, List, Optional
+from stat import FILE_ATTRIBUTE_HIDDEN
+from typing import Union, Callable, Optional, TypeAlias, Self
+from collections.abc import Generator
 from openpyxl import load_workbook
 import yaml
 import logging
@@ -16,6 +18,8 @@ CONFIG_FILE_EXT = ".eel.yml"
 FOLDER_CONFIG_FILE_STEM = "_"
 ROOT_CONFIG_FILE_STEM = "__"
 
+config_dict_type: TypeAlias = dict[str, dict[str, str]]
+
 
 def get_folder_config_name():
     return FOLDER_CONFIG_FILE_STEM + CONFIG_FILE_EXT
@@ -25,13 +29,13 @@ def get_root_config_name():
     return ROOT_CONFIG_FILE_STEM + CONFIG_FILE_EXT
 
 
-class PathToStringMixin:
-    @property
-    def str(self):
-        return str(self)
+class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
+    _flavour = type(Path())._flavour  # type: ignore
 
+    def __init__(self, *args, parent: Optional[Self] = None, **kwargs):
+        self.parent = parent
+        self._config = self.get_paired_config()
 
-class ConfigInheritanceMixin:
     @property
     def config(self) -> ec.Config:
         config_line = []
@@ -41,9 +45,8 @@ class ConfigInheritanceMixin:
         for node in self.ancestors + (self,):
             if node._config:
                 config_line.append(node._config)
-        config_merged = ConfigInheritanceMixin.merge_configs(*config_line)
+        config_merged = ContentAwarePath.merge_configs(*config_line)
         config_copied = config_merged.model_copy(deep=True)
-        # config_copied.sub_path = self.str
         config_evaled = self.eval_dynamic_attributes(config_copied)
         return config_evaled
 
@@ -72,7 +75,7 @@ class ConfigInheritanceMixin:
                 dictionary[key] = find_replace_dict[value]
 
     @staticmethod
-    def merge_configs(*configs: list[Union[ec.Config, dict]]) -> ec.Config:
+    def merge_configs(*configs: list[Union[ec.Config, config_dict_type]]) -> ec.Config:
         dicts = []
         for config in configs:
             if isinstance(config, ec.Config):
@@ -81,12 +84,12 @@ class ConfigInheritanceMixin:
                 dicts.append(config)
             else:
                 raise Exception("configs should be a list of Configs or dicts")
-        dict_result = ConfigInheritanceMixin.merge_dicts_by_top_level_keys(*dicts)
-        res = ec.Config(**dict_result)
+        dict_result = ContentAwarePath.merge_dicts_by_top_level_keys(*dicts)
+        res = ec.Config(**dict_result)  # type: ignore
         return res
 
     @staticmethod
-    def merge_dicts_by_top_level_keys(*dicts: list[dict]) -> dict:
+    def merge_dicts_by_top_level_keys(*dicts: config_dict_type) -> config_dict_type:
         merged_dict = {}
         for dict_ in dicts:
             for key, value in dict_.items():
@@ -101,21 +104,7 @@ class ConfigInheritanceMixin:
                     merged_dict[key] = value
         return merged_dict
 
-
-class ContentAwarePath(
-    Path,
-    PathToStringMixin,
-    HumanPathPropertiesMixin,
-    NodeMixin,
-    ConfigInheritanceMixin,
-):
-    _flavour = type(Path())._flavour
-
-    def __init__(self, *args, parent=None, **kwargs):
-        self.parent = parent
-        self._config = self.get_paired_config()
-
-    def get_paired_config(self) -> dict:
+    def get_paired_config(self) -> Optional[config_dict_type]:
         if (
             self.parent
             and self.parent._config
@@ -123,8 +112,8 @@ class ContentAwarePath(
             and isinstance(self.parent._config["children"], list)
             and isinstance(self.parent._config["children"][0], dict)
         ):
-            if self.str in self.parent._config["children"]:
-                return self.parent._config["children"][self.str]
+            if str(self) in self.parent._config["children"]:
+                return self.parent._config["children"][str(self)]
             else:
                 logging.error("Config not found in parent config when expected")
                 return {}
@@ -149,10 +138,12 @@ class ContentAwarePath(
         elif self.is_dir():
             config_path = self / get_folder_config_name()
         elif self.is_file():
-            if self.str.endswith(CONFIG_FILE_EXT):
+            if str(self).endswith(CONFIG_FILE_EXT):
                 return self
             else:
-                config_path = Path(self.str + CONFIG_FILE_EXT)
+                config_path = Path(str(self) + CONFIG_FILE_EXT)
+        else:
+            return None
         if config_path.exists():
             return config_path
         return None
@@ -180,27 +171,31 @@ class ContentAwarePath(
         Check if the path points to a content inside a file.
         A naive check is to see if the parent exists as a file.
         """
-        if self.is_root:
+        if self.is_root or not self.parent:
             return False
         else:
             return self.parent.is_file()
 
     @property
-    def subdir_patterns(self) -> List[str]:
+    def subdir_patterns(self) -> list[str]:
         # TODO patterns may overlap
-        res = (
+        children = (
             self._config["children"]
             if self._config and "children" in self._config
             else None
         )
-        if res is None:
+        if children is None:
             res = ["*"]
-        elif isinstance(res, str):
-            res = [res]
+        elif isinstance(children, str):
+            res = [str(children)]  # recasting as str for linter
         # if list of dicts
-        elif isinstance(res, list) and all(isinstance(item, dict) for item in res):
+        elif isinstance(children, list) and all(
+            isinstance(item, dict) for item in children
+        ):
             # get key of each dict as list entries
-            res = [next(iter(d)) for d in res]
+            res = [str(next(iter(d))) for d in children]
+        else:
+            raise Exception("Unexpected children")
         return res
 
     def count_recursive_files_in_subdirs(self) -> int:
@@ -219,7 +214,7 @@ class ContentAwarePath(
                     count += 1
         return count
 
-    def iterbranch(self) -> "ContentAwarePath":
+    def iterbranch(self) -> Generator[Self, None, None]:
         if self.is_dir():
             skip_paths = []
             skip_paths.append(self / get_folder_config_name())
@@ -231,13 +226,13 @@ class ContentAwarePath(
                     if (subpath not in skip_paths) and (
                         (subpath.is_file() and not subpath.is_hidden())
                         or (subpath.count_recursive_files_in_subdirs())
-                    ):  # not subpath.str.endswith(CONFIG_FILE_EXT) and
+                    ):  # not str(subpath).endswith(CONFIG_FILE_EXT) and
                         # paths will not repeat due to overlapping globs
                         skip_paths.append(subpath)
                         # do not yield a paired yml
                         # TODO: assumes pathlib sorts ascending
                         skip_paths.append(
-                            ContentAwarePath(subpath.str + CONFIG_FILE_EXT)
+                            ContentAwarePath(str(subpath) + CONFIG_FILE_EXT)
                         )
                         yield subpath
         elif self.is_file():
@@ -252,26 +247,27 @@ class ContentAwarePath(
                 if pattern in leaf_names:
                     yield ContentAwarePath(self / pattern, parent=self)
 
-    def get_content_leaf_names(self) -> List[str]:
+    def get_content_leaf_names(self) -> list[str]:
         if self.suffix == ".xlsx":
-            return get_sheet_names(self.str)
+            return get_sheet_names(str(self))
         elif self.suffix == ".yml":  # and self._config.type =='mssql'
             # return get_db_tables
-            pass  # TODO
+            # pass  # TODO
+            return []
         else:
             return [self.stem]
 
-    def is_hidden(path: Path) -> bool:
+    def is_hidden(self) -> bool:
         """Check if the given Path object is hidden."""
         # Check for UNIX-like hidden files/directories
-        if path.name.startswith("."):
+        if self.name.startswith("."):
             return True
 
         # Check for Windows hidden files/directories
         if os.name == "nt":
             try:
-                attrs = os.stat(path)
-                return attrs.st_file_attributes & os.FILE_ATTRIBUTE_HIDDEN
+                attrs = os.stat(self)
+                return bool(attrs.st_file_attributes & FILE_ATTRIBUTE_HIDDEN)
             except AttributeError:
                 # If FILE_ATTRIBUTE_HIDDEN not defined,
                 # assume it's not hidden
@@ -280,11 +276,11 @@ class ContentAwarePath(
         return False
 
     @property
-    def abs(self) -> "ContentAwarePath":
+    def abs(self) -> Self:
         return ContentAwarePath(self.absolute())
 
     @property  # fs = filesystem, can return a File or Dir but not content
-    def fs(self) -> "ContentAwarePath":
+    def fs(self) -> Optional[Self]:
         if self.is_content():
             res = self.parent
         else:
@@ -292,8 +288,8 @@ class ContentAwarePath(
         return res
 
     @property
-    def dir(self) -> "ContentAwarePath":
-        if self.is_content():
+    def dir(self) -> Optional[Self]:
+        if self.is_content() and self.parent:
             res = self.parent.parent
         elif self.is_file():
             res = self.parent
@@ -302,7 +298,7 @@ class ContentAwarePath(
         return res
 
     @property
-    def file(self) -> "ContentAwarePath":
+    def file(self) -> Optional[Self]:
         if self.is_content():
             res = self.parent
         elif self.is_file():
@@ -324,7 +320,7 @@ class ContentAwarePath(
         def leaf_to_dict(leaf):
             data = {}
             data["name"] = leaf.name
-            data["file_path"] = leaf.file.abs.str
+            data["file_path"] = str(leaf.file.abs)
             data["type"] = leaf.config.source.type
             data["table"] = leaf.config.target.table
             data["load_parallel"] = leaf.config.source.load_parallel
@@ -338,7 +334,7 @@ class ContentAwarePath(
 
     @staticmethod
     def apply_file_wrappers(
-        parent: ef.FlowNodeMixin,
+        parent: Optional[ef.FlowNodeMixin],
         df: pd.DataFrame,
         execute_fn: Callable[[ec.Config], bool],
     ) -> None:
@@ -362,7 +358,7 @@ class ContentAwarePath(
         root_flow = ef.EelFlow()
         for table, table_gb in df.groupby("table", dropna=False):
             file_group_wrapper = ef.EelFileGroupWrapper(
-                parent=root_flow, name=table, exec_parallel=False
+                parent=root_flow, name=str(table), exec_parallel=False
             )
             ContentAwarePath.apply_file_wrappers(
                 parent=file_group_wrapper, df=table_gb, execute_fn=ee.ingest
@@ -372,16 +368,17 @@ class ContentAwarePath(
 
     def get_detect_taskflow(self) -> ef.EelFlow:
         df = self.get_leaf_df
-        root_flows = ContentAwarePath.apply_file_wrappers(df, ee.detect)
+        root_flows = ContentAwarePath.apply_file_wrappers(
+            parent=None, df=df, execute_fn=ee.detect
+        )
         res = ef.EelFlow(root_flows, 1)
         return res
 
-    def get_eel_yml_preview(self, diff: bool = True) -> List[dict]:
+    def get_eel_yml_preview(self, diff: bool = True) -> list[dict]:
         ymls = []
         # for path, node in self.index.items():
         for node in [node for node in PreOrderIter(self)]:
             node_config = node.config.model_dump(exclude_none=True)
-            # node_config["sub_path"] = node.str
             if node.is_root:
                 save_yml_dict = node_config
             else:
@@ -422,7 +419,7 @@ def dict_diff(dict1: dict, dict2: dict) -> dict:
     return diff
 
 
-def get_sheet_names(file_path, sheet_states: list = ["visible"]) -> List[str]:
+def get_sheet_names(file_path, sheet_states: list = ["visible"]) -> list[str]:
     workbook = load_workbook(
         filename=file_path, read_only=True, data_only=True, keep_links=False
     )
@@ -440,7 +437,7 @@ def get_sheet_names(file_path, sheet_states: list = ["visible"]) -> List[str]:
     return worksheet_names
 
 
-def get_yml_docs(path: ContentAwarePath) -> list[dict]:
+def get_yml_docs(path: Union[ContentAwarePath, Path]) -> list[dict]:
     with path.open() as file:
         yaml_text = file.read()
         documents = list(yaml.safe_load_all(yaml_text))
@@ -456,11 +453,14 @@ def get_configs(ymls: list[dict]) -> list[ec.Config]:
 
 
 def grow_branches(
-    path: ContentAwarePath = ContentAwarePath(), parent: ContentAwarePath = None
-) -> ContentAwarePath:
+    path: ContentAwarePath = ContentAwarePath(),
+    parent: Optional[ContentAwarePath] = None,
+) -> Optional[ContentAwarePath]:
     if path.is_dir() or path.is_file():
         node = ContentAwarePath(path, parent=parent)
         for path_item in node.iterbranch():
             grow_branches(path_item, parent=node)
         return node
+    else:
+        return None
     # TODO: consider how database connections / ymls will be handled

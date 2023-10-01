@@ -1,5 +1,5 @@
 from pydantic import BaseModel, root_validator
-from typing import Optional, Union, Dict, List
+from typing import Optional, Union
 import sqlalchemy as sa
 from enum import Enum
 
@@ -11,6 +11,7 @@ def generate_enum_from_properties(cls, enum_name):
         name.upper(): "_" + name
         for name, value in vars(cls).items()
         if isinstance(value, property)
+        and not getattr(value, "__isabstractmethod__", False)
     }
     return Enum(enum_name, properties)
 
@@ -49,7 +50,23 @@ class ToSql(BaseModel, extra="allow"):
     chunksize: Optional[int] = None
 
 
+class Stack(BaseModel, extra="forbid"):
+    fixed_columns: int
+    stack_header: int = 0
+    stack_name: str = "stack_column"
+
+
 class Frame(BaseModel):
+    @property
+    def db_connection_string(self):
+        pass
+
+    @property
+    def sqn(self):
+        pass
+
+    stack: Optional[Stack] = None
+
     type: Optional[str] = None
     server: Optional[str] = None
     database: Optional[str] = None
@@ -61,12 +78,12 @@ class Frame(BaseModel):
 class Target(Frame, EnumToValueMixin, extra="forbid"):
     consistency: TargetConsistencyValue = TargetConsistencyValue.STRICT
     if_exists: TargetIfExistsValue = TargetIfExistsValue.FAIL
-    to_sql: to_sql = None
+    to_sql: Optional[ToSql] = None
 
     table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
 
     @property
-    def db_connection_string(self) -> str:
+    def db_connection_string(self) -> Optional[str]:
         # Define the connection string based on the database type
         if self.type == "mssql":
             res = (
@@ -84,18 +101,23 @@ class Target(Frame, EnumToValueMixin, extra="forbid"):
         return res
 
     @property
-    def sqn(self):
-        if self.dbschema:
+    def sqn(self) -> Optional[str]:
+        if self.dbschema and self.table:
             res = "[" + self.dbschema + "].[" + self.table + "]"
-        else:
+        elif self.table:
             res = "[" + self.table + "]"
+        else:
+            res = None
         return res
 
     @property
-    def table_exists(self) -> bool:
-        with sa.create_engine(self.db_connection_string).connect() as sqeng:
-            inspector = sa.inspect(sqeng)
-            res = inspector.has_table(self.table, self.dbschema)
+    def table_exists(self) -> Optional[bool]:
+        if self.db_connection_string and self.table and self.dbschema:
+            with sa.create_engine(self.db_connection_string).connect() as sqeng:
+                inspector = sa.inspect(sqeng)
+                res = inspector.has_table(self.table, self.dbschema)
+        else:
+            res = None
         return res
 
     @property
@@ -123,12 +145,6 @@ class ReadExcel(BaseModel, extra="allow"):
     names: Optional[list] = None
 
 
-class Stack(BaseModel, extra="forbid"):
-    fixed_columns: int
-    stack_header: int = 0
-    stack_name: str = "stack_column"
-
-
 class Source(Frame, extra="forbid"):
     type: Optional[str] = "_" + HumanPathPropertiesMixin.file_extension.fget.__name__
     file_path: Optional[str] = (
@@ -139,12 +155,11 @@ class Source(Frame, extra="forbid"):
     nrows: Optional[int] = None
     read_csv: Optional[ReadCsv] = None
     read_excel: Optional[ReadExcel] = None
-    stack: Optional[Stack] = None
 
 
 class AddColumns(BaseModel, extra="allow"):
     additionalProperties: Optional[
-        Union[DynamicPathValue, DynamicColumnValue, str, int, float]
+        Union[DynamicPathValue, DynamicColumnValue, str, int, float]  # type: ignore
     ] = None
 
 
@@ -153,10 +168,10 @@ class Config(BaseModel, extra="forbid"):
     target: Target = Target()
     source: Source = Source()
     add_cols: AddColumns = AddColumns()
-    children: Union[List[Dict[str, "Config"]], List[str], str, None] = None
+    children: Union[list[dict[str, "Config"]], list[str], str, None] = None
 
     @property
-    def nrows(self) -> int:
+    def nrows(self) -> Optional[int]:
         if self.target:
             res = self.source.nrows
         else:

@@ -1,13 +1,17 @@
 import pandas as pd
 import sqlalchemy as sa
 import logging
-from typing import Union
+from typing import Union, Optional
 import eel.config as ec
 
 open_files = {}
 
 
 def get_dataframe_from_sql(frame: ec.Frame, nrows=None):
+    if not frame.db_connection_string:
+        raise Exception("invalid db_connection_string")
+    if not frame.sqn:
+        raise Exception("invalid sqn")
     with sa.create_engine(frame.db_connection_string).connect() as sqeng:
         stmt = sa.select(sa.text("*")).select_from(sa.text(frame.sqn)).limit(nrows)
         df = pd.read_sql(stmt, con=sqeng)
@@ -15,6 +19,13 @@ def get_dataframe_from_sql(frame: ec.Frame, nrows=None):
 
 
 def build_sql_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
+    if not target.db_connection_string:
+        raise Exception("invalid db_connection_string")
+    if not target.sqn:
+        raise Exception("invalid sqn")
+    if not target.table:
+        raise Exception("invalid table")
+
     with sa.create_engine(target.db_connection_string).connect() as sqeng:
         sqeng.execute(sa.text(f"drop table if exists {target.sqn}"))
 
@@ -42,6 +53,8 @@ def build_sql_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
 
 
 def truncate_sql_table(target: ec.Target) -> bool:
+    if not target.db_connection_string:
+        raise Exception("invalid db_connection_string")
     with sa.create_engine(target.db_connection_string).connect() as sqeng:
         sqeng.execute(sa.text(f"truncate table {target.sqn}"))
         sqeng.connection.commit()
@@ -51,11 +64,16 @@ def truncate_sql_table(target: ec.Target) -> bool:
 def load_dataframe_to_sql(
     source_df: pd.DataFrame, target: ec.Target, add_cols: dict
 ) -> bool:
+    if not target.db_connection_string:
+        raise Exception("invalid db_connection_string")
+    if not target.table:
+        raise Exception("invalid to_sql")
     with sa.create_engine(
         target.db_connection_string, fast_executemany=True
     ).connect() as sqeng:
-        kwargs = target.to_sql
-        if kwargs is None:
+        if target.to_sql:
+            kwargs = target.to_sql.model_dump()
+        else:
             kwargs = {}
         source_df.to_sql(
             target.table,
@@ -88,10 +106,10 @@ def data_frames_consistent(
     df1: pd.DataFrame, df2: pd.DataFrame, ignore_cols: list = []
 ) -> bool:
     res = True
-    ignore_cols = set(ignore_cols)
+    ignore_cols_set = set(ignore_cols)
     # Compare the column names and types
-    source_cols = set(df1.columns.tolist()) - ignore_cols
-    target_cols = set(df2.columns.tolist()) - ignore_cols
+    source_cols = set(df1.columns.tolist()) - ignore_cols_set
+    target_cols = set(df2.columns.tolist()) - ignore_cols_set
 
     if source_cols != target_cols:
         in_source = source_cols - target_cols
@@ -106,11 +124,8 @@ def data_frames_consistent(
             # if nulls are returned from sql and object type is set in df
             if df2[col].dtype != "object" and df1[col].dtype != df2[col].dtype:
                 logging.info(
-                    col
-                    + " has a different data type source "
-                    + df1[col].dtype
-                    + " target "
-                    + df2[col].dtype
+                    f"{col} has a different data type source "
+                    f"{df1[col].dtype} target {df2[col].dtype}"
                 )
                 res = False
 
@@ -142,7 +157,7 @@ def get_dataframe_from_excel(file_path, **kwargs):
     return df
 
 
-def get_nrows_kwargs(source_key, nrows: int = None):
+def get_nrows_kwargs(source_key, nrows: Optional[int] = None):
     kwargs = {}
     if source_key:
         kwargs = source_key.model_dump()
@@ -151,28 +166,38 @@ def get_nrows_kwargs(source_key, nrows: int = None):
     return kwargs
 
 
-def get_df(frame: Union[ec.Source, ec.Target], nrows: int = None) -> pd.DataFrame:
+def get_df(
+    frame: Union[ec.Source, ec.Target], nrows: Optional[int] = None
+) -> pd.DataFrame:
     if frame.type in ("mssql", "postgres", "duckdb"):
         df = get_dataframe_from_sql(frame)
     elif frame.type in (".csv", ".tsv"):
-        kwargs = get_nrows_kwargs(frame.read_csv, nrows)
-        if frame.type == ".tsv":
-            kwargs["sep"] = "\t"
+        if isinstance(frame, ec.Source):
+            kwargs = get_nrows_kwargs(frame.read_csv, nrows)
+            if frame.type == ".tsv":
+                kwargs["sep"] = "\t"
+        else:
+            kwargs = {}
         df = get_dataframe_from_csv(frame.file_path, **kwargs)
-    elif frame.type in (".xlsx"):
-        kwargs = get_nrows_kwargs(frame.read_excel, nrows)
+    elif frame.type and frame.type in (".xlsx"):
+        if isinstance(frame, ec.Source):
+            kwargs = get_nrows_kwargs(frame.read_excel, nrows)
+        else:
+            kwargs = {}
         if frame.file_path in open_files:
             file = open_files[frame.file_path]
         else:
             file = frame.file_path
         # kwargs["dtype"] = {1: "str"}
         df = get_dataframe_from_excel(file, **kwargs)
+    else:
+        raise Exception("unable to build df")
     if isinstance(df.columns, pd.MultiIndex):
         if frame.stack:
             df = stack_columns(df, frame.stack)
         else:
             df = multiindex_to_singleindex(df)
-    return df
+    return pd.DataFrame(df)
 
 
 def stack_columns(df, stack: ec.Stack):
@@ -253,6 +278,7 @@ def ingest(config: ec.Config) -> bool:
     consistent = frames_consistent(config)
     if (
         not target
+        or not target.table
         or consistent
         or target.consistency == ec.TargetConsistencyValue.IGNORE
     ):
@@ -294,5 +320,5 @@ def detect(config: ec.Config) -> bool:
     return True
 
 
-def write_config(config: ec.Config) -> bool:
-    target, source, _ = get_configs(config)
+# def write_config(config: ec.Config) -> bool:
+#     target, source, _ = get_configs(config)

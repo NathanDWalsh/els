@@ -1,7 +1,7 @@
 import logging
 import pandas as pd
 from anytree import NodeMixin, RenderTree
-from typing import Callable
+from typing import Callable, Optional
 
 import eel.config as ec
 import eel.execute as ee
@@ -45,7 +45,7 @@ class EelExecute(FlowNodeMixin):
 
 
 class EelFlow(FlowNodeMixin):
-    def __init__(self, parent: FlowNodeMixin = None, n_jobs: int = 1) -> None:
+    def __init__(self, parent: Optional[FlowNodeMixin] = None, n_jobs: int = 1) -> None:
         self.parent = parent
         self.n_jobs = n_jobs
 
@@ -62,7 +62,7 @@ class EelFlow(FlowNodeMixin):
             return "flow"
 
 
-class BuildWrapperMixin:
+class BuildWrapperMixin(FlowNodeMixin):
     def build_target(self) -> bool:
         flow_child = self.children[0]
         build_item = flow_child.children[0]
@@ -74,7 +74,7 @@ class BuildWrapperMixin:
         return res
 
 
-class EelFileWrapper(FlowNodeMixin, SerialNodeMixin, BuildWrapperMixin):
+class EelFileWrapper(BuildWrapperMixin, SerialNodeMixin):
     def __init__(self, parent: FlowNodeMixin, file_path: str) -> None:
         self.parent = parent
         self.file_path = file_path
