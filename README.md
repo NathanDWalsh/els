@@ -308,3 +308,144 @@ graph LR
     fs2[fs:list hierarchy] --> dataflow2[dataflow:list hierarchy]
     dataflow2 --> taskflow2
 ```
+
+```mermaid
+graph LR
+
+subgraph "Config Layer"
+  root --> folder --> file --> document
+end
+
+subgraph "Config Types"
+  folder2[folder]
+  explicit
+  implicit
+  mixed
+end
+
+root --> folder2
+folder --> folder2
+file --> explicit
+file --> implicit
+file --> mixed
+document --> explicit
+
+```
+
+```mermaid
+graph LR
+
+subgraph "Config Layer"
+  direction TB
+  root
+  folder
+  file
+  document
+end
+
+
+subgraph "Config Types"
+  folder2[folder]
+  explicit
+  implicit
+  mixed
+end
+
+root --> folder2
+folder --> folder2
+file --> explicit
+file --> implicit
+file --> mixed
+document --> explicit
+
+subgraph "Data Container Layer"
+  folder3[folder]
+  file2[file container]
+  database
+end
+
+folder2 --> folder3
+explicit --> folder3
+explicit --> file2
+explicit --> database
+implicit --> file2
+mixed --> file2
+
+```
+
+
+```mermaid
+graph LR
+
+subgraph "Config Layer"
+  direction TB
+  root
+  folder
+  file
+  document
+end
+
+
+subgraph "Config Types"
+  folder2[folder]
+  explicit
+  implicit
+  mixed
+end
+
+root --> folder2
+folder --> folder2
+file --> explicit
+file --> implicit
+file --> mixed
+document --> explicit
+
+subgraph "Data Container Layer"
+  folder3[folder]
+  file2[file:container]
+  database
+end
+
+folder2 --> folder3
+explicit --> folder3
+explicit --> file2
+explicit --> database
+implicit --> file2
+mixed --> file2
+
+subgraph "Data Frame Layer"
+  file3[file contents]
+  table
+end
+
+file2 --> file3
+database --> table
+
+```
+
+```mermaid
+sequenceDiagram
+    participant y as eel-project<br>eel-yaml
+    participant c as eel-cli
+    participant s as data stores:<br>sources, trargets
+    c->>y: read explicit config
+    c->>s: validate explicit config
+    c->>s: infer implicit config
+    opt 
+      c->>y: write inferred config
+    end
+    opt 
+      c->>s: execute pipeline
+    end
+```
+
+```mermaid
+quadrantChart
+    title Data lineage
+    x-axis Business --> Technical
+    y-axis Detailed -->  Overview
+    quadrant-1 Good for powerpoints
+    quadrant-2 Good for powerpoints
+    quadrant-3 For business understanding
+    quadrant-4 For technical handover
+```
