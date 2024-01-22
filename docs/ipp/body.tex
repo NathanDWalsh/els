@@ -1,0 +1,165 @@
+\chapter{Project}\label{project}
+
+This project has three main modules that will be developed in concert:
+eel-project, a folder-based project specification with eel-yaml, a
+pipeline configuration language, and eel-cli, a command line tool which
+interprets and executes eel-project. Figure \ref{fig:sequence} below is
+a high-level sequence diagram as to how these modules interact with a
+data pipeline.
+
+\includesvg{img/sequence.svg}
+
+\chapter{Principal Goals}\label{principal-goals}
+
+This scope of this project will focus on the usability aspect of the
+language and tool:
+
+\begin{itemize}
+\item
+  Design a declarative language (YAML) and accompanying project
+  structure for extracting and loading data to/from standard file
+  formats or databases, including in-process memory structures as
+  targets (i.e., pandas data frames).
+\item
+  Design CLI system to interpret language and optimally orchestrate
+  extract/loading procedures, allowing for configuration trees (for
+  inheriting config from parent branches) and inferred configuration
+  (i.e., type inference, reading existing meta-data from sources).
+\item
+  Allow non-contextual transformations to be defined (i.e.~column which
+  defines source, index column)
+\end{itemize}
+
+\chapter{Secondary Goals}\label{secondary-goals}
+
+These will not be built into the initial project, but design
+considerations will be taken in order to allow for the implementation of
+the following features.
+
+\begin{itemize}
+\item
+  Column-level data providence should be built into the system.
+\item
+  Ability to optimize extract-load procedures based on available tools
+  in the executing system, for example utilizing database-native
+  extract-load procedures when using a particular database as a
+  source/target.
+\item
+  Multi-thread and/or multi-process when speed/performance gains likely.
+\item
+  Contextual transformation support.
+\end{itemize}
+
+\chapter{Background}\label{background}
+
+a short description of how previous work addresses (or fails to address)
+this problem.
+
+\chapter{Methods}\label{methods}
+
+A description of the methods and techniques to be used, indicating that
+alternatives have been considered and ruled out on sound scientific or
+engineering grounds.
+
+\chapter{Evaluation}\label{evaluation}
+
+Details of the metrics or other methods by which the outcomes will be
+evaluated.
+
+\chapter{legal, social, ethical or professional
+issues}\label{legal-social-ethical-or-professional-issues}
+
+\chapter{Workplan}\label{workplan}
+
+A timetable detailing what will be done to complete the proposed
+project, and when these tasks will be completed.
+
+\section{eel-yaml}\label{eel-yaml}
+
+A human-readable declarative configuration language defined in a YAML
+schema that can be used in most popular editors (such as Visual Studio
+Code) to facilitate the user's ability to create the extract-load
+configurations manually. The declarative language can be considered a
+configuration which details data targets and sources.
+
+\section{eel-project}\label{eel-project}
+
+A folder/directory representing the top level of an eel project, all
+subfolders and files are considered part of the project's contents. All
+folders and certain file types are handled as follows:
+
+\begin{itemize}
+\item
+  Subfolders are used to organize a hierarchy of targets and/or sources
+  in the pipeline, a special configuration file \_.eel.yml is used to
+  set the configuration that will be inherited by all containing files
+  and folders.
+\item
+  Recognized data files such as .csv and .xlsx will be treated as
+  implicit source configurations, so a .csv file will be treated as
+  first a configuration file which refers to itself as the source file.
+\item
+  Complimentary eel.yml files can augment implicit source configurations
+  with additional information such as encoding of the csv. In for a
+  complimentary file to be recognized as such, it should have the exact
+  same name as the recognized data file with the additional .eel.yml
+  extension. For example: data1.csv is recognized as an implicit source
+  while data1.csv.eel.yml explicitly defines the encoding that should be
+  used.
+\item
+  Sole eel.yml files (those which are not paired to a data file) may
+  contain data source and/or target configurations.
+\end{itemize}
+
+The project will stress DRY principals allow for minimum configurations
+using some of the following methods:
+
+\begin{itemize}
+\item
+  Configuration inheritance via directory/folder structure:
+  configurations inherit from parent node (i.e., folder). Useful when a
+  target object (i.e.~database or table) is the same for multiple data
+  sources.
+\item
+  Use existing metadata (i.e., from database schema) for data types.
+\item
+  Type inferencing when no data type information available, for example
+  in csv files.
+\end{itemize}
+
+Configuration and language are two terms that are used interchangeably
+in this document, and both refer broadly to the eel-yaml and eel-project
+modules.
+
+\section{eel-cli}\label{eel-cli}
+
+A minimum viable product for a command line tool that will interpret
+eel-project and perform certain actions:
+
+\begin{itemize}
+\item
+  Show a preview of how eel-cli interprets the current eel-yaml project:
+\item
+  config tree
+\item
+  task flow tree
+\item
+  eel-yaml inherits
+\item
+  execute dataflow
+\end{itemize}
+
+execute the extract-load procedures and also provide granular
+information on the extractions.
+
+\chapter{Roadmap}\label{roadmap}
+
+Although these three parts of the project are considered complimentary
+and will be developed in concert, it is expected that they would
+eventually split and evolve into separate projects in order to separate
+the declarative language from any future interpreters that could be
+developed to support it.
+
+\chapter{Examples for Citations}\label{examples-for-citations}
+
+Here are examples for citations \citep{P2} and \citep{P2}.
