@@ -6,7 +6,7 @@
       "type": "shell",
       "command": "pandoc",
       "args": [
-        "--top-level-division=part",
+        "--top-level-division=chapter",
         "--natbib",
         "${file}",
         "-o",

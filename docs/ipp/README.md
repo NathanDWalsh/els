@@ -1,28 +1,16 @@
-# Template for Informatics MSc dissertations
+IPP-Template
 
-Please base your project report on `skeleton.tex`, reading the instructions in
-that example file carefully.
+Template for the Informatics Project Proposal
 
-To compile the `skeleton.pdf` report, with all cross-references resolved:
-```
-pdflatex skeleton.tex
-bibtex skeleton.aux
-pdflatex skeleton.tex
-pdflatex skeleton.tex
-```
+LaTeX template files for use in the Informatics Project Proposal. 
+To use this template in Overleaf clone this project in your own Github account, then create a new project (Use "Import from GitHub"). Alternatively, clone this repository to your local machine, create a new Overleaf project and then upload the files in your newly created project.
 
-Many TeX distributions have (or can install) a `latexmk` command that will
-automatically compile everything that is needed:
-```
-latexmk -pdf skeleton.tex
-```
+Edit the "main.tex" file:
 
-If the logo causes compilation problems (errors related to `eushield`), it isn't
-necessary, you may remove the `logo` option from the first line of code.
-Although check first that you are using `pdflatex` or the `-pdf` option above.
-As directed in `skeleton.tex` do not change other template or layout options.
+Provide your name & exam number, field of the literature review, and tutor name in the relevant fields.
+Provide your abstract in the relevant section.
+Read the descriptions, delete the sample text and write your proposal.
+Adding bibliography entries:
 
-Occassionally latex gets really confused by errors, and intermediate files need
-to be deleted before the report will compile again. We strongly recommend that
-you keep your files in version control so that you can unpick any problems.
-Remember also to keep off-site backups.
+Add bibtex entry to the main.bib file.
+Add a \cite{XYZ} command to your main.tex file.

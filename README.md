@@ -31,8 +31,8 @@ eel.py .janfeb.csv jan.csv feb.csv       #load jan.csv and feb.csv to janfeb.csv
 
 Define a target (container or frame) and then one or more sources (container or frame) facilitates:
 
-* Do not Repeat Yourself (DRY) approach for typical ELT environments where a single target database is a common use case.
-* use case where multiple frames feed a single table.
+- Do not Repeat Yourself (DRY) approach for typical ELT environments where a single target database is a common use case.
+- use case where multiple frames feed a single table.
 
 ## Advanced usage
 
@@ -54,19 +54,19 @@ erDiagram
 
 ### **Frame:** a tabular data object
 
-* table
-* csv
-* tsv
-* worksheet
+- table
+- csv
+- tsv
+- worksheet
 
 ### **Container:** a grouping of frames or other containers
 
-* database
-* schema
-* workbook
-* directory with files
-* .eel.yml file
-* .eel.yml document
+- database
+- schema
+- workbook
+- directory with files
+- .eel.yml file
+- .eel.yml document
 
 Below are two examples of how containers and frames relate to files and databases:
 
@@ -80,16 +80,16 @@ erDiagram
     CONTAINER-WORKBOOK ||--|{ FRAME-WORKSHEET: "contains"
 
     CONTAINER-FOLDER ||--|{ FRAME-CSV: "contains"
-    
+
     CONTAINER-DATABASE ||--|{ CONTAINER-SCHEMA: "contains"
     CONTAINER-SCHEMA ||--|{ FRAME-TABLE: "contains"
 ```
 
 Containers can be
 
-* **homogeneous:** all member frames have the same structure, so they may share the same target frame. (only supported as a source)
-* **heterogeneous:** all member frames have different structure, so they should have different target frames.
-* **frameless:** no member frames
+- **homogeneous:** all member frames have the same structure, so they may share the same target frame. (only supported as a source)
+- **heterogeneous:** all member frames have different structure, so they should have different target frames.
+- **frameless:** no member frames
 
 ```mermaid
 ---
@@ -102,12 +102,12 @@ subgraph ./data sources/
         z1[january]
         y1[february]
     end
-    subgraph customers.xlsx 
+    subgraph customers.xlsx
         x1[sold to]
         w1[ship to]
     end
 end
-subgraph sql db   
+subgraph sql db
     subgraph raw:schema
         a1 --> b1[products]
         z1 --> d1[transactions]
@@ -120,11 +120,11 @@ end
 
 In the above dataflow diagram:
 
-* inner boxes are frames
-* all other boxes are containers
-* transactions.xlsx (left) is a homogeneous container
-* sql db (top-right) is a frameless container
-* all other containers are heterogeneous
+- inner boxes are frames
+- all other boxes are containers
+- transactions.xlsx (left) is a homogeneous container
+- sql db (top-right) is a frameless container
+- all other containers are heterogeneous
 
 Another way to think about the eel object model is that they form a tree with branches and leafs:
 
@@ -216,13 +216,12 @@ Here are some scenarios for defining a source frame or container:
 | eel pair  | data file with accompanying .eel.yml | :white_check_mark: |                    |                    |
 | lone eel  | .eel.yml with source defined         | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 
-* lone data and eel pair sources can be either a frame or a container
-* lone eel sources can be either be a database connection and point to a table or schema or a remote file
+- lone data and eel pair sources can be either a frame or a container
+- lone eel sources can be either be a database connection and point to a table or schema or a remote file
 
 ## Targets (the load bit)
 
 There are three scenarios for defining a target:
-
 
 | source type             |    target file     |    target table    |     target dir     |     target db      |
 | :---------------------- | :----------------: | :----------------: | :----------------: | :----------------: |
@@ -238,15 +237,15 @@ Supported source to target types.
 | homogeneous container   | :white_check_mark: |                    |
 | heterogeneous container |                    | :white_check_mark: |
 
-* eel.yml
-* second argument in the cli call
+- eel.yml
+- second argument in the cli call
 
 Defining a target may involve having to define a container and frame separately, here is a typical scenario where multiple source files are loaded to different tables (frames) in a single database (container).
 
-* target database (container) is defined in a glabal .eel.yml file in the source folder
-* target frames (tables) are by default the names of the files and/or worksheets
-* in the case of a heterogeneous container, the name of the container is the default target frame
-* any defaults defined above can be overridden in a global or paired .eel.yml file
+- target database (container) is defined in a glabal .eel.yml file in the source folder
+- target frames (tables) are by default the names of the files and/or worksheets
+- in the case of a heterogeneous container, the name of the container is the default target frame
+- any defaults defined above can be overridden in a global or paired .eel.yml file
 
 An example use case would have a folder containing all source files and a single .eel.yaml file defining a target database container.
 
@@ -255,51 +254,51 @@ An example use case would have a folder containing all source files and a single
         .eel.yml                    # defines target container for folder
         customers.xlsx              # implicit target frames = names of worksheets
         products.csv                # implicit target frame = file base (products)
-        transactions.xlsx           # explicit target frame defined in 
+        transactions.xlsx           # explicit target frame defined in
         transactions.xlsx.eel.yml   #  transactions.xlsx.eel.yml
 ```
 
 ### usage
 
 ```bash
-eel.py ./data sources/  #recursively iterate all folders and files (recognized 
+eel.py ./data sources/  #recursively iterate all folders and files (recognized
                         #data files + *.eel.yml configs) and load to defined target(s)
 ```
 
-## config / *.eel.yaml
+## config / \*.eel.yaml
 
 One or more .eel.yaml files may define:
 
-* frame/container source
-  * in file content
-  * in file name (eel pair)
-* frame/container target
-  * in file content
-  * inherit from global eel.yaml
-* column names and types
-* source type: frame or container
-* target type: frame or container
-* allow parallel=true
-* sample n=# or n=%
-* environment
-* if target exists: drop or truncate or append
-* propagete to child folder/files: yes/no
-* small-t transformations
-* last imported?
+- frame/container source
+  - in file content
+  - in file name (eel pair)
+- frame/container target
+  - in file content
+  - inherit from global eel.yaml
+- column names and types
+- source type: frame or container
+- target type: frame or container
+- allow parallel=true
+- sample n=# or n=%
+- environment
+- if target exists: drop or truncate or append
+- propagete to child folder/files: yes/no
+- small-t transformations
+- last imported?
 
 ## small-t transforms
 
 Some intra-frame transformations are supported:
 
-* add index / unique id
-* unpivot / melt data
-* include file details
-* include frame specific properties from homogeneous containers
-* include custom columns defined in eel.yaml
+- add index / unique id
+- unpivot / melt data
+- include file details
+- include frame specific properties from homogeneous containers
+- include custom columns defined in eel.yaml
 
 ```mermaid
 graph LR
-    file --> config --> dataflow --> containers --> frames --> I/O 
+    file --> config --> dataflow --> containers --> frames --> I/O
     config --> taskflow --> DAG
     dataflow --> taskflow
 
@@ -373,7 +372,6 @@ mixed --> file2
 
 ```
 
-
 ```mermaid
 graph LR
 
@@ -431,10 +429,10 @@ sequenceDiagram
     c->>y: read explicit config
     c->>s: validate explicit config
     c->>s: infer implicit config
-    opt 
+    opt
       c->>y: write inferred config
     end
-    opt 
+    opt
       c->>s: execute pipeline
     end
 ```

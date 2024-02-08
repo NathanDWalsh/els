@@ -1,4 +1,421 @@
-\chapter{Project}\label{project}
+\section{Motivation Should}\label{motivation-should}
+
+Introduce the topic of research and explain its academic and industrial
+context.
+
+\begin{itemize}
+\item
+  Establish the general subject area.
+\item
+  Describe the broad foundations of your study -- provide adequate
+  background for readers.
+\item
+  Indicate the general scope of your project.
+\end{itemize}
+
+\section{Motivation / Introduction}\label{motivation-introduction}
+
+\begin{quote}
+Data pipelines are sets of processes that move and transform data from
+various sources to a destination where new value can be derived.
+\citep[p.~1]{pipelines_pocket}
+\end{quote}
+
+\begin{quote}
+The great virtue of a declarative language is that it makes the intent
+clear. You're not saying how to do something, you're saying what you
+want to achieve. \citep[p.~39]{patterns_eaa}
+\end{quote}
+
+Data pipelines are an important part of today's data products,
+underpinning products from mundane accounting processes to advanced
+LLMs. Although data pipelines are generally discussed as a component in
+the data engineering of big data systems, we will also discuss them in
+the context of mini-pipelines that can include migrating data from one
+format to another, or importing datasets into a data science project for
+analysis. Pipelines are oftern built with varying toolsets that include
+one or more languages and if automated then an orchestration platform.
+Some limitations of such systmes is that they are task-focused instead
+of data-focused. This can cause challanges for
+
+an ever important part of modern data products: they are normally
+employed as part of a data engineering process. The field of data
+engineering has been trending in the past ten years. Despite this rise
+in popularity, there is lacking a general purpose language for
+describing a data pipeline and its transformations. This makes it
+difficult to have a common cross-system language for describing such
+pipelines to facilitate the swapping of one datasource for another.
+
+To fully develop a data pipleline language is a large undertaking
+
+Declarative data pipelines are not a novel concept \citep{ingestbase},
+however when implemented they are normally offered as part of a big data
+platforms that are integrated in a monolithic system (NiFi, ascend.io)
+and their realisation occurs in large cloud based infrastructure
+focusing on big data applications. This paper proposes the development
+of a declarative system for ingesting data that focuses on smaller data
+projects and ease of use.
+
+TODO:
+
+\begin{itemize}
+\tightlist
+\item
+  add more refs
+\item
+  Engage the readers.
+\item
+  Provide an overview of the sections that will appear in your proposal
+  (optional).
+\end{itemize}
+
+\subsection{Problem Statement Should}\label{problem-statement-should}
+
+\begin{itemize}
+\item
+  Answer the question: ``What is the gap that needs to be filled?"
+  and/or''What is the problem that needs to be solved?"
+\item
+  State the problem clearly early in a paragraph.
+\item
+  Limit the variables you address in stating your problem.
+\item
+  Consider bordering the problem as a question.
+\end{itemize}
+
+\subsection{Problem Statement}\label{problem-statement}
+
+The early stages of a data project often involve (insert refs CRISP-DM,
+DataONE, Data Engineering) a consolidation of multiple datasets into a
+single datastore or project spanning one or more tables. This paper will
+use the data engineering term \emph{data ingestion} to refer to this
+phase, concretely: the process of copying data from one or more sources
+to a single target. Figure \ref{fig:dataflow} below shows and example of
+a dataflow with multiple files landing in a single database scema,
+although the destination coud also be a python project or another set of
+files in a folder.
+
+\includesvg{img/dataflow.svg}
+
+Setting up the data ingestion process often involves many manual steps
+of data discovery, cleansing, standardisation and mapping to bring it
+into the target datastore. Depending on the project type the logic for
+these transformations can take various forms, from manually copy pasting
+data into an Excel spreadsheet to coding transformations in a
+python/pandas project. This makes communicating the steps taken to in
+this step a challange. It can also introduce reproducability issues when
+a decision to change a data definition, source or target while keeping
+the remainder of the logic consistent.
+
+To summarise, the ingestion phase of a data project presents some
+challanges:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Manual logic defined that could otherwise be automated (mapping of
+  fields, definition of datatypes)
+\item
+  System dependant: work done is not easily trasnferred to an
+  alternative system (change in database backend, switching from
+  in-memory analysis to datastore)
+\item
+  Lineage: steps taken to transfer data not easily descernable from
+  differing logic by missing manual steps, decoding logic used in
+  different systems
+\end{enumerate}
+
+\subsection{Research Hypothesis and Objectives
+Should}\label{research-hypothesis-and-objectives-should}
+
+Identify the overall aims of the project and the individual measurable
+objectives against which you would wish the outcome of the work to be
+assessed. Clearly spell out any research hypothesis you are following.
+
+Include a justification (rationale) for the study. Be clear about what
+your study will not address.
+
+\subsection{Research Hypothesis and Objectives (not research
+project)}\label{research-hypothesis-and-objectives-not-research-project}
+
+The project proposed below A platform agnostic configuration
+system/language that can describe data ingestion can alleviate some of
+the problems outlined above.
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Minimal configuration: data introspection for detecting tables, fields
+  and data types.
+\item
+  System agnostic: source and target datastores can easily be changed.
+\item
+  Lineage can be read directly from configration.
+\end{enumerate}
+
+What is missing
+
+When available as standalone solutions (meltano), they involve a
+complicated setup process and are built upon a deadware technology
+(singer). It could also be argued that the methods for extracting and
+loading of data are imperative, where the configuration must explictly
+state the connectors for extraction and loading of data.
+
+This paper proposes a minimal-configuration solution for data ingestion:
+extracting from and loading to common data formats. that will perform
+introspection on data sources and destinations in order to
+
+This paper proposes a project that will develop and implement a first
+phase of a project that will eventually be the first phase of a system
+for creating declarative pipelines. Focusing on the ingestion phase and
+common formats, the system could be extended to account for
+transformation phase.
+
+\subsection{Timeliness and Novelty
+Should}\label{timeliness-and-novelty-should}
+
+Explain why the proposed research is of sufficient timeliness and
+novelty
+
+\subsection{Timeliness and Novelty}\label{timeliness-and-novelty}
+
+The proposed project is a re-evalulation of data trasnformation from the
+ground up. Starting with a base in the early stages of data extraction,
+it seeks to lay a common groundwork for a general data transformation
+syntax that can be used generally for any data task.
+
+With the current hype of AI and LLMs, these are all based on good data
+and often large amounts thereof. This project could be the basis
+for\ldots{}
+
+\subsubsection{Timeliness}\label{timeliness}
+
+In the current context of AI and LLM hype a la ChatGPT, this project is
+a back to basics re-think of how data pipelines can be generalized and
+communicated across differing platforms. With a good benchmark, AI tools
+can be further used to optimize some of the data transformation
+processes defined herein.
+
+\subsubsection{Novelty}\label{novelty}
+
+Although the theory of a declarative ETL has been around for a while
+(insert some ref), there has not been a general purpose impementation.
+The proposal herein seeks to get such a system started by beginning with
+a basic framework beginning with some common data formats and databases
+(insert some ref). In section x we will propose a roadmap for further
+enhancements of this project to eventually scale.
+
+\subsection{Significance Should}\label{significance-should}
+
+The proposal should demonstrate the originality of your intended
+research. You should therefore explain why your research is important
+(for example, by explaining how your research builds on and adds to the
+current state of knowledge in the field or by setting out reasons why it
+is timely to research your proposed topic) and providing details of any
+immediate applications, including further research that might be done to
+build on your findings.
+
+\subsection{Significance}\label{significance}
+
+Much attention is paid to big data projects that feed into LLMs and AI
+models. It can be said that big data projects can be more and more fit
+into single node systems such as laptops, etc. It is for this reason
+that \ldots{}
+
+\subsection{Feasibility should (be
+obvious?)}\label{feasibility-should-be-obvious}
+
+Comment on the feasibility of the research plans given its limited time
+frame and resources. Outline your plans for a feasibility study before
+starting e.g.~major implementation work.
+
+\subsection{Feasibility}\label{feasibility}
+
+Given the amount of data formats, databases and data stores available,
+adding to that the number of types of transformations. The first phase
+of this project must be minimaly scoped to demonstrate its usefulness as
+a concept.
+
+\subsection{Beneficiaries should}\label{beneficiaries-should}
+
+Describe how the research will benefit other researchers in the field
+and in related disciplines. What will be done to ensure that they can
+benefit?
+
+\subsection{Beneficiaries}\label{beneficiaries}
+
+This is more a practical project than a research project. However the
+tooling itself could be a benefit to researches if adopted as a means of
+defining the data used as part of the research process.
+
+Otherwise the main beneficiaries should be the following:
+
+\begin{itemize}
+\tightlist
+\item
+  Data engineers who work on small to medium data pipelines can use this
+  system to define their data ingestion or EtL (Extract,
+  small-t/non-contexual transform, Load).
+\item
+  Data scientists who want a common language to define their data
+  sources outside of the code-base
+\item
+  Data professionals who wish to migrate data from one format/database
+  to another, with minimal effort
+\end{itemize}
+
+\section{Background and Related Work
+should}\label{background-and-related-work-should}
+
+Demonstrate a knowledge and understanding of past and current work in
+the subject area, including relevant references like this
+\citep{template}.
+
+\section{Background and Related Work}\label{background-and-related-work}
+
+\section{Programme and ?Methodology?
+Method}\label{programme-and-methodology-method}
+
+\begin{itemize}
+\item
+  Detail the methodology to be used in pursuit of the research and
+  justify this choice.
+\item
+  Describe your contributions and novelty and where you will go beyond
+  the state-of-the-art (new methods, new tools, new data, new insights,
+  new proofs,...)
+\item
+  Describe the programme of work, indicating the research to be
+  undertaken and the milestones that can be used to measure its
+  progress.
+\item
+  Where suitable define work packages and define the dependences between
+  these work packages. WPs and their dependences should be shown in the
+  Gantt chart in the research plan.
+\item
+  Explain how the project will be managed.
+\item
+  State the limitations of your research.
+\end{itemize}
+
+\subsection{Risk Assessment}\label{risk-assessment}
+
+\subsection{Ethics}\label{ethics}
+
+\section{Evaluation}\label{evaluation}
+
+\begin{itemize}
+\item
+  Describe the specific methods of data collection.
+\item
+  Explain how you intent to analyse and interpret the results.
+\end{itemize}
+
+\section{Expected Outcomes}\label{expected-outcomes}
+
+Conclude your research proposal by addressing your predicted outcomes.
+What are you hoping to prove/disprove? Indicate how you envisage your
+research will contribute to debates and discussions in your particular
+subject area:
+
+\begin{itemize}
+\item
+  How will your research make an original contribution to knowledge?
+\item
+  How might it fill gaps in existing work?
+\item
+  How might it extend understanding of particular topics?
+\end{itemize}
+
+\section{Research Plan, Milestones and
+Deliverables}\label{research-plan-milestones-and-deliverables}
+
+\includesvg{img/gantt.svg}
+
+\begin{itemize}
+\tightlist
+\item
+  revision / iteration
+\end{itemize}
+
+\begin{longtable}[]{@{}lll@{}}
+\caption{Milestones defined in this project.}\tabularnewline
+\toprule\noalign{}
+Milestone & Week & Description \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+Milestone & Week & Description \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+M1 & 2 & Feasibility study completed \\
+M2 & 5 & First prototype implementation completed \\
+M3 & 7 & Evaluation completed \\
+M4 & 10 & Submission of dissertation \\
+\end{longtable}
+
+\begin{longtable}[]{@{}lll@{}}
+\caption{List of deliverables defined in this project.}\tabularnewline
+\toprule\noalign{}
+Deliverable & Week & Description \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+Deliverable & Week & Description \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+D1 & 6 & Software tool for . . . \\
+D2 & 8 & Evaluation report on . . . \\
+D3 & 10 & Dissertation \\
+\end{longtable}
+
+\section{Not in Template}\label{not-in-template}
+
+These section are not in the template
+
+\subsection{Proposal}\label{proposal}
+
+The project proposed below A platform agnostic configuration
+system/language that can describe data ingestion can alleviate some of
+the problems outlined above.
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Minimal configuration: data introspection for detecting tables, fields
+  and data types.
+\item
+  System agnostic: source and target datastores can easily be changed.
+\item
+  Lineage can be read directly from configration.
+\end{enumerate}
+
+What is missing
+
+When available as standalone solutions (meltano), they involve a
+complicated setup process and are built upon a deadware technology
+(singer). It could also be argued that the methods for extracting and
+loading of data are imperative, where the configuration must explictly
+state the connectors for extraction and loading of data.
+
+This paper proposes a minimal-configuration solution for data ingestion:
+extracting from and loading to common data formats. that will perform
+introspection on data sources and destinations in order to
+
+This paper proposes a project that will develop and implement a first
+phase of a project that will eventually be the first phase of a system
+for creating declarative pipelines. Focusing on the ingestion phase and
+common formats, the system could be extended to account for
+transformation phase.
+
+\subsection{Project}\label{project}
 
 This project has three main modules that will be developed in concert:
 eel-project, a folder-based project specification with eel-yaml, a
@@ -9,7 +426,7 @@ data pipeline.
 
 \includesvg{img/sequence.svg}
 
-\chapter{Principal Goals}\label{principal-goals}
+\subsection{Principal Goals}\label{principal-goals}
 
 This scope of this project will focus on the usability aspect of the
 language and tool:
@@ -24,13 +441,14 @@ language and tool:
   Design CLI system to interpret language and optimally orchestrate
   extract/loading procedures, allowing for configuration trees (for
   inheriting config from parent branches) and inferred configuration
-  (i.e., type inference, reading existing meta-data from sources).
+  through data introspection (i.e., type inference, reading existing
+  meta-data from sources).
 \item
   Allow non-contextual transformations to be defined (i.e.~column which
   defines source, index column)
 \end{itemize}
 
-\chapter{Secondary Goals}\label{secondary-goals}
+\subsection{Secondary Goals}\label{secondary-goals}
 
 These will not be built into the initial project, but design
 considerations will be taken in order to allow for the implementation of
@@ -50,31 +468,7 @@ the following features.
   Contextual transformation support.
 \end{itemize}
 
-\chapter{Background}\label{background}
-
-a short description of how previous work addresses (or fails to address)
-this problem.
-
-\chapter{Methods}\label{methods}
-
-A description of the methods and techniques to be used, indicating that
-alternatives have been considered and ruled out on sound scientific or
-engineering grounds.
-
-\chapter{Evaluation}\label{evaluation}
-
-Details of the metrics or other methods by which the outcomes will be
-evaluated.
-
-\chapter{legal, social, ethical or professional
-issues}\label{legal-social-ethical-or-professional-issues}
-
-\chapter{Workplan}\label{workplan}
-
-A timetable detailing what will be done to complete the proposed
-project, and when these tasks will be completed.
-
-\section{eel-yaml}\label{eel-yaml}
+\subsection{eel-yaml}\label{eel-yaml}
 
 A human-readable declarative configuration language defined in a YAML
 schema that can be used in most popular editors (such as Visual Studio
@@ -82,7 +476,7 @@ Code) to facilitate the user's ability to create the extract-load
 configurations manually. The declarative language can be considered a
 configuration which details data targets and sources.
 
-\section{eel-project}\label{eel-project}
+\subsection{eel-project}\label{eel-project}
 
 A folder/directory representing the top level of an eel project, all
 subfolders and files are considered part of the project's contents. All
@@ -131,7 +525,7 @@ Configuration and language are two terms that are used interchangeably
 in this document, and both refer broadly to the eel-yaml and eel-project
 modules.
 
-\section{eel-cli}\label{eel-cli}
+\subsection{eel-cli}\label{eel-cli}
 
 A minimum viable product for a command line tool that will interpret
 eel-project and perform certain actions:
@@ -152,14 +546,10 @@ eel-project and perform certain actions:
 execute the extract-load procedures and also provide granular
 information on the extractions.
 
-\chapter{Roadmap}\label{roadmap}
+\subsection{Roadmap}\label{roadmap}
 
 Although these three parts of the project are considered complimentary
 and will be developed in concert, it is expected that they would
 eventually split and evolve into separate projects in order to separate
 the declarative language from any future interpreters that could be
 developed to support it.
-
-\chapter{Examples for Citations}\label{examples-for-citations}
-
-Here are examples for citations \citep{P2} and \citep{P2}.

@@ -1,0 +1,10 @@
+{
+    "flowchart": {
+        "htmlLabels": "false",
+        "nodeSpacing": 25,
+        "diagramPadding": 50
+    },
+    "sequence": {
+        "diagramMarginY": 0
+    }
+}

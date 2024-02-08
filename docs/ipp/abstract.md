@@ -1,9 +1,1 @@
-With data playing a central role in today’s organizations, there is lacking a human-readable language for defining data sources and targets. Each programming language, database platform, ETL system and data interaction software has its own language and procedures for implementing extraction and loading, but there lacks a general method that can be used interchangeable across different formats and tools. A common language for communicating the extract-load portion of the pipeline can have several use cases, some being the following:
-
-* Less time spent writing code to extract, load, move or convert data.
-
-* Easily move a pipeline from one system to another, for example to be able to test pipelines on a different database systems.
-
-* Seamlessly migrate analysis projects from in-process analysis (pandas) to BI tools.
-
-* Generate data lineage directly from the configuration.
+Each programming language, database platform, ETL system and data analysis software has distinct methods for implementing extraction and loading (ingestion) logic. Lacking is a system that can be used interchangeably across different formats and tools. A user-friendly system for declaring data ingestion can have several use cases, some of which are as follows: (1) less time spent writing code to extract, load, move or convert data; (2) easily swap a pipeline from one datastore to another; (3) Seamlessly migrate data projects from in-process to physical storage; and (4) generate data lineage directly from the configuration.

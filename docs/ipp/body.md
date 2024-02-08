@@ -1,8 +1,303 @@
-## Purpose
+## Motivation Should
 
-Declarative data pipelines are not a novel concept, however they are offered as part of big data offerings that are often integrated in a monolithic system (NiFi, ascend.io) their realisation occurs in large cloud based infrastructure focusing on big data applications. Herein is proposed is the first phase of a system for creating declarative pipelines. Focusing on the ingestion phase and common formats, the system could be extended to account for transformation phase.
+Introduce the topic of research and explain its academic and industrial
+context.
 
-## Project
+- Establish the general subject area.
+
+- Describe the broad foundations of your study -- provide adequate
+  background for readers.
+
+- Indicate the general scope of your project.
+
+## Motivation / Introduction
+
+> Data pipelines are sets of processes that move and transform data from various sources to a destination where new value can be derived. [@pipelines_pocket, p. 1]
+
+> The great virtue of a declarative language is that it makes the intent clear. You're not saying how to do something, you're saying what you want to achieve. [@patterns_eaa, p. 39]
+
+Data pipelines are an important part of today's data products, underpinning products from mundane accounting processes to advanced LLMs. Although data pipelines are generally discussed as a component in the data engineering of big data systems, we will also discuss them in the context of mini-pipelines that can include migrating data from one format to another, or importing datasets into a data science project for analysis. Pipelines are oftern built with varying toolsets that include one or more languages and if automated then an orchestration platform. Some limitations of such systmes is that they are task-focused instead of data-focused. This can cause challanges for
+
+an ever important part of modern data products: they are normally employed as part of a data engineering process. The field of data engineering has been trending in the past ten years. Despite this rise in popularity, there is lacking a general purpose language for describing a data pipeline and its transformations. This makes it difficult to have a common cross-system language for describing such pipelines to facilitate the swapping of one datasource for another.
+
+To fully develop a data pipleline language is a large undertaking
+
+Declarative data pipelines are not a novel concept [@ingestbase], however when implemented they are normally offered as part of a big data platforms that are integrated in a monolithic system (NiFi, ascend.io) and their realisation occurs in large cloud based infrastructure focusing on big data applications. This paper proposes the development of a declarative system for ingesting data that focuses on smaller data projects and ease of use.
+
+TODO:
+
+- add more refs
+- Engage the readers.
+- Provide an overview of the sections that will appear in your
+  proposal (optional).
+
+### Problem Statement Should
+
+- Answer the question: "What is the gap that needs to be filled?\"
+  and/or "What is the problem that needs to be solved?\"
+
+- State the problem clearly early in a paragraph.
+
+- Limit the variables you address in stating your problem.
+
+- Consider bordering the problem as a question.
+
+### Problem Statement
+
+The early stages of a data project often involve (insert refs CRISP-DM, DataONE, Data Engineering) a consolidation of multiple datasets into a single datastore or project spanning one or more tables. This paper will use the data engineering term _data ingestion_ to refer to this phase, concretely: the process of copying data from one or more sources to a single target. [Figure @fig:dataflow] below shows and example of a dataflow with multiple files landing in a single database scema, although the destination coud also be a python project or another set of files in a folder.
+
+```{.mermaid loc=img format=svg theme=neutral caption=dataflow}
+---
+title: Example dataflow
+---
+flowchart LR
+    subgraph fs:./data sources/
+        a1[products.csv]
+        subgraph transactions.xlsx/sheets/
+            z1[january]
+            y1[february]
+        end
+        subgraph customers.xlsx/sheets/
+            x1[sold to]
+            w1[ship to]
+        end
+    end
+      subgraph db:target_db/tables/
+          a1 --> b1[products]
+          z1 --> d1[transactions]
+          y1 --> d1
+          x1 --> u1[sold to]
+          w1 --> v1[ship to]
+      end
+```
+
+Setting up the data ingestion process often involves many manual steps of data discovery, cleansing, standardisation and mapping to bring it into the target datastore. Depending on the project type the logic for these transformations can take various forms, from manually copy pasting data into an Excel spreadsheet to coding transformations in a python/pandas project. This makes communicating the steps taken to in this step a challange. It can also introduce reproducability issues when a decision to change a data definition, source or target while keeping the remainder of the logic consistent.
+
+To summarise, the ingestion phase of a data project presents some challanges:
+
+1. Manual logic defined that could otherwise be automated (mapping of fields, definition of datatypes)
+2. System dependant: work done is not easily trasnferred to an alternative system (change in database backend, switching from in-memory analysis to datastore)
+3. Lineage: steps taken to transfer data not easily descernable from differing logic by missing manual steps, decoding logic used in different systems
+
+### Research Hypothesis and Objectives Should
+
+Identify the overall aims of the project and the individual measurable
+objectives against which you would wish the outcome of the work to be
+assessed. Clearly spell out any research hypothesis you are following.
+
+Include a justification (rationale) for the study. Be clear about what
+your study will not address.
+
+### Research Hypothesis and Objectives (not research project)
+
+The project proposed below A platform agnostic configuration system/language that can describe data ingestion can alleviate some of the problems outlined above.
+
+1. Minimal configuration: data introspection for detecting tables, fields and data types.
+2. System agnostic: source and target datastores can easily be changed.
+3. Lineage can be read directly from configration.
+
+What is missing
+
+When available as standalone solutions (meltano), they involve a complicated setup process and are built upon a deadware technology (singer). It could also be argued that the methods for extracting and loading of data are imperative, where the configuration must explictly state the connectors for extraction and loading of data.
+
+This paper proposes a minimal-configuration solution for data ingestion: extracting from and loading to common data formats. that will perform introspection on data sources and destinations in order to
+
+This paper proposes a project that will develop and implement a first phase of a project that will eventually be the first phase of a system for creating declarative pipelines. Focusing on the ingestion phase and common formats, the system could be extended to account for transformation phase.
+
+### Timeliness and Novelty Should
+
+Explain why the proposed research is of sufficient timeliness and
+novelty
+
+### Timeliness and Novelty
+
+The proposed project is a re-evalulation of data trasnformation from the ground up. Starting with a base in the early stages of data extraction, it seeks to lay a common groundwork for a general data transformation syntax that can be used generally for any data task.
+
+With the current hype of AI and LLMs, these are all based on good data and often large amounts thereof. This project could be the basis for...
+
+#### Timeliness
+
+In the current context of AI and LLM hype a la ChatGPT, this project is a back to basics re-think of how data pipelines can be generalized and communicated across differing platforms. With a good benchmark, AI tools can be further used to optimize some of the data transformation processes defined herein.
+
+#### Novelty
+
+Although the theory of a declarative ETL has been around for a while (insert some ref), there has not been a general purpose impementation. The proposal herein seeks to get such a system started by beginning with a basic framework beginning with some common data formats and databases (insert some ref). In section x we will propose a roadmap for further enhancements of this project to eventually scale.
+
+### Significance Should
+
+The proposal should demonstrate the originality of your intended
+research. You should therefore explain why your research is important
+(for example, by explaining how your research builds on and adds to the
+current state of knowledge in the field or by setting out reasons why it
+is timely to research your proposed topic) and providing details of any
+immediate applications, including further research that might be done to
+build on your findings.
+
+### Significance
+
+Much attention is paid to big data projects that feed into LLMs and AI models. It can be said that big data projects can be more and more fit into single node systems such as laptops, etc. It is for this reason that ...
+
+### Feasibility should (be obvious?)
+
+Comment on the feasibility of the research plans given its limited time
+frame and resources. Outline your plans for a feasibility study before
+starting e.g. major implementation work.
+
+### Feasibility
+
+Given the amount of data formats, databases and data stores available, adding to that the number of types of transformations. The first phase of this project must be minimaly scoped to demonstrate its usefulness as a concept.
+
+### Beneficiaries should
+
+Describe how the research will benefit other researchers in the field
+and in related disciplines. What will be done to ensure that they can
+benefit?
+
+### Beneficiaries
+
+This is more a practical project than a research project. However the tooling itself could be a benefit to researches if adopted as a means of defining the data used as part of the research process.
+
+Otherwise the main beneficiaries should be the following:
+
+- Data engineers who work on small to medium data pipelines can use this system to define their data ingestion or EtL (Extract, small-t/non-contexual transform, Load).
+- Data scientists who want a common language to define their data sources outside of the code-base
+- Data professionals who wish to migrate data from one format/database to another, with minimal effort
+
+## Background and Related Work should
+
+Demonstrate a knowledge and understanding of past and current work in
+the subject area, including relevant references like this [@template].
+
+## Background and Related Work
+
+## Programme and ?Methodology? Method
+
+- Detail the methodology to be used in pursuit of the research and
+  justify this choice.
+
+- Describe your contributions and novelty and where you will go beyond
+  the state-of-the-art (new methods, new tools, new data, new
+  insights, new proofs,\...)
+
+- Describe the programme of work, indicating the research to be
+  undertaken and the milestones that can be used to measure its
+  progress.
+
+- Where suitable define work packages and define the dependences
+  between these work packages. WPs and their dependences should be
+  shown in the Gantt chart in the research plan.
+
+- Explain how the project will be managed.
+
+- State the limitations of your research.
+
+### Risk Assessment
+
+### Ethics
+
+## Evaluation
+
+- Describe the specific methods of data collection.
+
+- Explain how you intent to analyse and interpret the results.
+
+## Expected Outcomes
+
+Conclude your research proposal by addressing your predicted outcomes.
+What are you hoping to prove/disprove? Indicate how you envisage your
+research will contribute to debates and discussions in your particular
+subject area:
+
+- How will your research make an original contribution to knowledge?
+
+- How might it fill gaps in existing work?
+
+- How might it extend understanding of particular topics?
+
+## Research Plan, Milestones and Deliverables
+
+```{.mermaid loc=img format=svg theme=neutral caption=gantt}
+---
+title: Gantt Chart of the activities defined for this project.
+---
+gantt
+    dateFormat YYYY-MM-DD
+    tickInterval 1month
+        section IPP
+          write: 2024-02-01, 18d
+          supervisor review: crit, 1w
+          revise: 1w
+          majority agreed with supervisor  :milestone, 0d
+          fine tuning with tutor: 3M
+          submit :milestone,  0d
+        section Benchmark<br>&<br>Test framework
+          gather test and benchmark datasets: 2024-02-19, 2w
+          setup CI/CT for tests: 2w
+          supervisor review: crit, 1w
+          implement feedback: 1w
+        section Configuration<br>Language
+          create yaml specification: 2024-03-18, 2w
+          implement yaml specification and test on test/benchmark data: 2w
+          supervisor review: crit, 1w
+          implement feedback: 1w
+        section Project<br>Structure
+          implemnet yaml project hierarchy: 2024-04-15, 2w
+          ease of use considerations: 2w
+          supervisor review: crit, 1w
+          implement feedback: 1w
+        section CLI
+          execution: 2024-05-13, 2w
+          preview : 2w
+          supervisor review: crit, 1w
+          implement feedback: 1w
+        section Dissertation
+          write :2024-03-01, 6M
+          submit for feedback: milestone, 2024-07-08, 0d
+          supervisor review: crit, 2w
+          feedback received: milestone , 0d
+          submit :milestone, 2024-08-31, 0d
+```
+
+- revision / iteration
+
+| Milestone | Week | Description                              |
+| --------- | ---- | ---------------------------------------- |
+| M1        | 2    | Feasibility study completed              |
+| M2        | 5    | First prototype implementation completed |
+| M3        | 7    | Evaluation completed                     |
+| M4        | 10   | Submission of dissertation               |
+
+: Milestones defined in this project.
+
+| Deliverable | Week | Description                |
+| ----------- | ---- | -------------------------- |
+| D1          | 6    | Software tool for . . .    |
+| D2          | 8    | Evaluation report on . . . |
+| D3          | 10   | Dissertation               |
+
+: List of deliverables defined in this project.
+
+## Not in Template
+
+These section are not in the template
+
+### Proposal
+
+The project proposed below A platform agnostic configuration system/language that can describe data ingestion can alleviate some of the problems outlined above.
+
+1. Minimal configuration: data introspection for detecting tables, fields and data types.
+2. System agnostic: source and target datastores can easily be changed.
+3. Lineage can be read directly from configration.
+
+What is missing
+
+When available as standalone solutions (meltano), they involve a complicated setup process and are built upon a deadware technology (singer). It could also be argued that the methods for extracting and loading of data are imperative, where the configuration must explictly state the connectors for extraction and loading of data.
+
+This paper proposes a minimal-configuration solution for data ingestion: extracting from and loading to common data formats. that will perform introspection on data sources and destinations in order to
+
+This paper proposes a project that will develop and implement a first phase of a project that will eventually be the first phase of a system for creating declarative pipelines. Focusing on the ingestion phase and common formats, the system could be extended to account for transformation phase.
+
+### Project
 
 This project has three main modules that will be developed in concert:
 eel-project, a folder-based project specification with eel-yaml, a
@@ -30,7 +325,7 @@ sequenceDiagram
     end
 ```
 
-## Principal Goals
+### Principal Goals
 
 This scope of this project will focus on the usability aspect of the
 language and tool:
@@ -42,13 +337,13 @@ language and tool:
 
 - Design CLI system to interpret language and optimally orchestrate
   extract/loading procedures, allowing for configuration trees (for
-  inheriting config from parent branches) and inferred configuration
+  inheriting config from parent branches) and inferred configuration through data introspection
   (i.e., type inference, reading existing meta-data from sources).
 
 - Allow non-contextual transformations to be defined (i.e. column
   which defines source, index column)
 
-## Secondary Goals
+### Secondary Goals
 
 These will not be built into the initial project, but design
 considerations will be taken in order to allow for the implementation of
@@ -65,29 +360,6 @@ the following features.
   likely.
 
 - Contextual transformation support.
-
-## Background
-
-a short description of how previous work addresses (or fails to address)
-this problem.
-
-## Methods
-
-A description of the methods and techniques to be used, indicating that
-alternatives have been considered and ruled out on sound scientific or
-engineering grounds.
-
-## Evaluation
-
-Details of the metrics or other methods by which the outcomes will be
-evaluated.
-
-## legal, social, ethical or professional issues
-
-## Workplan
-
-A timetable detailing what will be done to complete the proposed
-project, and when these tasks will be completed.
 
 ### eel-yaml
 
@@ -160,14 +432,10 @@ eel-project and perform certain actions:
 execute the extract-load procedures and also provide granular
 information on the extractions.
 
-## Roadmap
+### Roadmap
 
 Although these three parts of the project are considered complimentary
 and will be developed in concert, it is expected that they would
 eventually split and evolve into separate projects in order to separate
 the declarative language from any future interpreters that could be
 developed to support it.
-
-## Examples for Citations
-
-Here are examples for citations [@P2] and [@P2].
