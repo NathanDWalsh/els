@@ -13,7 +13,7 @@ context.
   Indicate the general scope of your project.
 \end{itemize}
 
-\section{Motivation / Introduction}\label{motivation-introduction}
+\section{Introduction and Motivation}\label{introduction-and-motivation}
 
 \begin{quote}
 Data pipelines are sets of processes that move and transform data from
@@ -21,32 +21,131 @@ various sources to a destination where new value can be derived.
 \citep[p.~1]{pipelines_pocket}
 \end{quote}
 
-\begin{quote}
-The great virtue of a declarative language is that it makes the intent
-clear. You're not saying how to do something, you're saying what you
-want to achieve. \citep[p.~39]{patterns_eaa}
-\end{quote}
+Data pipelines are an important part of today's data landscape,
+underpinning manual accounting processes to advanced LLMs. Although data
+pipelines are generally discussed as a component in the data engineering
+of big data systems, when discussing data pipelines we will consider the
+following tasks:
 
-Data pipelines are an important part of today's data products,
-underpinning products from mundane accounting processes to advanced
-LLMs. Although data pipelines are generally discussed as a component in
-the data engineering of big data systems, we will also discuss them in
-the context of mini-pipelines that can include migrating data from one
-format to another, or importing datasets into a data science project for
-analysis. Pipelines are oftern built with varying toolsets that include
-one or more languages and if automated then an orchestration platform.
-Some limitations of such systmes is that they are task-focused instead
-of data-focused. This can cause challanges for
+\begin{longtable}[]{@{}lll@{}}
+\caption{\label{tbl:table1}Data Pipeline Use Cases}\tabularnewline
+\toprule\noalign{}
+User & Data goal/task & Tech examples \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+User & Data goal/task & Tech examples \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Business user & Analyse & Excel/Powerquery M \\
+Data scientist & Analyse & Python/R \\
+Data engineer & Prepare & ETL tools, scripting \\
+Database admin & Migrate, Backup & ETL tools, scripting \\
+\end{longtable}
 
-an ever important part of modern data products: they are normally
-employed as part of a data engineering process. The field of data
-engineering has been trending in the past ten years. Despite this rise
-in popularity, there is lacking a general purpose language for
-describing a data pipeline and its transformations. This makes it
-difficult to have a common cross-system language for describing such
-pipelines to facilitate the swapping of one datasource for another.
+As shown in tbl.~\ref{tbl:table1} above
 
-To fully develop a data pipleline language is a large undertaking
+Already we see a range of use cases for the data pipeline, sometimes
+these use cases overlap. For example, a data scientist may begin working
+with data to create a data product and when completed hand it over to a
+data engineer for automating. In this example, the data engineer may be
+using python scripts to import source data into dataframes using pythong
+scripts, while the data engineer may use ETL tooling to define a
+pipeline which stores data on disk for later retrieval by the data
+product. This highlights one of the challanges with managing data
+pipelines: they are oftern built with varying toolsets that include one
+or more languages and/or toolsets.
+
+To summarise, despite this rise in data's importance, there is lacking a
+general purpose language for describing a data pipeline and its
+transformations. This makes it difficult to have a common cross-system
+language for describing such pipelines to facilitate the swapping of one
+datasource for another. This can lead to a company being stuck with a
+vendor who's pipeline platform would be hard to move away from.
+
+Tabular
+
+To fully develop a data pipleline language is a large undertaking. Doing
+some quick calculations, let's say there are 10 file formats + 10
+databases leaving us with 20 different possible datastores. Just
+``converting'' each of these stores to another leaves us with 400 simple
+transformations to support and test. This leaves out that
+transformations vary and some are so custom that to define them in
+simple terms may not be possible. Let's say that 20 different simple
+transformations can be defined, this leaves us with 8000 different
+possibilies to test.
+
+Some examples of simple transformations are as follows. Here we will
+differenciate between contextual and noncontextual transformations
+\citep[p.~106]{pipelines_pocket}:
+
+\begin{itemize}
+\tightlist
+\item
+  noncontextual
+
+  \begin{itemize}
+  \tightlist
+  \item
+    copy data
+  \item
+    convert data
+  \item
+    parse data
+  \item
+    string functions
+  \item
+    create column
+
+    \begin{itemize}
+    \tightlist
+    \item
+      fixed value
+    \item
+      simple calculation
+    \item
+      aggregate calculation
+    \item
+      windowed calculation
+    \end{itemize}
+  \item
+    drop column
+  \item
+    filter
+
+    \begin{itemize}
+    \tightlist
+    \item
+      remove duplicates
+    \end{itemize}
+  \item
+    self-join
+  \item
+    obfuscate sensitive data
+  \end{itemize}
+\item
+  contextual
+
+  \begin{itemize}
+  \tightlist
+  \item
+    simple join
+  \item
+    multi join
+  \item
+    windowed join
+  \item
+    filter
+  \end{itemize}
+\end{itemize}
+
+Given the scope of such an undertaking, the below proposal will narrow
+the scope to the early part of the pipeline known as \emph{data
+ingestion}. Data ingestion is the part of the pipeline which moves data
+from one datastore to another datastore, optionally applying
+noncontextual transformations.
 
 Declarative data pipelines are not a novel concept \citep{ingestbase},
 however when implemented they are normally offered as part of a big data
@@ -70,6 +169,12 @@ TODO:
 \end{itemize}
 
 \subsection{Problem Statement Should}\label{problem-statement-should}
+
+\begin{quote}
+The great virtue of a declarative language is that it makes the intent
+clear. You're not saying how to do something, you're saying what you
+want to achieve. \citep[p.~39]{patterns_eaa}
+\end{quote}
 
 \begin{itemize}
 \item

@@ -10,17 +10,57 @@ context.
 
 - Indicate the general scope of your project.
 
-## Motivation / Introduction
+## Introduction and Motivation
 
 > Data pipelines are sets of processes that move and transform data from various sources to a destination where new value can be derived. [@pipelines_pocket, p. 1]
 
-> The great virtue of a declarative language is that it makes the intent clear. You're not saying how to do something, you're saying what you want to achieve. [@patterns_eaa, p. 39]
+Data pipelines are an important part of today's data landscape, underpinning manual accounting processes to advanced LLMs. Although data pipelines are generally discussed as a component in the data engineering of big data systems, when discussing data pipelines we will consider the following tasks:
 
-Data pipelines are an important part of today's data products, underpinning products from mundane accounting processes to advanced LLMs. Although data pipelines are generally discussed as a component in the data engineering of big data systems, we will also discuss them in the context of mini-pipelines that can include migrating data from one format to another, or importing datasets into a data science project for analysis. Pipelines are oftern built with varying toolsets that include one or more languages and if automated then an orchestration platform. Some limitations of such systmes is that they are task-focused instead of data-focused. This can cause challanges for
+: Data Pipeline Use Cases {#tbl:table1}
 
-an ever important part of modern data products: they are normally employed as part of a data engineering process. The field of data engineering has been trending in the past ten years. Despite this rise in popularity, there is lacking a general purpose language for describing a data pipeline and its transformations. This makes it difficult to have a common cross-system language for describing such pipelines to facilitate the swapping of one datasource for another.
+| User           | Data goal/task  | Tech examples        |
+| -------------- | --------------- | -------------------- |
+| Business user  | Analyse         | Excel/Powerquery M   |
+| Data scientist | Analyse         | Python/R             |
+| Data engineer  | Prepare         | ETL tools, scripting |
+| Database admin | Migrate, Backup | ETL tools, scripting |
 
-To fully develop a data pipleline language is a large undertaking
+As shown in [@tbl:table1] above
+
+Already we see a range of use cases for the data pipeline, sometimes these use cases overlap. For example, a data scientist may begin working with data to create a data product and when completed hand it over to a data engineer for automating. In this example, the data engineer may be using python scripts to import source data into dataframes using pythong scripts, while the data engineer may use ETL tooling to define a pipeline which stores data on disk for later retrieval by the data product. This highlights one of the challanges with managing data pipelines: they are oftern built with varying toolsets that include one or more languages and/or toolsets.
+
+To summarise, despite this rise in data's importance, there is lacking a general purpose language for describing a data pipeline and its transformations. This makes it difficult to have a common cross-system language for describing such pipelines to facilitate the swapping of one datasource for another. This can lead to a company being stuck with a vendor who's pipeline platform would be hard to move away from.
+
+<!-- Some limitations of such systmes is that they are task-focused instead of data-focused. -->
+
+Tabular
+
+To fully develop a data pipleline language is a large undertaking. Doing some quick calculations, let's say there are 10 file formats + 10 databases leaving us with 20 different possible datastores. Just "converting" each of these stores to another leaves us with 400 simple transformations to support and test. This leaves out that transformations vary and some are so custom that to define them in simple terms may not be possible. Let's say that 20 different simple transformations can be defined, this leaves us with 8000 different possibilies to test.
+
+Some examples of simple transformations are as follows. Here we will differenciate between contextual and noncontextual transformations [@pipelines_pocket, p. 106]:
+
+- noncontextual
+  - copy data
+  - convert data
+  - parse data
+  - string functions
+  - create column
+    - fixed value
+    - simple calculation
+    - aggregate calculation
+    - windowed calculation
+  - drop column
+  - filter
+    - remove duplicates
+  - self-join
+  - obfuscate sensitive data
+- contextual
+  - simple join
+  - multi join
+  - windowed join
+  - filter
+
+Given the scope of such an undertaking, the below proposal will narrow the scope to the early part of the pipeline known as _data ingestion_. Data ingestion is the part of the pipeline which moves data from one datastore to another datastore, optionally applying noncontextual transformations.
 
 Declarative data pipelines are not a novel concept [@ingestbase], however when implemented they are normally offered as part of a big data platforms that are integrated in a monolithic system (NiFi, ascend.io) and their realisation occurs in large cloud based infrastructure focusing on big data applications. This paper proposes the development of a declarative system for ingesting data that focuses on smaller data projects and ease of use.
 
@@ -32,6 +72,8 @@ TODO:
   proposal (optional).
 
 ### Problem Statement Should
+
+> The great virtue of a declarative language is that it makes the intent clear. You're not saying how to do something, you're saying what you want to achieve. [@patterns_eaa, p. 39]
 
 - Answer the question: "What is the gap that needs to be filled?\"
   and/or "What is the problem that needs to be solved?\"
@@ -221,41 +263,39 @@ subject area:
 title: Gantt Chart of the activities defined for this project.
 ---
 gantt
-    dateFormat YYYY-MM-DD
-    tickInterval 1month
-        section IPP
-          write: 2024-02-01, 18d
-          supervisor review: crit, 1w
-          revise: 1w
-          majority agreed with supervisor  :milestone, 0d
-          fine tuning with tutor: 3M
-          submit :milestone,  0d
-        section Benchmark<br>&<br>Test framework
-          gather test and benchmark datasets: 2024-02-19, 2w
-          setup CI/CT for tests: 2w
-          supervisor review: crit, 1w
-          implement feedback: 1w
-        section Configuration<br>Language
-          create yaml specification: 2024-03-18, 2w
-          implement yaml specification and test on test/benchmark data: 2w
-          supervisor review: crit, 1w
-          implement feedback: 1w
-        section Project<br>Structure
-          implemnet yaml project hierarchy: 2024-04-15, 2w
-          ease of use considerations: 2w
-          supervisor review: crit, 1w
-          implement feedback: 1w
-        section CLI
-          execution: 2024-05-13, 2w
-          preview : 2w
-          supervisor review: crit, 1w
-          implement feedback: 1w
-        section Dissertation
-          write :2024-03-01, 6M
-          submit for feedback: milestone, 2024-07-08, 0d
-          supervisor review: crit, 2w
-          feedback received: milestone , 0d
-          submit :milestone, 2024-08-31, 0d
+  section IPP
+    write: 2024-02-01, 18d
+    supervisor review: crit, 1w
+    revise: 1w
+    majority agreed with supervisor  :milestone, 0d
+    fine tuning with tutor: 3M
+    submit :milestone,  0d
+  section Benchmark<br>&<br>Test framework
+    gather test and benchmark datasets: 2024-02-19, 18d
+    setup CI/CT for tests: 10d
+    supervisor review: crit, 1w
+    implement feedback: 1w
+  section Configuration<br>Language
+    create yaml specification: 2024-03-18, 18d
+    implement yaml specification and test on test/benchmark data: 10d
+    supervisor review: crit, 1w
+    implement feedback: 1w
+  section Project<br>Structure
+    implemnet yaml project hierarchy: 2024-04-15, 18d
+    ease of use considerations: 10d
+    supervisor review: crit, 1w
+    implement feedback: 1w
+  section CLI
+    execution: 2024-05-13, 18d
+    preview : 10d
+    supervisor review: crit, 1w
+    implement feedback: 1w
+  section Dissertation
+    write :2024-03-01, 5M
+    submit for feedback: milestone, 2024-07-08, 0d
+    supervisor review: crit, 2w
+    feedback received: milestone , 0d
+    submit :milestone, 2024-07-31, 0d
 ```
 
 - revision / iteration
