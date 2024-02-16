@@ -6,5 +6,9 @@
     },
     "sequence": {
         "diagramMarginY": 0
+    },
+    "gantt": {
+        "titleTopMargin": 0,
+        "rightPadding": 40
     }
 }

@@ -118,6 +118,31 @@ subgraph sql db
 end
 ```
 
+```{.mermaid loc=img format=svg theme=neutral caption=dataflow}
+---
+title: Example dataflow
+---
+flowchart LR
+    subgraph fs:./data sources/
+        a1[products.csv]
+        subgraph transactions.xlsx/sheets/
+            z1[january]
+            y1[february]
+        end
+        subgraph customers.xlsx/sheets/
+            x1[sold to]
+            w1[ship to]
+        end
+    end
+      subgraph db:target_db/tables/
+          a1 --> b1[products]
+          z1 --> d1[transactions]
+          y1 --> d1
+          x1 --> u1[sold to]
+          w1 --> v1[ship to]
+      end
+```
+
 In the above dataflow diagram:
 
 - inner boxes are frames
@@ -442,8 +467,8 @@ quadrantChart
     title Data lineage
     x-axis Business --> Technical
     y-axis Detailed -->  Overview
-    quadrant-1 Good for powerpoints
-    quadrant-2 Good for powerpoints
-    quadrant-3 For business understanding
-    quadrant-4 For technical handover
+    quadrant-1 Technical presentations
+    quadrant-2 Business presentations
+    quadrant-3 Business understanding
+    quadrant-4 Technical handover
 ```

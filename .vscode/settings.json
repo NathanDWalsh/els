@@ -125,5 +125,13 @@
             ],
             "env": {}
         }
+    ],
+    "cSpell.words": [
+        "inferencing",
+        "ingestbase",
+        "mded",
+        "meltano",
+        "nifi",
+        "sequencedp"
     ]
 }

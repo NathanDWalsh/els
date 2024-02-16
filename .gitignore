@@ -193,3 +193,6 @@ cython_debug/
 *.nav
 *.snm
 *.vrb
+*.pdf
+
+**/img/

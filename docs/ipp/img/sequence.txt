@@ -1,1 +1,1 @@
-Sequence of eel interactions across modules and data stores
+Sequence of eel interactions across modules and end points.

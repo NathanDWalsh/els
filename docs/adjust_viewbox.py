@@ -2,7 +2,7 @@ from lxml import etree
 import sys
 
 
-def modify_svg(root):
+def modify_gantt(root):
 
     # Iterate over all rect elements
     for rect in root.iter("{http://www.w3.org/2000/svg}rect"):
@@ -39,6 +39,15 @@ def modify_svg(root):
             rect.attrib["transform"] = f"rotate(45,{rot_x},{rot_y})"
 
 
+def modify_sequence(root):
+    # Iterate over all g elements
+    for g in root.iter("{http://www.w3.org/2000/svg}g"):
+        # Iterate over all rect elements within each g element
+        for rect in g.iter("{http://www.w3.org/2000/svg}rect"):
+            if "class" in rect.attrib and "rect" in rect.attrib["class"]:
+                g.remove(rect)
+
+
 def adjust_viewbox(svg_content, x_adjust, y_adjust, width_adjust, height_adjust):
     # Remove ZWSP characters from the input SVG content
     svg_content = svg_content.replace("â€‹", "")
@@ -56,15 +65,18 @@ def adjust_viewbox(svg_content, x_adjust, y_adjust, width_adjust, height_adjust)
 
     ariaRole = root.attrib.get("aria-roledescription")
     if ariaRole == "gantt":
-        width -= 40
-        height -= 35
+        width -= 10
+        height -= 30
         # Modify the SVG content
-        modify_svg(root)
+        modify_gantt(root)
     elif ariaRole == "flowchart-v2":
         # x += 7
-        y += 52
+        y += 49
         # width -= 13
-        height -= 101
+        height -= 98
+    elif ariaRole == "sequence":
+        # Modify the SVG content
+        modify_sequence(root)
 
     # Adjust the viewBox values
     x += x_adjust

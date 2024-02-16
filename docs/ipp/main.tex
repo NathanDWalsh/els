@@ -71,32 +71,33 @@
 %                       the general field of study you are considering
 %                       for your review, and name of IRR tutor
 
-\newcommand{\examnumber}{B188411}
+\newcommand{\examnumber}{Nathan Daniel Walsh}
 \newcommand{\field}{eel (easy extract load): Human-Readable Declarative Extract-Load Configuration Language \& System}
 \newcommand{\tutor}{Brian Mitchell}
 \newcommand{\supervisor}{Milos Nikolic}
 
 \begin{document}
+\thispagestyle{empty}
 \begin{minipage}[b]{110mm}
-  {\Huge\bf School of Informatics 42
-    \vspace*{17mm}}
+    {\Huge\bf School of Informatics
+        \vspace*{17mm}}
 \end{minipage}
 \hfill
 \begin{minipage}[t]{40mm}
-  \makebox[40mm]{
-    \includegraphics[width=40mm]{crest.png}}
+    \makebox[40mm]{
+        \includegraphics[width=40mm]{crest.png}}
 \end{minipage}
 \par\noindent
 % Centre Title, and name
 \vspace*{2cm}
 \begin{center}
-  \Large\bf Informatics Project Proposal \\
-  \Large\bf \field
+    \Large\bf Informatics Project Proposal \\
+    \Large\bf \field
 \end{center}
 \vspace*{1.5cm}
 \begin{center}
-  \bf \examnumber\\
-  \monthyeardate\today
+    \bf \examnumber\\
+    \monthyeardate\today
 \end{center}
 \vspace*{5mm}
 
@@ -104,7 +105,7 @@
 %                       Insert your abstract HERE
 %                       
 \begin{abstract}
-  \input{abstract.tex}
+    \input{abstract.tex}
 \end{abstract}
 
 \vspace*{1cm}
@@ -129,18 +130,22 @@ Date: \today
 \rfoot{Date: \date{\today}}
 %
 
+\listoffigures
+\listoftables
+\pagebreak
+
 \tableofcontents
 \pagebreak
 
 \input{body.tex}
-
+\pagebreak
 %                Now build the reference list
 \bibliographystyle{unsrt}   % The reference style
 %                This is plain and unsorted, so in the order
 %                they appear in the document.
 
 {\small
-  \bibliography{main}       % bib file(s).
+    \bibliography{main}       % bib file(s).
 }
 \end{document}
 
