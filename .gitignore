@@ -194,5 +194,6 @@ cython_debug/
 *.snm
 *.vrb
 *.pdf
+!eushield-normal.pdf
 
 **/img/
