@@ -81,6 +81,7 @@ class Target(Frame, EnumToValueMixin, extra="forbid"):
     to_sql: Optional[ToSql] = None
 
     table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
+    type: Optional[str] = "pandas"
 
     @property
     def db_connection_string(self) -> Optional[str]:
@@ -137,6 +138,7 @@ class ReadCsv(BaseModel, extra="allow"):
     encoding: Optional[str] = None
     low_memory: Optional[bool] = None
     sep: Optional[str] = None
+    dtype: Optional[dict] = None
 
 
 class ReadExcel(BaseModel, extra="allow"):

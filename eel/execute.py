@@ -5,6 +5,7 @@ from typing import Union, Optional
 import eel.config as ec
 
 open_files = {}
+pandas_end_points = {}
 
 
 def get_dataframe_from_sql(frame: ec.Frame, nrows=None):
@@ -52,6 +53,29 @@ def build_sql_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
     return True
 
 
+def build_csv_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
+    if not target.file_path:
+        raise Exception("invalid file_path")
+    if not target.table:
+        raise Exception("invalid table")
+
+    df.to_csv(target.file_path, index=False)
+
+    return True
+
+
+def build_end_point_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
+    if target.type in ("mssql", "postgres", "duckdb"):
+        res = build_sql_table(df, target, add_cols)
+    elif target.type in (".csv"):
+        res = df.to_csv(target.file_path, index=False)
+    elif target.type in ("pandas"):
+        res = df
+    else:
+        raise Exception("invalid target type")
+    return res
+
+
 def truncate_sql_table(target: ec.Target) -> bool:
     if not target.db_connection_string:
         raise Exception("invalid db_connection_string")
@@ -89,6 +113,9 @@ def load_dataframe_to_sql(
 
 def frames_consistent(config: ec.Config) -> bool:
     target, source, add_cols = get_configs(config)
+
+    if target and target.type in ("pandas"):
+        return True
 
     ignore_cols = []
     if add_cols:
@@ -160,7 +187,7 @@ def get_dataframe_from_excel(file_path, **kwargs):
 def get_nrows_kwargs(source_key, nrows: Optional[int] = None):
     kwargs = {}
     if source_key:
-        kwargs = source_key.model_dump()
+        kwargs = source_key.model_dump(exclude_none=True)
     if nrows:
         kwargs["nrows"] = nrows
     return kwargs
@@ -174,6 +201,7 @@ def get_df(
     elif frame.type in (".csv", ".tsv"):
         if isinstance(frame, ec.Source):
             kwargs = get_nrows_kwargs(frame.read_csv, nrows)
+            print(kwargs)
             if frame.type == ".tsv":
                 kwargs["sep"] = "\t"
         else:
@@ -190,6 +218,11 @@ def get_df(
             file = frame.file_path
         # kwargs["dtype"] = {1: "str"}
         df = get_dataframe_from_excel(file, **kwargs)
+    elif frame.type in ("pandas"):
+        if frame.file_path in pandas_end_points:
+            df = pandas_end_points[frame.table]
+        else:
+            raise Exception("pandas target not found")
     else:
         raise Exception("unable to build df")
     if isinstance(df.columns, pd.MultiIndex):
@@ -249,6 +282,9 @@ def put_df(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
                 res = True
             elif target.type in ("mssql", "postgres", "duckdb"):
                 res = load_dataframe_to_sql(df, target, add_cols)
+            elif target.type in ("pandas"):
+                pandas_end_points[target.table] = df
+                res = True
             else:
                 pass
     return res
@@ -292,7 +328,11 @@ def ingest(config: ec.Config) -> bool:
 
 def build(config: ec.Config) -> bool:
     target, source, add_cols = get_configs(config)
-    if target:
+    if (
+        target
+        and target.type not in ("pandas")
+        and target.preparation_action != "no_action"
+    ):
         action = target.preparation_action
         if action == "create_replace":
             df = get_df(source, 100)

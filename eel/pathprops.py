@@ -4,37 +4,37 @@ from typing import Optional, Self
 
 class HumanPathPropertiesMixin(ABC):
     @abstractmethod
-    def absolute() -> str:
+    def absolute(self):  # -> str
         pass
 
     @property  # type: ignore
     @abstractmethod
-    def file() -> Self:
+    def file(self) -> Self:
         pass
 
     @property  # type: ignore
     @abstractmethod
-    def dir() -> Self:
+    def dir(self) -> Self:
         pass
 
     @property  # type: ignore
     @abstractmethod
-    def parent() -> Self:
+    def parent(self) -> Self:
         pass
 
     @property  # type: ignore
     @abstractmethod
-    def name() -> str:
+    def name(self) -> str:
         pass
 
     @property  # type: ignore
     @abstractmethod
-    def stem() -> str:
+    def stem(self) -> str:
         pass
 
     @property  # type: ignore
     @abstractmethod
-    def ext() -> str:
+    def ext(self) -> str:
         pass
 
     @property

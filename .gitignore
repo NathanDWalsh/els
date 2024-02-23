@@ -197,3 +197,4 @@ cython_debug/
 !eushield-normal.pdf
 
 **/img/
+/temp/

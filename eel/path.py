@@ -52,7 +52,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def get_path_props_find_replace(self) -> dict:
         res = {}
-        for member in ec.DynamicPathValue:
+        for member in ec.DynamicPathValue:  # type: ignore
             path_val = getattr(self, member.value[1:])
             res[member.value] = path_val
         return res
@@ -76,7 +76,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     @staticmethod
     def merge_configs(*configs: list[Union[ec.Config, config_dict_type]]) -> ec.Config:
-        dicts = []
+        dicts: list[dict] = []
         for config in configs:
             if isinstance(config, ec.Config):
                 dicts.append(config.model_dump())
@@ -90,7 +90,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     @staticmethod
     def merge_dicts_by_top_level_keys(*dicts: config_dict_type) -> config_dict_type:
-        merged_dict = {}
+        merged_dict: dict = {}
         for dict_ in dicts:
             for key, value in dict_.items():
                 if (
@@ -104,12 +104,14 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                     merged_dict[key] = value
         return merged_dict
 
-    def get_paired_config(self) -> Optional[config_dict_type]:
+    def get_paired_config(self) -> config_dict_type:
+        # Optional[config_dict_type]:
         if (
             self.parent
             and self.parent._config
             and ("children" in self.parent._config)
             and isinstance(self.parent._config["children"], list)
+            and len(self.parent._config["children"]) > 0
             and isinstance(self.parent._config["children"][0], dict)
         ):
             if str(self) in self.parent._config["children"]:
@@ -129,6 +131,8 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                     )
                 yml = ymls[0]
                 return yml
+            else:
+                return {}
         else:
             return {}
 
@@ -155,15 +159,22 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     @property
     def parent(self):
         # return NodeMixin().parent
-        return NodeMixin.parent.fget(self)
-
-    @property
-    def root(self):
-        return NodeMixin.root.fget(self)
+        if NodeMixin.parent.fget is not None:
+            return NodeMixin.parent.fget(self)
+        else:
+            return self
 
     @parent.setter
     def parent(self, value):
-        NodeMixin.parent.fset(self, value)
+        if NodeMixin.parent.fset:
+            NodeMixin.parent.fset(self, value)
+
+    @property
+    def root(self):
+        if NodeMixin.root.fget:
+            return NodeMixin.root.fget(self)
+        else:
+            return self
 
     # @property
     def is_content(self) -> bool:
@@ -452,6 +463,10 @@ def get_configs(ymls: list[dict]) -> list[ec.Config]:
     return configs
 
 
+def get_config_default() -> ec.Config:
+    return ec.Config()
+
+
 def grow_branches(
     path: ContentAwarePath = ContentAwarePath(),
     parent: Optional[ContentAwarePath] = None,
@@ -460,7 +475,11 @@ def grow_branches(
         node = ContentAwarePath(path, parent=parent)
         for path_item in node.iterbranch():
             grow_branches(path_item, parent=node)
-        return node
+        if node.is_leaf and node.is_root:
+            logging.error("Root is an empty directory")
+            return None
+        else:
+            return node
     else:
         return None
     # TODO: consider how database connections / ymls will be handled

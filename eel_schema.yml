@@ -62,7 +62,7 @@ $defs:
           stack: null
           table: _leaf_name
           to_sql: null
-          type: null
+          type: pandas
     title: Config
     type: object
   DynamicColumnValue:
@@ -87,6 +87,12 @@ $defs:
   ReadCsv:
     additionalProperties: true
     properties:
+      dtype:
+        anyOf:
+        - type: object
+        - type: 'null'
+        default: null
+        title: Dtype
       encoding:
         anyOf:
         - type: string
@@ -270,7 +276,7 @@ $defs:
         anyOf:
         - type: string
         - type: 'null'
-        default: null
+        default: pandas
         title: Type
     title: Target
     type: object

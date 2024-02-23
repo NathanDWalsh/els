@@ -12,7 +12,8 @@ from typing import Union, Optional
 from eel.path import ContentAwarePath as CAPath
 from eel.path import get_root_config_name
 from eel.path import grow_branches
-
+from eel.path import get_config_default
+from eel.execute import pandas_end_points
 
 app = typer.Typer()
 
@@ -62,9 +63,26 @@ def execute():
     taskflow = get_taskflow()
     if taskflow:
         taskflow.execute()
+        print(pandas_end_points)
     else:
         logging.error("taskflow not loaded")
     logging.info("Fin")
+
+
+def write_yaml_str(yaml_str):
+    if sys.stdout.isatty():
+        colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
+        sys.stdout.write(colored_yaml)
+    else:
+        sys.stdout.write(yaml_str)
+
+
+@app.command()
+def test():
+    config_default = get_config_default()
+    yml = config_default.model_dump(exclude_none=True)
+    yaml_str = yaml.dump(yml, sort_keys=False, allow_unicode=True)
+    write_yaml_str(yaml_str)
 
 
 @app.command()
@@ -80,11 +98,7 @@ def preview(verbose: bool = False):
         else:
             raise Exception("tree not loaded")
         yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
-        if sys.stdout.isatty():
-            colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
-            sys.stdout.write(colored_yaml)
-        else:
-            sys.stdout.write(yaml_str)
+        write_yaml_str(yaml_str)
     else:
         print("current path different than eel root")
 
@@ -107,7 +121,10 @@ def find_root() -> Union[Path, None]:
     cwd = Path(os.getcwd())
     root = find_dir_with_file(cwd, get_root_config_name())
     if not root:
-        logging.error("eel root not found")
+        logging.info("eel root not found, using cwd")
+        root = cwd
+    if not root:
+        logging.error("unknown error, root not found")
         return None
     return root
 
@@ -125,5 +142,6 @@ def main():
 
 if __name__ == "__main__":
     start_logging()
-    os.chdir("D:\\test_data")
+    os.chdir("D:\\Sync\\repos\\eel\\temp")
     execute()
+    print(list(pandas_end_points.values())[0].dtypes)
