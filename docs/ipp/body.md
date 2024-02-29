@@ -2,52 +2,171 @@
 
 > Data pipelines are sets of processes that move and transform data from various sources to a destination where new value can be derived. [@pipelines_pocket, p. 1]
 
-<!-- Data pipelines are an important part of today's data landscape, underpinning a vast array of processes: from manually created ad-hoc reports in the form of spreadsheets to advanced LLMs. -->
+Data pipelines are an important part of today's data landscape, underpinning a vast array of processes: from manually created ad-hoc reports in the form of spreadsheets to advanced LLMs powering ChatGPT. The purpose of data pipelines is to make data available and accessible to data consumers.
 
-Although data pipelines are often addressed in the context of engineering big data systems, the proposal put forth in this document will consider a broader scope of the term which also includes small data use cases, some of which are listed in [Table @tbl:pipelines].
+The processes that move and transform the data along a pipeline begin and end at _endpoints_. An _endpoint_ is place or interface where data is stored and/or accessed. This can be a file which stores data, a database, an API or an in-memory structure such as a dataframe. There are two types of endpoints that will be discussed in this paper: _Source_ and _Target_. _Source_ is where a data pipeline begins and normally a pipeline will have multiple sources. _Target_ is where a data pipeline ends, where data is ultimately loaded to for downstream access.
 
-: Data pipeline use cases. {#tbl:pipelines}
+Facilitating the movement of data from source to target is a pipeline engine. Apart from moving the data, the engine is also responsible for transforming the data. _Transformations_ change the state of the data: some examples includenchanging a data's format, removing data and summarising data.
 
-| User           | Use case        | Tech examples        |
-| -------------- | --------------- | -------------------- |
-| Business user  | Report/Analyse  | Excel/Power Query    |
-| Data scientist | Model/Analyse   | Python/R             |
-| Data engineer  | Prepare         | ETL tools, scripting |
-| Database admin | Migrate, Backup | ETL tools, db tools  |
+ <!-- At a minimum, a data pipeline will have a single source and a target, but can also have one or more staging endoints. A basic example of a data pipeline with each of type of endpoint is in [Figure @fig:dp0]. -->
 
-<!-- The early stages of a data project often involve a consolidation of multiple datasets into a single data store or project spanning one or more tables. This paper will use the data engineering term _data ingestion_ to refer to this phase, concretely: the process of copying data from one or more sources to a single target. [Figure @fig:dataflow] below shows an example of a dataflow with multiple files landing in a single database schema, although the destination could also be a python project or another set of files in a folder. -->
+<!-- _Staging_ is an intermediate endpoint, often a place where data is temporarily stored in order perform transformations before being moved to the target endpoint. -->
 
-Each of the use cases in [Table @tbl:pipelines] involve a data pipeline which moves and transforms data to a destination. The classic sub-pattern of data pipelines is ETL (Extract-Transform-Load), however this proposal will focus on a sub-pattern called _ingestion_, also known as EtL. _Ingestion_ has two functions: (1) its primary function is on the Extract-Load part of the pipeline; (2) with a secondary function performing non-contextual (small-t) transformations [@pipelines_pocket, p. 106] as part of the process. [Table @tbl:elt] provides further descriptions of common pipeline patterns, it also provides some scope details relating to the project proposed in this paper.
+<!-- Although there are several different paradigms and patterns in use with data pipelines. This paper will focus on a simple pattern which involves three subjects: Source, Target and Engine. -->
 
-: Project scope via pipeline patterns. {#tbl:elt}
+```{.mermaid loc=img format=svg theme=neutral caption=sequence0}
+---
+title: Basic data pipeline example.
+---
+sequenceDiagram
+    participant y as Data Source<br>Endpoint
+    participant c as Pipeline Engine
+    participant s as Data Target<br>Endpoint
+    c->>y: Pull data
+    c-->c: Transform data
+    c->>s: Push data
+```
 
-|      | Stands for         | Description                 | In scope |
-| ---- | ------------------ | --------------------------- | -------- |
-| E    | Extract            | Extracting data from source | Yes      |
-| t    | Small-t transforms | Non-contextual transforms   | Yes      |
-| L    | Load               | Saving data to its target   | Yes      |
-| T    | Big-t transforms   | contextual transformations  | No       |
-| ETL  |                    | Classic pattern: T before L | No       |
-| ELT  |                    | Modern pattern: T after L   | No       |
-| EtLT |                    | Modern pattern: small/big T | No       |
-| EtL  |                    | Sub-pattern: ingestion      | Yes      |
+### Motivation
 
-For the purpose of this paper, non-contextual transformations are defined as those which can be executed using information in a single tabular dataset. Using relational database (SQL) lingo, non-contextual transformations cannot use a `JOIN` clause to refer to data from another table. [Table @tbl:tfm] gives some examples of common examples of these transformations. Conversely, contextual transformations are those that combine two or more datasets/tables and are not in scope for the proposed project.
+<!-- As a data specialist I have worked on many data pipelines over the past 25 years. The next sections will highlight some challanges that I and others face when dealing with data pipelines. An idea for a solution that will address some of these problems will be subsuquently proposed, explored and planned in the following sections. -->
 
-: Project scope via non-contextual transformations. {#tbl:tfm}
+For the last ten years I have been working as a data consultant with several different companies in cross-functional teams, creating and running several data pipeline projects simultaneously. This motivated me to think about how data pipeline projects can be rapidly implemented and iterated.
 
-| Transformation           | Example                      | In scope |
-| ------------------------ | ---------------------------- | -------- |
-| Create/drop column       | Create row identifier column | Yes      |
-| Convert data types       | String to date               | Yes      |
-| Filter rows              | Remove duplicates            | Maybe    |
-| Split/join strings       | Concatenate columns          | Maybe    |
-| Obfuscate sensitive data | Encrypt birth date           | No       |
-| Aggregate                | Sum total revenue by year    | No       |
+A typical data pipeline has several sources and a single target. Each source often comes from a different system. This creates a necessesity to tailor an import script to account for each system in a different way.
 
-The problems and solutions put forth in this document focus on application in the business context, especially internal-facing data products such as analytical reports and dashboards. Despite this narrow focus in examples and use cases, it is expected that the solutions proposed may also be used in outward-facing data product projects as well as in research and academia.
+<!-- , while creating quality documentation that can be used to communicate how data is moved and transformed from source to target. -->
+
+<!-- In this work I have identified several challanges that no existing system can solve. -->
+
+Below is a typical high-level outline for the technical aspects of a data pipeline project I would follow:
+
+<!-- I developed a workflow for working with new data projects as follows: -->
+
+1. Create a SQL database for staging.
+2. Import all source files into the database as tables.
+3. Create views/tables to perform transformations on the data.
+4. Export transformed data to target endpoint for downstream consumption.
+5. Implement changes to sources, transformations as requirements change and/or sources modified and repeat steps 1-4.
+
+```{.mermaid loc=img format=svg theme=neutral caption=dp1}
+---
+title: Data pipeline project phase 1 as-is.
+---
+graph LR
+  T["Web"] -->|"Download"| B[File\nSystem]
+  T -->|Scrape Script| E
+  F["Email"] -->|"Download"| B[File\nSystem]
+  B -->|"Load\nScript"| E
+  S["API"] -->|Load\nScript| E[Python]
+  E -->|Transform\nScript| E
+  E -->|Load\nScript| Q[SQL DB]
+  Q -->|Transform\nViews| Q
+  Q -->|Load\nScript| X[Target]
+```
+
+```{.mermaid loc=img format=svg theme=neutral caption=dp1}
+---
+title: Data pipeline project phase 1 to-be.
+---
+graph LR
+
+subgraph "config"
+  T
+  B
+end
+
+  T["Web"] -->|"Download"| B[File\nSystem]
+  T -->|Scrape Script| E
+  F["Email"] -->|"Download"| B[File\nSystem]
+  B -->|"Load\nScript"| E
+  S["API"] -->|Load\nScript| E[Python]
+  E -->|Transform\nScript| E
+  E -->|Load\nScript| Q[SQL DB]
+  Q -->|Transform\nViews| Q
+  Q -->|Load\nScript| X[Target]
+```
+
+```{.mermaid loc=img format=svg theme=neutral caption=dp2}
+---
+title: Data pipeline project phase 2.
+---
+graph LR
+  T[Web] -->|Scrape Script| E
+  F["Database"] -->|"Load\nScript"| B[Network\nShare]
+  B -->|"Load\nScript"| E
+  S["API"] -->|Load\nScript| E[ETL\nSystem]
+  E -->|Transforms| E
+  E -->|Load\nScript| X[Target]
+```
+
+Managing change was one challange that is partially addressed in the transformation layer. The idea is to keep everything as text so that transformations can be easily traced in order to be able to explain what transformations took place on the data simply by looking at, or deriving from the logic present in the SQL endpoint which performs the transformations.
+
+The part that was more difficult to trace is the importation of source data into the transform endpoint (SQL database). For any given project source data could come in a myriad of formats and/or endpoints. To name a few, it would be quite common to receive data in Excel, csv and fixed width files, APIs as well as html downloads. Each of these files could have different layouts and structure as well.
+
+<!-- 5. Communicate to business users all data sources and transformatoins that were performed to create the target data, leaving out technical deatils.
+5. Communicate the same to the technical team, but with more technical details. -->
+<!-- In addition to the above actions, the following tasks were also required: -->
+
+<!-- , depending on the service level. For example a premium SLA would provide all of the logic performed on the intermediate tables while a basic SLA would provide only an explaination of the logic between source and targets. -->
+
+<!-- In summary, my use case is divided into two related categories: create and maintain a data pipeline (steps 1-4) and explain the data pipeline steps (5-6). -->
+
+<!-- #### Data pipeline creation and maintenance -->
+
+When a data project begins, it is helpful to have a quick way to get it started with the source data available. The source data is often supplied in the form of files delivered by a combination of business and technical support staff. The solution I settled on is to save all source files in a folder and having a python script import each file to the database. This script would infer the name of the target table based on the file's name or contents, for example:
+
+- if it is an Excel file, import each worksheet into it's own table using the name of the worksheet as the table name.
+- if it is a csv file, import into a table using the name of the file as table name.
+
+This worked for many cases, but there were cases where this default behaviour would not be sufficient. For example, in some cases the sheets in the Excel file should all go to the same table and the sheet name should be a column in that table. In this case I would create ad-hoc workarounds in the code or put hints in the filename or sheet name that would trigger a different action in the import script. In other cases I would manually modify the source files to allow for the defaults to be acceptable. One workaround I commonly used is to put a "TRUNCATE" keyword in the filename so the script would know to first remove all existing rows in the database before importing.
+
+<!-- This solution also presented additional challanges:
+
+- after a file is imported into the database, it was moved to an "imported" folder. If this file was later descoped the original file would have to be manually deleted.
+- if a file is updated with more information, the appropriate logic would have to be triggered to update/replace the table in the database if it has a new structure. One workaround I commonly used is to put a "TRUNCATE" keyword in the filename so the script would know to first remove all existing rows in the database before importing. -->
+
+This was the first inspiration for what is being proposed below: a declarative configuration language for the import phase of a data pipeline. Instead of relying on ad-hoc changes to scripts and adding keywords to the files, a configuration language should exist to cover all of the common tasks and exceptions and rules that should be applied to the importation of data. If no configuration accompanies a file, then defaults will be applied to the import.
+
+<!-- #### Data pipeline explanation
+
+As a data project progresses, communicating how data has been moved and transformed from the sources to target. This is important on two fronts and each have their own requirements:
+
+- Communicate pipeline to the business to ensure it aligns with business requirements.
+- Communicate to technical team in order to ensure a smooth handover for sustainable phase of the project.
+
+I would aproach this part of the requirement by using scripts to inspect the SQL that defined the transformations and create a lineage graph which would demonstrate how source data is mapped to the target data. This was cumbersome and error-prone as the same SQL can be expressed in many ways.  -->
 
 ### Problem Statement
+
+As outlined in the use cases above, there are different methods and tools used for defining a pipeline. Some are manual, such as downloading a dataset and importing into Excel, whiles others are automated using an ETL. A problem arises when users across these different use cases are working together.
+
+The initial inspiriation for this project was born out of a having an easy way to use multiple files stored in a single directory as a source for a data pipelie.
+
+- there lacks a standard way to quickly move multiple sources into a single destination, allowin for sensible defaults but allowing changes easily.
+-
+
+- Section 1.1 brings some challenges. I would restructure the intro as follows:
+
+  - present challenges that users are facing; perhaps no need for both Figures 1 and 2; I like them but one figure may be sufficient to convey the same messages
+
+  - Why are these challenges difficult and cannot be solved using existing tools/techniques?
+
+  - expand the explanation of the use case from that figure (who does what, individual steps); after reading the two paragraphs from Sec 1.1, not sure that the problems are clearly explained
+
+- having an example of configuration would be helpful to the reader
+
+- _lineage_: In the context of data pipelines, metadata which explains how data has been moved and/or transformed from source to target.
+
+- Although technologies for managing pipelines are always changing, the underlying fundamentals of the data itself remains the same. A table is always a table, a row is always a row. However when tooling changes it often necesetates a rework of defining the data in the new system.
+- Different users use different tools and processes for accessing the same data. Sometimes a pipeline may be passed from one team to another, and redundancy is introduced as each new team has to reproduce the pipeline in the tools of their domain.
+<!-- - Data pipeline explanability is not straightforward, oftern requiring manual creatiion of directed graphs to explain how the data pipeline has been executed. Adding further complication, sometimes graphs of differing details are required for different audiences (technical vs. non-technical).
+- As defined at the top of this chapter, data pipelines normally move data from one or more sources to a single destination. Much of the tooling available today does not necessarily take the many to one paradimn into account, requiring a user to redefine the destination for each source, introducing further redundancy. -->
+- With an ever increasing amount of data end points available for analysis, it should be trivial to change destinations of pipelines to test for speed/cost optimisations. However, existing tooling makes swapping an end point for a data pipeline cumbersome and error prone.
+
+<!-- As a permanent member of staff creating and maintaining, data pipelines were a relatively minor part of my work-load. However as a consultant working on many projects mostly in their inception, I have come across many anti-patterns that can be improved upon with a new solution proposed below. -->
+
+Each programming language, database platform, ETL system and data analysis software has distinct methods for implementing extraction and loading (ingestion) logic. Lacking is a system that can be used interchangeably across different formats and tools. A user-friendly system for declaring data ingestion can have several use cases, some of which are as follows: (1) less time spent writing code to extract, load, move or convert data; (2) easily swap a pipeline from one datastore to another; (3) Seamlessly migrate data projects from in-process to physical storage; and (4) generate data lineage directly from the configuration.
 
 <!-- Listed in [Table @tbl:pipelines] is a range of use cases for the data pipeline, each with its own set of tools and methods for ingesting the required data, this point is further illustrated in [Figure @fig:sequencedp]. -->
 
@@ -86,34 +205,6 @@ Point 9 in [Figure @fig:sequencedp] also highlights another problem that can ari
 
 <!-- Each subsequent actor is building on work done previously, but using different tooling to accomplish a similar goal. -->
 
-```{.mermaid loc=img format=svg theme=neutral caption=sequencedp2}
----
-title: Evolution of an internal-facing data product with lineage.
----
-sequenceDiagram
-    autonumber
-    box
-      actor Business as Business User
-      actor Scientist as Data Scientist
-      actor Engineer as Data Engineer
-    end
-    participant Data
-    Business->>+Scientist: Can you make this?
-    Scientist->Data: Create a data product to ingest (in-memory) and serve
-    Scientist->>-Business: Sure, here you go
-    Business->>+Scientist: Can you explain the lineage?
-    Scientist->Scientist: Manually create a business lineage graph explaining data
-    Scientist->>-Business: Here is a business graph
-    Business->>+Engineer: Can you automate this?
-    Engineer->>+Scientist: Can you explain?
-    Scientist->Scientist: Manually create a technical lineage graph explaining data
-    Scientist->>-Engineer: Here is a technical graph
-    Engineer->Data: Use ETL tools to<br>ingest (persisted)<br>on schedule
-    Engineer->>-Business: Sure, here it is in real-time
-```
-
-Another challenge with pipelines is the ability to communicate explanations of data pipelines across a diverse team. [Figure @fig:sequencedp2] shows a scenario where the problem in focus is how the pipeline can be explained to different types of users: business (Point 5) and technical (Point 9). With a pipeline defined in a plain text configuration language as proposed, it is trivial to extract and present lineage graphs. A common way to communicate data pipelines is to use a Directed Acyclic Graph (DAG) to show how different parts of the data are related.
-
 <!-- DAGs are also used in data engineering to build task-based workflows, this solution will use DAGs to illustrate data lineage. -->
 
  <!-- This addresses the issues of table-level lineage and column-level lineage: the former providing a high-level detail of a dataflow and the latter providing a lower-level detail. Although lineage visibility is available in some tools used in analytics and ETL packages, there is lacking a standard that can be used and understood by all. -->
@@ -145,12 +236,13 @@ The solution proposed below seeks to create a declarative configuration system f
 
 : Eel project goals. {#tbl:goals}
 
-| Goal           | Measure                                             |
-| -------------- | --------------------------------------------------- |
-| 1. Friendly    | Configuration optional, inferring suitable defaults |
-| 2. Readable    | Text-based, Human-readable configuration language   |
-| 3. Agnostic    | Works across different end points seamlessly        |
-| 4. Explainable | Lineage graphs included                             |
+| Goal        | Measure                                             |
+| ----------- | --------------------------------------------------- |
+| 1. Friendly | Configuration optional, inferring suitable defaults |
+| 2. Readable | Text-based, Human-readable configuration language   |
+| 3. Agnostic | Works across different end points seamlessly        |
+
+<!-- | 4. Explainable | Lineage graphs included                             | -->
 
 More details on the project goals from [Table @tbl:goals]:
 
@@ -158,6 +250,8 @@ More details on the project goals from [Table @tbl:goals]:
 2. Readable plain text configuration: All configuration in logical folder structure and with one or more plain text configuration files defining end points and transformations.
 3. Technology agnostic: should be able to swap different end-points without requiring a re-write of mapping/transformation logic.
 4. Explainable: system can create lineage graphs explaining the mappings and transformations defined in the configuration.
+
+- Table 4 seems redundant, just integrate it into text
 
 Revisiting [Figure @fig:sequencedp] with eel, points 3, 6 and 9 could be using the same eel configuration which defines the ingestion instead of redefining the ingestion across different tools. Likewise, [Figure @fig:sequencedp2] can be remained by creating the lineage graphs in step 5 automatically and reducing the need for communication between the Data Scientist and Data Engineer (points 8-10), since all required ingestion information is already included in the eel configuration.
 
@@ -220,9 +314,11 @@ Modern data pipelines have many features: most of which will not be in scope for
 | Tracking/Stats   | Not in Scope   |              |                  |
 | Security         | Not in Scope   |              |                  |
 
+- Table 5 -- lots of unexplained technical terms, not very useful to the reader (remember your thesis will be read by non-experts) in understanding what you're trying to achieve
+
 [Table @tbl:scope] lists some of the end points that will be supported in this phase of the project, those not listed are implicitly not in scope. Note the distinction between container and table: for the purposes of this project a container is analogous to a directory which contains one or more tables and/or containers.
 
-: Project scope via data store end points. {#tbl:ep}
+: Project scope data store end points. {#tbl:ep}
 
 | Class      | Store     | Capacity  | Scope: source | Scope: target |
 | ---------- | --------- | --------- | ------------- | ------------- |
@@ -372,7 +468,7 @@ folders and certain file types are handled as follows:
 The project structure will stress DRY principals allow for minimum configurations
 using some of the following methods:
 
-- Configuration inheritance via directory/folder structure:
+- Configuration inheritance directory/folder structure:
   configurations inherit from parent node (i.e., folder). Useful when
   a target object (i.e. database or table) is the same for multiple
   data sources.

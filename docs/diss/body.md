@@ -4,6 +4,27 @@ Declarative data pipelines are not a novel concept [INGESTBASE ref], however whe
 
 ## Problem Description
 
+```{.mermaid loc=img format=svg theme=neutral caption=dp2}
+---
+title: Low-level data pipeline with three endpoints.
+---
+graph LR
+direction LR
+subgraph "Endpoint Container"
+A["Endpoint Table:\nData Source"]
+end
+subgraph "Endpoint Container"
+A -->|Extract| B[Endpoint Table:\nData Transit]
+
+end
+B -. Transform .-> B
+subgraph "Endpoint Container"
+B -->|Load| C[Endpoint Table:\nData Target]
+end
+C -. Transform .-> C
+
+```
+
 The early stages of a data project often involve [insert refs CRISP-DM, DataONE, Data Engineering] a consolidation of multiple datasets into a single datastore or project spanning one or more tables. This paper will use the data engineering term _data ingestion_ to refer to this phase, concretely: the process of copying data from one or more sources to a single target. [Figure @fig:dataflow] below shows and example of a dataflow with multiple files landing in a single database scema, although the destination coud also be a python project or another set of files in a folder.
 
 ```{.mermaid loc=img format=svg theme=neutral caption=dataflow}
