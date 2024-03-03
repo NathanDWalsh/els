@@ -408,3 +408,93 @@ B --> C[Target\nEndpoint]
 C -. Transform .-> C
 %% C <-->|Serve| D[Consumer]
 ```
+
+```{.mermaid loc=img format=svg theme=neutral caption=dp1}
+---
+title: Data pipeline project phase 1 to-be.
+---
+graph LR
+
+subgraph "config"
+  T
+  B
+end
+
+  T["Web"] -->|"Download"| B[File\nSystem]
+  T -->|Scrape Script| E
+  F["Email"] -->|"Download"| B[File\nSystem]
+  B -->|"Load\nScript"| E
+  S["API"] -->|Load\nScript| E[Python]
+  E -->|Transform\nScript| E
+  E -->|Load\nScript| Q[SQL DB]
+  Q -->|Transform\nViews| Q
+  Q -->|Load\nScript| X[Target]
+```
+
+```{.mermaid loc=img format=svg theme=neutral caption=dp2}
+---
+title: Data pipeline project phase 2.
+---
+graph LR
+  T[Web] -->|Scrape Script| E
+  F["Database"] -->|"Load\nScript"| B[Network\nShare]
+  B -->|"Load\nScript"| E
+  S["API"] -->|Load\nScript| E[ETL\nSystem]
+  E -->|Transforms| E
+  E -->|Load\nScript| X[Target]
+```
+
+Pipelines are made up of one or more pipeline units, each unit connects two _endpoints_.
+
+```{.mermaid loc=img format=svg theme=neutral caption=dp0}
+---
+title: Generic data pipeline.
+---
+graph LR
+A["Endpoint 0"] -->|Pipeline Unit| B[Endpoint 1]
+B -->|Pipeline Unit| C[Endpoint 2]
+%% C <-->|Serve| D[Consumer]
+```
+
+```{.mermaid loc=img format=svg theme=neutral caption=dp0}
+---
+title: Data pipeline example.
+---
+graph LR
+A[csv file] -->|Load| B[Database]
+B-->|Transform|B
+B -->|Load| C[Reporting System]
+%% C <-->|Serve| D[Consumer]
+```
+
+Linkage
+
+<!-- [Figure @fig:sequence0] shows a simple example of a data pipeline representing the minimal number of components. In reality a data pipeline could have several intermediate enpoints and multipe engines. -->
+
+<!-- , and a single pipeline could also have several different engines working at different points of the pipeline. -->
+
+<!-- , while creating quality documentation that can be used to communicate how data is moved and transformed from source to target. -->
+
+<!-- In this work I have identified several challanges that no existing system can solve. -->
+
+- Multiple data pipelines for multiple projects managed simultaneously. Solution requires a system to move the source data into a target database into tables. The point here is that someone who only ever deals with a single data pipeline can use existing tools as the percentage of time taken to manage this part of the project decreases significantly.
+
+<!-- The processes that move and transform the data along a pipeline begin and end at _endpoints_. An _endpoint_ is place or interface where data is stored and/or accessed. This can be a data file such as a csv, a database, an API or an in-memory structure such as a dataframe. Endpoints will be discussed below in terms of _Data Sources_ and _Data Targets_. -->
+
+<!-- Two There are two types of endpoints that will be discussed in this paper: _Source_ and _Target_ which is whre the pipleline begins and ends. -->
+
+ <!-- _Source_ is where a data pipeline begins and normally a pipeline will have multiple sources. _Target_ is where a data pipeline ends, where data is ultimately loaded to for downstream access. -->
+
+<!-- Facilitating the movement of data between endpoints is a pipeline engine. An engine could be a user performing the acions manually or an application performing the actions on a trigger or schedule. Apart from moving the data, the engine is also responsible for transforming the data. _Transformations_ change the state of the data: some basic examples include changing, removing and summarising data. -->
+
+ <!-- At a minimum, a data pipeline will have a single source and a target, but can also have one or more staging endoints. A basic example of a data pipeline with each of type of endpoint is in [Figure @fig:dp0]. -->
+
+<!-- _Staging_ is an intermediate endpoint, often a place where data is temporarily stored in order perform transformations before being moved to the target endpoint. -->
+
+<!-- Although there are several different paradigms and patterns in use with data pipelines. This paper will focus on a simple pattern which involves three subjects: Source, Target and Engine. -->
+
+<!-- The data pipeline use case addressed in this paper is one of multiple sources being moved to a single target. It is typical in a data project to have different sources in different formats from different sysetms. -->
+
+### Motivational Use Case
+
+<!-- As a data specialist I have worked on many data pipelines over the past 25 years. The next sections will highlight some challanges that I and others face when dealing with data pipelines. An idea for a solution that will address some of these problems will be subsuquently proposed, explored and planned in the following sections. -->

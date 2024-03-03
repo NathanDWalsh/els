@@ -2,42 +2,84 @@
 
 > Data pipelines are sets of processes that move and transform data from various sources to a destination where new value can be derived. [@pipelines_pocket, p. 1]
 
-Data pipelines are an important part of today's data landscape, underpinning a vast array of processes: from manually created ad-hoc reports in the form of spreadsheets to advanced LLMs powering ChatGPT. The purpose of data pipelines is to make data available and accessible to data consumers.
+Data pipelines are an important part of today's data landscape, underpinning a vast array of processes: from manually created ad-hoc reports in the form of spreadsheets to advanced LLMs powering ChatGPT. Their purpose is to make data available and accessible to data consumers.
 
-The processes that move and transform the data along a pipeline begin and end at _endpoints_. An _endpoint_ is place or interface where data is stored and/or accessed. This can be a file which stores data, a database, an API or an in-memory structure such as a dataframe. There are two types of endpoints that will be discussed in this paper: _Source_ and _Target_. _Source_ is where a data pipeline begins and normally a pipeline will have multiple sources. _Target_ is where a data pipeline ends, where data is ultimately loaded to for downstream access.
-
-Facilitating the movement of data from source to target is a pipeline engine. Apart from moving the data, the engine is also responsible for transforming the data. _Transformations_ change the state of the data: some examples includenchanging a data's format, removing data and summarising data.
-
- <!-- At a minimum, a data pipeline will have a single source and a target, but can also have one or more staging endoints. A basic example of a data pipeline with each of type of endpoint is in [Figure @fig:dp0]. -->
-
-<!-- _Staging_ is an intermediate endpoint, often a place where data is temporarily stored in order perform transformations before being moved to the target endpoint. -->
-
-<!-- Although there are several different paradigms and patterns in use with data pipelines. This paper will focus on a simple pattern which involves three subjects: Source, Target and Engine. -->
+A basic unit of a pipeline moves data from a source to a target while optionally tranforming the data in the process as iullistrated in [Figure @fig:sequence0]. _Transformations_ change the state of the data: some basic examples include cleaning, removing and summarising data.
 
 ```{.mermaid loc=img format=svg theme=neutral caption=sequence0}
 ---
-title: Basic data pipeline example.
+title: Basic data pipeline sequence.
 ---
 sequenceDiagram
-    participant y as Data Source<br>Endpoint
+    participant y as Data Source
     participant c as Pipeline Engine
-    participant s as Data Target<br>Endpoint
+    participant s as Data Target
     c->>y: Pull data
-    c-->c: Transform data
+    opt
+      c-->c: Transform data
+    end
     c->>s: Push data
 ```
 
-### Motivation
+For the last ten years I have been working as a data integration specialist, creating and running several data pipeline projects simultaneously. This motivated me to think about how data pipeline projects can be rapidly implemented, iterated and change traced. The challanges that this paper addresses are those that occur in the beginning of data pipelines: pulling data from multiple disparate sources and pushing them to a single source.
 
-<!-- As a data specialist I have worked on many data pipelines over the past 25 years. The next sections will highlight some challanges that I and others face when dealing with data pipelines. An idea for a solution that will address some of these problems will be subsuquently proposed, explored and planned in the following sections. -->
+### Problem Statement
 
-For the last ten years I have been working as a data consultant with several different companies in cross-functional teams, creating and running several data pipeline projects simultaneously. This motivated me to think about how data pipeline projects can be rapidly implemented and iterated.
+Source data for pipelines are normally provided in a varity of formats and layouts. Customer provides data in a variety of sources that needs to be loaded to a database for further processing. Data sources are frequently updated, sometimes sources are added, removed and replaced. A solution is required that has the ability to update the target database reflecting the changes to the source. Data sources can change from file-based to connection/API-based as the project matures. For example, a customer table once provided as a csv file could change to an API connection which can directly query the customer data.
 
-A typical data pipeline has several sources and a single target. Each source often comes from a different system. This creates a necessesity to tailor an import script to account for each system in a different way.
+Setup conditions:
 
-<!-- , while creating quality documentation that can be used to communicate how data is moved and transformed from source to target. -->
+1. Any files containing source data are not permitted to be manually modified.
+2. Any changes to source data should occur in the transformation step by the pipeline engine.
+3. Transformations should be minimal, unless required to make the data fit into a table at the target.
 
-<!-- In this work I have identified several challanges that no existing system can solve. -->
+The alternative involves creating several disparate scripts, each customised for a particular data source and its settings.
+
+A typical data pipeline has several sources in distinct formats. This creates a necessesity to tailor an import script to account for each system in a different way.
+
+The use case being addressed in this paper is taking data from multiple sources and importing it into a database.
+
+This use case describes a data scientist connecting to or downloading one or more data sources for consolidation and analysis in Python. This process can be manual, automated or a combination of both.
+
+Flow:
+
+1. Data Scientist downloads data in Excel, csv or similar file formats from online portal or application, and/or connects directly to data via database connection or API.
+2. Data Scientist creates script(s) to load datasets into pandas dataframes.
+3. Data Scientist scripts transformations on data.
+4. After running scripts, data is ready for analysis in pandas dataframe endpoints.
+
+```{.mermaid loc=img format=svg theme=neutral caption=dataflow}
+---
+title: Example dataflow
+---
+graph LR
+subgraph \nFILE SYSTEM
+  fs[ ]
+  subgraph ./data sources/
+      a1[products.csv]
+      subgraph transactions.xlsx
+          z1[january]
+          y1[february]
+      end
+      subgraph customers.xlsx
+          x1[sold to]
+          w1[ship to]
+      end
+  end
+end
+subgraph \nDATABASE
+    db[ ]
+    subgraph raw:schema
+        a1 --> b1[products]
+        z1 --> d1[transactions]
+        y1 --> d1
+        x1 --> u1[sold to]
+        w1 --> v1[ship to]
+    end
+end
+style fs height:0px
+style db height:0px
+```
 
 Below is a typical high-level outline for the technical aspects of a data pipeline project I would follow:
 
@@ -63,41 +105,6 @@ graph LR
   E -->|Load\nScript| Q[SQL DB]
   Q -->|Transform\nViews| Q
   Q -->|Load\nScript| X[Target]
-```
-
-```{.mermaid loc=img format=svg theme=neutral caption=dp1}
----
-title: Data pipeline project phase 1 to-be.
----
-graph LR
-
-subgraph "config"
-  T
-  B
-end
-
-  T["Web"] -->|"Download"| B[File\nSystem]
-  T -->|Scrape Script| E
-  F["Email"] -->|"Download"| B[File\nSystem]
-  B -->|"Load\nScript"| E
-  S["API"] -->|Load\nScript| E[Python]
-  E -->|Transform\nScript| E
-  E -->|Load\nScript| Q[SQL DB]
-  Q -->|Transform\nViews| Q
-  Q -->|Load\nScript| X[Target]
-```
-
-```{.mermaid loc=img format=svg theme=neutral caption=dp2}
----
-title: Data pipeline project phase 2.
----
-graph LR
-  T[Web] -->|Scrape Script| E
-  F["Database"] -->|"Load\nScript"| B[Network\nShare]
-  B -->|"Load\nScript"| E
-  S["API"] -->|Load\nScript| E[ETL\nSystem]
-  E -->|Transforms| E
-  E -->|Load\nScript| X[Target]
 ```
 
 Managing change was one challange that is partially addressed in the transformation layer. The idea is to keep everything as text so that transformations can be easily traced in order to be able to explain what transformations took place on the data simply by looking at, or deriving from the logic present in the SQL endpoint which performs the transformations.
@@ -136,8 +143,6 @@ As a data project progresses, communicating how data has been moved and transfor
 - Communicate to technical team in order to ensure a smooth handover for sustainable phase of the project.
 
 I would aproach this part of the requirement by using scripts to inspect the SQL that defined the transformations and create a lineage graph which would demonstrate how source data is mapped to the target data. This was cumbersome and error-prone as the same SQL can be expressed in many ways.  -->
-
-### Problem Statement
 
 As outlined in the use cases above, there are different methods and tools used for defining a pipeline. Some are manual, such as downloading a dataset and importing into Excel, whiles others are automated using an ETL. A problem arises when users across these different use cases are working together.
 
