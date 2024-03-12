@@ -1,0 +1,362 @@
+% Instructions for editing this file are in readme.md
+
+%%%%%%%%%%
+% Document meta data
+\newcommand*{\AUTHOR}{Student Name}
+\newcommand*{\TITLE}{Project Title\\ Possibly Across Two Lines}
+\newcommand*{\SUPERVISOR}{Prof~S Visor}
+\newcommand*{\IPPTUTOR}{Dr~IPP Tutor}
+\newcommand*{\KEYWORDS}{}% comma-separated list
+
+%%%%%%%%%%
+% Abstract
+% Edit the abstract in abstract.tex
+
+
+%%%%%%%%%%
+% Colours
+% Edit colours.tex if you want to change the colours of the
+% text, page, and School logo
+% Dark themes, and dyslexia-friendly themes are available
+% Check with your IPP tutor and your project supervisor what colour scheme they prefer
+
+
+%%%%%%%%%%
+% Referencing
+% Use ONE of the following to set the bibliography and referencing styles:
+\PassOptionsToPackage{style=bath,sorting=nyt}{biblatex}% Harvard-style, sorted by author name then year then title
+% \PassOptionsToPackage{style=ieee}{biblatex} % Numeric-style
+
+% Comment out the following line if you do NOT want the references list to contain hyperlinks back to where they are cited in the main text
+\PassOptionsToPackage{backref}{biblatex}
+
+
+%%%%%%%%%%
+% The document class: leave this alone   :)
+% To base font size can be 10pt, 11, or 12pt
+\documentclass[11pt]{ipp}
+
+
+%%%%%%%%%%
+% Font
+% Changes to the font and line spacing do not affect the title page
+
+% Open Dyslexic font
+% \setmainfont{Open Dyslexic} % replaces the main serif font (body text, notes, and captions)
+% \setsansfont{Open Dyslexic} % replaces the main sans font (headings)
+% \setmonofont{Open Dyslexic} % replaces monospaced font (URLs and program code)
+
+% General change to the font: uncomment these lines and replace the font names
+% \setmainfont{Merriweather Light} % replaces the main serif font (body text, notes, and captions)
+% \setsansfont{Merriweather Sans} % replaces the main sans font (headings)
+% \setmonofont{Anonymous Pro} % replaces monospaced font (URLs and program code)
+
+
+% You may change the url font
+\renewcommand\UrlFont{\ttfamily\footnotesize} %use the specified mono font but smaller
+
+% Set the sequence of styles used in nested \emph{} commands: you may change this
+\emfontdeclare{\bfseries,\itshape,\scshape}
+
+
+%%%%%%%%%%
+% Line spacing
+% This affects document line spacing (not the tables or the tables of contents)
+\setstretch{1.3}
+
+% The line spacing of tables: you may change this
+\renewcommand{\arraystretch}{1.5}
+
+% Lets captions be wider; stretch= changes caption's line spacing
+% \captionsetup{width=.8\textwidth,{normalcolor, small, stretch=1.3}}
+
+% The line spacing in the bibliography
+\AtBeginBibliography{\normalfont\small\RaggedRight\setstretch{1.2}}
+
+
+
+%%%%%%%%%%
+% Line justification
+% To stop text being fully justified then use ONE of the following:
+% EITHER allow a small amount of hypenation at the ends of lines
+% \setlength{\RaggedRightParindent}{\parindent}\RaggedRight
+% OR allow no hyphenation at the ends of lines
+% \newlength{\originalParindent}\setlength{\originalParindent}{\parindent}\raggedright\setlength{\parindent}{\originalParindent}
+
+
+%%%%%%%%%%
+% Packages
+% DON'T ADD PACKAGES HERE: put them in _extraPackages.tex
+% but first check if they are already loaded,
+% paying attention to each package's manual to see whether it must be loaded
+% before biblatex, before hyperref, or after hyperref
+
+% Uncomment if you want syntax diagrams
+% \usepackage{syntaxdi}%
+
+% If you want pseudocode, consider one of these packages, all updated in 2023:
+% https://ctan.org/pkg/pseudo
+% https://ctan.org/pkg/algpseudocodex
+% https://ctan.org/pkg/algxpar
+
+
+
+%%%%%%%%%%
+% Bibliography file
+% Only one bibliography file can be specified
+\addbibresource{IPPrefs.bib}
+
+
+%%%%%%%%%%
+% Hyphenation of words
+\pghyphenation[variant=british]{english}{algor-ithm algor-ithms book-ends inter-net LaTeX mono-spaced}
+
+
+%%%%%%%%%%
+% Warning messages
+% If you wish to see warning messages about sidenotes moving, then comment the next line out
+\WarningFilter*{latex}{Marginpar on page \thepage\space moved}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\input{_frontMatter}
+\clearpage
+\pagenumbering{arabic}
+\pagestyle{mainmatter}
+
+%%%%%%%%%%
+% You may start editing from here
+\section{Introduction}%
+\label{sec:introduction}
+
+Introduce the topic of your research project and explain its academic, industrial, or societal context as appropriate.
+
+\subsection{Motivation}%
+\label{sec:motivation}
+
+\begin{itemize}[nosep]
+    \item What is the problem/topic you are going to work on.
+    \item Why is this an important problem? Ideally include references/evidence.
+    \item Provide an adequate introduction to the general area (fairly high level).
+    \item If appropriate clearly state your hypothesis.
+    \item Indicate the scope of your project and clearly identify your aims and objectives.
+    \item Discuss the potential impact of your research including any possible beneficiaries.
+    \item Remember to engage/enthuse your reader(s).
+\end{itemize}
+
+\subsection{Literature review}%
+\label{sec:litreview}
+
+\begin{itemize}[nosep]
+    \item Include a short literature review. Demonstrate a knowledge and understanding of the most relevant past and current published research in the subject area. 
+    \item Include relevant references like this \autocite{fry2020template} --- read \textcite{coxhead2016referencing} for how to use citations. You are writing using biber and biblatex NOT bibtex and natbib, so you MUST use the commands \verb|\autocite{}| and \verb|\textcite{}| NOT \verb|\cite{}|. The examples in this item show you how to use the two citation commands appropriately.
+\end{itemize}
+
+
+
+\section{Method or approach}%
+\label{sec:method}
+
+\begin{itemize}[nosep]
+    \item In the context of your aims, objectives and literature review, detail the methodology or approach to be used in pursuit of the research and justify this choice. 
+    \item Describe your planned contribution. Highlight what is new and where you will go beyond the state-of-the-art (eg new method(s), new tools,
+    new data and/or analytical approach, new insights, new proofs,\ldots)
+    \item Describe any specific methods need for data collection.
+    \item Explain your evaluation; how do you intend to analyse and interpret your results.
+\end{itemize}
+
+
+
+\section{Work plan}%
+\label{sec:workplan}
+
+\begin{itemize}[nosep]
+    \item Briefly explain the programme of work, indicating the research to be undertaken and a few milestones that can be used to measure your progress is on schedule.
+    \item Define your major work packages and/or tasks and show any  dependencies between them. Workpackages, tasks and their dependencies should also be shown in a Gantt chart (example below).
+    \item Explain how the project will be managed.
+\end{itemize}
+
+\subsection{Plan, milestones, risks, and deliverables}%
+\label{sec:plan}
+
+Include a Gantt chart and summary tables as required. A template is included below, but you may produce your own chart in another tool and include the image.
+
+% Only use afterpage if there is a large gap between the paragraph above and the bottom of the page
+\afterpage{
+  % If you want to import a graphic of a Gantt chart use this code...
+
+  % \begin{landscape} % turn the page sideways: displays correctly on screen and prints correcly
+  %   \begin{figure}[!p]% alternatives: [!tbp] or [!btp] % DO NOT use [!h] or [h] or [H]
+  %     \includegraphics[width=\lscapewidth,
+  %     alt={A proper alt-text description of the Gantt contents is needed}]
+  %     {filename}
+  %     \caption[Project Gantt chart]{Gantt Chart of project activities, see \cref{tab:MDR} for details.}
+  %     \label{fig:ganttImport}
+  %   \end{figure}
+  % \end{landscape}
+
+% ...otherwise use this code to have LaTeX draw a Gantt chart for you
+  \definecolor{canvasColor}{HTML}{FDFDFA}
+  \definecolor{backgroundLineColor}{HTML}{B4B1A0}
+  \definecolor{titlebarColor}{HTML}{E7E7DB}
+  \definecolor{titlebarTextColor}{HTML}{5A5F55}
+  \definecolor{groupColor}{HTML}{0C1B24}
+  \definecolor{barColor}{HTML}{436382}
+  \definecolor{barIncompleteColor}{HTML}{9F3C19}
+  \definecolor{riskColor}{HTML}{9F3C19}
+  \definecolor{linkColor}{HTML}{8AA0AD}
+  \definecolor{milestoneColor}{HTML}{566038}
+
+  \begin{landscape} % turn the page sideways: displays correctly on screen and prints correcly
+    \begin{figure}[!p]% alternatives: [!tbp] or [!btp] % DO NOT use [!h] or [h] or [H]
+      \hfill\begin{ganttchart}[
+        expand chart=\lscapewidth, % use \textwidth for a vertical (portrait) page
+        canvas/.append style={fill=canvasColor, draw=backgroundLineColor, line width=.75pt},
+        y unit title=0.4cm,
+        y unit chart=0.5cm,
+        hgrid style/.style={draw=backgroundLineColor, line width=.75pt},
+        vgrid={*{29}{dotted, draw=backgroundLineColor!50, line width=.75pt},
+          *{1}{dashed, draw=backgroundLineColor!75, line width=.75pt},%30 days in June
+          *{30}{dotted, draw=backgroundLineColor!50, line width=.75pt},
+          *{1}{dashed, draw=backgroundLineColor!75, line width=.75pt},%31 in July
+          *{30}{dotted, draw=backgroundLineColor!50, line width=.75pt},
+          *{1}{dashed, draw=backgroundLineColor!75, line width=.75pt}%31 in August
+        },
+        x unit=1.4mm,
+        time slot format=isodate,
+        title/.append style={draw=none, fill=titlebarColor},
+        title label font={\sffamily\bfseries\footnotesize\color{titlebarTextColor}},
+        title left shift=.05,
+        title right shift=-.05,
+        title height=1,
+        bar/.append style={draw=none, fill=barColor},
+        bar height=.6,
+        bar label font={\small\color{barColor}},
+        bar incomplete/.append style={fill=barIncompleteColor},
+        progress label text={},
+        group label font={\sffamily\bfseries\small\color{groupColor}},
+        group/.append style={draw=groupColor, fill=groupColor},
+        group right shift=0,
+        group top shift=.6,
+        group height=.3,
+        group peaks height=.2,
+        link bulge=1,
+        link/.style={->, linkColor},
+        link type={auto},
+        milestone label font={\bfseries\small\color{milestoneColor}},
+        milestone/.append style={draw=none, fill=milestoneColor, scale=1.5},
+        vrule/.append style={thin, riskColor}
+        ]{2023-06-01}{2023-08-19}
+        \gantttitlecalendar{month=name}\\
+        \ganttgroup{Preparation}{2023-06-01}{2023-06-14}\\
+        \ganttbar[progress=100,name=br]{Background work}{2023-06-01}{2023-06-14}\\
+        \ganttbar[progress=100,name=dd]{Draft design}{2023-06-06}{2023-06-14}\\
+        \ganttmilestone{M$_1$}{2023-06-14}\\
+        \ganttgroup{Implementation}{2023-06-14}{2023-07-24}\\
+        \ganttbar[progress=90, name=id]{Interface design}{2023-06-14}{2023-06-26}\\
+        \ganttbar[progress=70, name=bs]{Back\=/end setup}{2023-06-14}{2023-06-26}\\
+        \ganttmilestone{M$_2$}{2023-06-21}\\
+        \ganttbar[progress=90, name=fd]{Feature development}{2023-06-26}{2023-07-15}\\
+        \ganttmilestone{M$_3$}{2023-07-07}\\
+        \ganttbar[progress=70, name=im]{Design improvement}{2023-07-10}{2023-07-24}\\
+        \ganttbar[progress=100, name=co]{Compatibility checking}{2023-06-14}{2023-07-24}\\
+        \ganttgroup{Results \& Evaluation}{2023-06-14}{2023-08-03}\\
+        \ganttbar[progress=100, name=hci]{HCI evaluation}{2023-06-14}{2023-06-26}\\
+        \ganttbar[progress=90, name=us]{First user study}{2023-07-10}{2023-07-15}\\
+        \ganttmilestone{M$_4$}{2023-07-20}\\
+        \ganttbar[progress=100, name=fus]{Final user study}{2023-07-24}{2023-07-29}\\
+        \ganttbar[progress=100, name=ca]{Comparison \& analysis}{2023-07-29}{2023-08-03}\\
+        \ganttmilestone{M$_5$}{2023-08-03}\\
+        \ganttgroup{Report}{2023-06-01}{2023-08-19}\\
+        % \ganttbar[progress=95, name=es]{$^{\text{*}}\,$Early sections}{2023-06-01}{2023-08-02}\\
+        \ganttbar[progress=95, name=es]{Background \& experiments}{2023-06-01}{2023-08-02}\\
+        \ganttbar[progress=100, name=er]{Evaluation}{2023-07-15}{2023-08-05}\\
+        \ganttbar[progress=100, name=ia]{Introduction \& abstract}{2023-08-05}{2023-08-10}\\
+        \ganttbar[progress=100,name=fw]{Finalising writing}{2023-08-10}{2023-08-19}\\
+        \ganttbar[progress=100,name=pr]{Proofreading}{2023-06-01}{2023-08-19}\\
+        \ganttmilestone{M$_6$}{2023-08-19}
+        \ganttlink[link bulge=.75]{br}{dd}
+        \ganttlink[link bulge=1.5, link mid=.7]{br}{id}
+        \ganttlink[link bulge=2.5, link mid=.5]{br}{bs}
+        \ganttlink{br}{fd}
+        \ganttlink[link bulge=3.5, link mid=.12]{br}{hci}
+        \ganttlink{bs}{fd}
+        \ganttlink{ia}{fw}
+        \ganttlink[link mid=.6]{im}{fus}
+        \ganttlink{us}{fus}
+        \ganttlink[link mid=.14]{ca}{er}
+        \ganttlink[link mid=.1, link bulge=1.4]{fus}{er}
+        \ganttlink[link mid=.16, link bulge=2]{us}{er}
+        \ganttlink[link mid=.6]{us}{im}
+        \ganttvrule{R$_{1\,\rightarrow}$}{2023-06-01}
+        \ganttvrule{$_{\leftarrow\,}$R$_1$}{2023-06-14}
+        \ganttvrule{R$_{2\,\rightarrow}$}{2023-07-02}
+        \ganttvrule{$_{\leftarrow\,}$R$_2$}{2023-07-30}
+        \ganttvrule{R$_{3\,\leftrightarrow}$}{2023-08-06}
+        \ganttvrule{\,R$_3$}{2023-08-10}
+        \ganttvrule{R$_{4\,\rightarrow}$}{2023-08-17}
+      \end{ganttchart}
+      \caption[Project Gantt chart]{Gantt Chart of project activities, see \cref{tab:MDR} for details. %
+        % $^{\text{*}}$\,Early sections are the background, method, and experiments.
+        Overarching bars coloured \textcolor{groupColor}{\rule{1ex}{\charHeight}}~represent the maximum time (including contingency) allocated per phase, \textcolor{barColor}{\rule{1ex}{\charHeight}}~represents the scheduled time for a task and \textcolor{barIncompleteColor}{\rule{1ex}{\charHeight}}~its contingency time. Arrowed lines indicate task dependencies}
+      \label{fig:gantt}
+      % This Gantt chart was devised by Trista Yang, MSc~2022, and extended by Brian Mitchell, 2023
+    \end{figure}
+
+    \begin{table*}[!p]% alternatives: [!tbp] or [!btp] % DO NOT use [!h] or [h] or [H]
+      \begin{center}
+          \begin{tabular}{lcS[table-format=2.0]*{2}{l}}
+          \toprule
+          & \textbf{Event} & \textbf{Week(s)} & \textbf{Description} & \textbf{Deliverable}\\
+          \midrule
+          & \textcolor{milestoneColor}{M$_1$} &
+              2 & Feasibility study completed\\
+          & \textcolor{milestoneColor}{M$_2$} &
+              3 & First prototype implementation completed
+              & Prototype\\
+          & \bfseries\textcolor{milestoneColor}{M$_3$} &
+              \bfseries 5 & \bfseries Second marker feedback\\
+          & \textcolor{milestoneColor}{M$_4$} &
+              7 & Implementation completed
+              & Software repository\\
+          & \textcolor{milestoneColor}{M$_5$} &
+              7 & Evaluation completed
+              & \bfseries Report draft\\
+          \multirow{-6}{*}{\rotatebox{90}{\textcolor{milestoneColor}{Milestone}}}
+          & \textbf{\textcolor{milestoneColor}{M$_6$}} &
+              \bfseries 10 & \bfseries Submission deadline
+              & \bfseries Final report\\
+          \midrule
+          & \textcolor{riskColor}{R$_1$} & 
+              \text{1--2~\,} & First busy period for supervisor\\
+          & \textcolor{riskColor}{R$_2$} & \text{4--8~\,} &
+              Supervisor likely to be away\\
+          & \bfseries\textcolor{riskColor}{R$_3$} & \bfseries 9 &
+              \bfseries Changing accommodation\\
+          \multirow{-4}{*}{\rotatebox{90}{\textcolor{riskColor}{Risk}}}
+          & \textcolor{riskColor}{R$_4$} &  10 & Second busy period for supervisor\\
+          \bottomrule
+          \end{tabular} 
+      \end{center}
+      \caption[Project milestones, deliverables and risks]{Project milestones, deliverables, and risks (\textbf{bold} = main); see \cref{fig:gantt}}
+      \label{tab:MDR}
+    \end{table*}
+  \end{landscape}
+}% afterpage closing brace
+
+
+
+\section{Responsible Research}
+\begin{itemize}[nosep]
+    \item You must include an ethical evaluation of your research --- even if your conclusion, which should be justified is that no ethical issues are relevant.
+    \item If appropriate discuss any dual-use concerns
+    \item Include a brief data management plan. How do you plan to package or handle any code, data or results for future use by yourself, your supervisor or anyone else.
+    \item If appropriate discuss any licensing issues.
+\end{itemize}
+
+\printbibliography[heading=bibnumbered,title=\refname,label={bibliography}]
+
+\appendix
+
+\end{document}

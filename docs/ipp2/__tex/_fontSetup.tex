@@ -1,0 +1,62 @@
+% fontspec setup
+\RequirePackage{notomath} % currently (2023) unavailable in light
+\setmainfont{NotoSerif-Light}[
+ BoldFont       = NotoSerif-Medium
+,ItalicFont     = NotoSerif-LightItalic
+,BoldItalicFont = NotoSerif-MediumItalic
+,Numbers={OldStyle,Proportional}
+]
+\setsansfont{NotoSans-Light}[
+ BoldFont       = NotoSans-Medium
+,ItalicFont     = NotoSans-LightItalic
+,BoldItalicFont = NotoSans-MediumItalic
+,Numbers={OldStyle,Proportional}
+,Scale=MatchLowercase
+]
+
+% Until NotoSans Mono has italics, use something else
+\RequirePackage[mono]{inconsolata}      % monospaced version, also affects hypenation
+% InconsolataN is narrower, more in-keeping with the Noto superfamily
+% Inconsolata stylistic sets: 1 = shapely l, 2 = unslashed zero, 3 = straight quotes
+\setmonofont{inconsolataN}[Scale=MatchLowercase,StylisticSet={1,3}]
+
+\newfontfamily\titlepageFontSans{Rosario}[
+   Extension      = .otf
+  ,UprightFont    = *-Light
+  ,BoldFont       = *-SemiBold
+  ,ItalicFont     = *-LightItalic
+  ,BoldItalicFont = *-SemiBoldItalic
+  ,Numbers        = {Lining,Proportional}
+  ,Ligatures      = TeX
+]
+
+% CrimsonPro is a wider ranging version of Crimson Text
+\newfontfamily\titlepageFontSerif{CrimsonPro}[
+   Extension      = .ttf
+  ,UprightFont    = *-Light
+  ,BoldFont       = *-Medium
+  ,ItalicFont     = *-LightItalic
+  ,BoldItalicFont = *-MediumItalic
+  ,Numbers        = {Lining,Proportional}
+  ,Ligatures      = TeX
+]
+
+% titlesec commands
+\titlelabel{\addfontfeatures{Numbers={Lining,Proportional}}\thetitle\quad}
+\titleformat*{\section}{\Large\sffamily\bfseries}
+\titleformat*{\subsection}{\large\sffamily\bfseries}
+\titleformat*{\subsubsection}{\normalsize\sffamily\bfseries}
+
+% Enforce settings automatically with specific environments.
+% Use uppercase (Lining), full-width (Monospaced) numbers in tables
+\AtBeginEnvironment{tabular}{\addfontfeatures{Numbers={Monospaced,Lining}}}
+\AtBeginEnvironment{tabularx}{\addfontfeatures{Numbers={Monospaced,Lining}}}
+
+\setkeys{Gin}{width=\linewidth,totalheight=\textheight,keepaspectratio}
+
+\setsidenotes{
+   note-mark-sep={\hspace*{.2em}}
+  ,note-mark-format={\smash{\hspace*{-1.2em}\makebox[1em][r]{\addfontfeatures{Numbers=OldStyle}\textsuperscript{#1}}}}
+  ,text-mark-format={\textsuperscript{\hspace*{.1em}#1}}
+  ,text-format+={\setlength{\RaggedRightParindent}{0em}\RaggedRight\footnotesize}
+}

@@ -1,0 +1,166 @@
+% Use this to include the class that the document loads and any document classes further in the stack
+\PassOptionsToClass{
+  11pt
+  %a4paper
+}                      {article}
+\PassOptionsToClass{
+  11pt
+  %a4paper
+}                      {report}
+
+
+% You also need to pass the page size to geometry because \pdfpagewidth and \pdfpageheight are undefined by default in lualatex
+\PassOptionsToPackage{
+   export% export options to graphicx package for the \includegraphics command
+}                      {adjustbox}
+\PassOptionsToPackage{
+   tbtags% align equation numbers to the top or bottom of a multi-line equation
+}                      {amsmath}% loaded by mathtools
+\PassOptionsToPackage{
+   backend=biber% biber is 21st century LaTeX: 20th century LaTeX used bibtex
+   % style is set in the main document
+  %,style=bath,sorting=nyt% harvard referencing sorted by author name then year then title
+  % ,style=ieee% numeric citations
+  ,uniquename=false
+  ,uniquelist=false
+  ,giveninits=false
+  ,indexing=true% allow building indices globally; "cite" for citations only, "bib" for bibliography only
+  ,doi=true
+  ,url=true
+  %,backref% remove this if you don't want the references list to contain hyperlinks to where the citations were made
+  ,backrefstyle=none% the default is three: this changes backreferencing page compression for consecutive pages
+  ,backrefsetstyle=setonly
+  ,backreffloats=true
+  %,backrefpage={Cited on page~}% not working on TeXLive23, should work from TeXLive24
+  %,backrefpages={Cited on pages~}% not working on TeXLive23, should work from TeXLive24
+}                      {biblatex}
+\PassOptionsToPackage{
+   font={normalcolor, small, stretch=1.4}% stretch is the caption line spacing
+  ,hypcap=true% true = hyperlink to beginning of table/figure; false=hyperlink to caption
+  ,hypcapspace=\baselineskip% amount of page to show above the table/figure when hyperlinking
+  ,labelfont={bf, normalcolor}% bf is bold, sc is small caps, sf is sans, rm is serif
+  ,listformat=simple% how the caption appears in the List of Tables/Figures
+  ,labelformat=simple% how the caption is formmatted in the text
+  ,labelsep=space% colon
+  ,format=hang% use plain if you don't want a hanging indent
+  ,singlelinecheck=true% false stops a one-line caption being centred
+  ,tableposition=below% assumes captions are underneath tables
+  ,textformat=period% automatically add a . to the end of the caption text
+  ,width=.75\textwidth%
+  %,aboveskip=10pt% change the space above the caption
+  %,belowskip=10pt% change the space below the caption
+}                      {caption}
+\PassOptionsToPackage{}{subcaption}
+\PassOptionsToPackage{
+    capitalise
+   ,nameinlink
+   ,noabbrev
+   ,sort&compress
+ }                     {cleveref}
+\PassOptionsToPackage{
+    en-GB
+   ,useregional=false
+   ,showseconds=false
+}                      {datetime2}
+ \PassOptionsToPackage{
+   shortcuts% provides \=/ for non-breaking hyphens and \-/ to allow a word to be hyphenated before the first hyphen (normally LaTeX doesn't hyphenate the first part)
+}                      {extdash}
+\PassOptionsToPackage{
+   quiet
+}                      {fontspec}
+\PassOptionsToPackage{
+   hang
+}                      {footmisc}
+% You also need to pass the page size to geometry because \pdfpagewidth and \pdfpageheight are undefined by default in lualatex
+\PassOptionsToPackage{
+   a4paper
+}                      {geometry}
+\PassOptionsToPackage{
+    numberedsection=false
+   ,nonumberlist
+   %,section=section% Uncomment if you always the Glossary to be a section, otherwise the code below uses chapter if available otherwise section
+   ,toc=true
+}                      {glossaries}
+% This code uses section=chapter if chapter is defined by the documentclass, otherwise section=section
+% If you always want to use section=section regardless, then uncomment section=section above and comment out the line below
+\makeatletter\@ifundefined{chapter}{\PassOptionsToPackage{section=section}{glossaries}}{\PassOptionsToPackage{section=chapter}{glossaries}}\makeatother
+
+
+\PassOptionsToPackage{
+   abbreviations
+  ,symbols
+  ,xindy
+}                      {glossaries-extra}
+\PassOptionsToPackage{
+   %pdftex% only if compiling with pdftex
+}                      {graphicx}
+\PassOptionsToPackage{
+   pdfa
+}                      {hyperref}
+% idxlayout is a convenient and reliable way to specify default layouts for indices. You can override these settings for a specific index
+\PassOptionsToPackage{
+   columns=3
+  ,indentunit=\parindent
+  ,columnsep=1.5\parindent
+  ,totoc,
+  font=small
+}                      {idxlayout}
+\PassOptionsToPackage{
+   xindy% 21st century LaTeX uses xindy + .xdy config file; 20th century LaTeX uses makeindex+ 
+  ,nonewpage% comment this out if you want the index to start a new page, eg if you are using the report of book class
+  ,original
+  ,noautomatic% LEAVE THIS ONE especially on Overleaf otherwise you run the risk of the index being processed again
+}                      {imakeidx}
+\PassOptionsToPackage{
+   utf8
+}                      {inputenc}
+\PassOptionsToPackage{
+  ,contentBlocks
+  ,debugExtensions
+  ,definitionLists
+  ,fancy_lists
+  ,fencedCode
+  ,hashEnumerators
+  ,inlineNotes
+  ,jekyllData
+  ,lineBlocks
+  ,notes
+  ,pipeTables
+  ,rawAttribute
+  ,smartEllipses
+  ,strikeThrough
+  ,subscripts
+  ,superscripts
+  ,tableCaptions
+  ,taskLists
+  ,texMathDollars
+  ,texMathDoubleBackslash
+  ,texMathSingleBackslash
+}                      {markdown}
+\PassOptionsToPackage{
+   protrusion
+  ,stretch=20
+  ,shrink=20
+}                      {microtype}
+\PassOptionsToPackage{
+   l2tabu
+  ,orthodox
+}                      {nag}% One function of nag is tell you how old-fashioned your LaTeX is
+\PassOptionsToPackage{
+   footnote=true% Sidenotes instead of footnotes
+}                      {snotez}% Sidenotes
+\PassOptionsToPackage{
+   %explicit% this means you must use #1 to print the name in titleformat commands otherwise compilation hangs
+  ,pagestyles% automatically load the page styles package titleps
+}                      {titlesec}% this is instead of the fancyhdr package and must be loaded before hyperref
+\PassOptionsToPackage{
+   titles% lets this package play better with other packages
+}                      {tocloft}% tools for putting Lists of Figures and Tables on the contents page
+\PassOptionsToPackage{
+   normalem% needed if the sectsty package is loaded (which for Informatics reports it is)
+}                      {ulem}% use UnderLining instead of EMphasis (italics)
+\PassOptionsToPackage{
+   svgnames
+  ,table
+  ,usenames
+}                      {xcolor}% xcolor is loaded by some common packages
