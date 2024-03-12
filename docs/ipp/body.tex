@@ -1,4 +1,4 @@
-\section{Introduction}\label{introduction}
+\section{Motivation}\label{motivation}
 
 \begin{quote}
 Data pipelines are sets of processes that move and transform data from
@@ -6,563 +6,251 @@ various sources to a destination where new value can be derived.
 \citep[p.~1]{pipelines_pocket}
 \end{quote}
 
-Although data pipelines are often addressed in the context of
-engineering big data systems, the proposal put forth in this document
-will consider a broader scope of the term which also includes small data
-use cases, some of which are listed in Table \ref{tbl:pipelines}.
+Data pipelines are an important part of today's data landscape,
+underpinning a vast array of processes: from manually created ad-hoc
+reports in the form of spreadsheets to advanced LLMs powering ChatGPT.
+Their purpose is to make data available and accessible to data
+consumers.
 
-\begin{longtable}[]{@{}lll@{}}
-\caption{\label{tbl:pipelines}Data pipeline use cases.}\tabularnewline
-\toprule\noalign{}
-User & Use case & Tech examples \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-User & Use case & Tech examples \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-Business user & Report/Analyse & Excel/Power Query \\
-Data scientist & Model/Analyse & Python/R \\
-Data engineer & Prepare & ETL tools, scripting \\
-Database admin & Migrate, Backup & ETL tools, db tools \\
-\end{longtable}
+A basic unit of a pipeline moves data from a source to a target while
+optionally \emph{transforming} the data in the process.
+\emph{Transformations} change the state of the data: some basic examples
+include cleaning, removing and summarizing data. A basic pipeline unit
+is illustrated in Figure \ref{fig:sequence0} from the perspective of a
+\emph{pipeline engine}: the process which executes pipelines.
 
-Each of the use cases in Table \ref{tbl:pipelines} involve a data
-pipeline which moves and transforms data to a destination. The classic
-sub-pattern of data pipelines is ETL (Extract-Transform-Load), however
-this proposal will focus on a sub-pattern called \emph{ingestion}, also
-known as EtL. \emph{Ingestion} has two functions: (1) its primary
-function is on the Extract-Load part of the pipeline; (2) with a
-secondary function performing non-contextual (small-t) transformations
-\citep[p.~106]{pipelines_pocket} as part of the process. Table
-\ref{tbl:elt} provides further descriptions of common pipeline patterns,
-it also provides some scope details relating to the project proposed in
-this paper.
+\includesvg{img/sequence0.svg}
 
-\begin{longtable}[]{@{}llll@{}}
-\caption{\label{tbl:elt}Project scope via pipeline
-patterns.}\tabularnewline
-\toprule\noalign{}
-& Stands for & Description & In scope \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-& Stands for & Description & In scope \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-E & Extract & Extracting data from source & Yes \\
-t & Small-t transforms & Non-contextual transforms & Yes \\
-L & Load & Saving data to its target & Yes \\
-T & Big-t transforms & contextual transformations & No \\
-ETL & & Classic pattern: T before L & No \\
-ELT & & Modern pattern: T after L & No \\
-EtLT & & Modern pattern: small/big T & No \\
-EtL & & Sub-pattern: ingestion & Yes \\
-\end{longtable}
+The first stage of a pipeline involves a consolidation of multiple
+datasets into a single target, we will use the term \emph{ingestion} to
+refer to this stage. Figure \ref{fig:dataflow} is an example of an
+ingestion phase of a dataflow demonstrating two source files being
+loaded to a single database. Each edge in Figure \ref{fig:dataflow}
+represents the sequence in Figure \ref{fig:sequence0}.
 
-For the purpose of this paper, non-contextual transformations are
-defined as those which can be executed using information in a single
-tabular dataset. Using relational database (SQL) lingo, non-contextual
-transformations cannot use a \texttt{JOIN} clause to refer to data from
-another table. Table \ref{tbl:tfm} gives some examples of common
-examples of these transformations. Conversely, contextual
-transformations are those that combine two or more datasets/tables and
-are not in scope for the proposed project.
+\includesvg{img/dataflow.svg}
 
-\begin{longtable}[]{@{}lll@{}}
-\caption{\label{tbl:tfm}Project scope via non-contextual
-transformations.}\tabularnewline
-\toprule\noalign{}
-Transformation & Example & In scope \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-Transformation & Example & In scope \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-Create/drop column & Create row identifier column & Yes \\
-Convert data types & String to date & Yes \\
-Filter rows & Remove duplicates & Maybe \\
-Split/join strings & Concatenate columns & Maybe \\
-Obfuscate sensitive data & Encrypt birth date & No \\
-Aggregate & Sum total revenue by year & No \\
-\end{longtable}
+For the last ten years I have been freelancing as a data consultant,
+creating and running several data pipeline projects simultaneously with
+different clients. This motivated me to think about how data pipeline
+projects can be rapidly implemented, iterated and change traced. During
+this process I have settled on using the pandas library in Python to
+facilitate the \emph{ingestion} phase. The pandas Python library is
+popular with data scientists and at its core stores tabular datasets in
+a structure called a DataFrame. For the \emph{ingestion} phase the
+Python/pandas layer was the \emph{pipeline engine} illustrated in Figure
+\ref{fig:sequence0}. This generally functioned an ad-hoc solution but
+required a lot of manual tweaking of the code in order to accommodate
+exceptions and edge cases. This inspired me to try to capture the
+essence of \emph{data ingestion} in an external configuration that could
+be read, interpreted and executed by a Python pipeline engine.
 
-The problems and solutions put forth in this document focus on
-application in the business context, especially internal-facing data
-products such as analytical reports and dashboards. Despite this narrow
-focus in examples and use cases, it is expected that the solutions
-proposed may also be used in outward-facing data product projects as
-well as in research and academia.
+The following sections will explore the idea of a pandas declarative
+data layer.
 
 \subsection{Problem Statement}\label{problem-statement}
 
-Lacking is a clear way to define and communicate data ingestion across
-different use cases and end points. Figure \ref{fig:sequencedp} shows
-how a data pipeline may pass between different members of a team, each
-with their own tooling and methods for handling the data. This
-introduces process redundancy as each participant is re-creating, or
-converting a pipeline into their own tooling in order to ingest the same
-data. Some of the ingestion work performed in point 1 is repeated in
-points 3, 6 and 9.
+How can \emph{data ingestion}---the process of moving data from multiple
+sources to a single target---be streamlined? Before answering this
+question, let's first examine how this is currently done in the context
+of a hypothetical python project with a single csv source and sql
+target.
 
-\includesvg{img/sequencedp.svg}
-
-Point 9 in Figure \ref{fig:sequencedp} also highlights another problem
-that can arise with data pipelines: the ability to change end points
-seamlessly. In this example the DBA or cloud engineer may be
-experimenting with different database backends to find the most
-effective solution, optimising for cost in this case or speed in
-another. Allowing a mechanism to easily test and change end points can
-reduce vendor lock-in risk when building data products.
-
-\includesvg{img/sequencedp2.svg}
-
-Another challenge with pipelines is the ability to communicate
-explanations of data pipelines across a diverse team. Figure
-\ref{fig:sequencedp2} shows a scenario where the problem in focus is how
-the pipeline can be explained to different types of users: business
-(Point 5) and technical (Point 9). With a pipeline defined in a plain
-text configuration language as proposed, it is trivial to extract and
-present lineage graphs. A common way to communicate data pipelines is to
-use a Directed Acyclic Graph (DAG) to show how different parts of the
-data are related.
-
-\subsection{Proposed Solution}\label{proposed-solution}
-
-\begin{quote}
-The great virtue of a declarative language is that it makes the intent
-clear. You're not saying how to do something, you're saying what you
-want to achieve. \citep[p.~39]{patterns_eaa}
-\end{quote}
-
-The solution proposed below seeks to create a declarative configuration
-system for data ingestion that can be used across different use cases.
-The name of this solution is \emph{eel}: easy-extract-load and some of
-the project's goals are listed in Table \ref{tbl:goals}.
-
-\begin{longtable}[]{@{}ll@{}}
-\caption{\label{tbl:goals}Eel project goals.}\tabularnewline
-\toprule\noalign{}
-Goal & Measure \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-Goal & Measure \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-1. Friendly & Configuration optional, inferring suitable defaults \\
-2. Readable & Text-based, Human-readable configuration language \\
-3. Agnostic & Works across different end points seamlessly \\
-4. Explainable & Lineage graphs included \\
-\end{longtable}
-
-More details on the project goals from Table \ref{tbl:goals}:
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Friendly and intuitive: should be easy for a user to get started
-  without the burden of setting up configuration files manually.
-\item
-  Readable plain text configuration: All configuration in logical folder
-  structure and with one or more plain text configuration files defining
-  end points and transformations.
-\item
-  Technology agnostic: should be able to swap different end-points
-  without requiring a re-write of mapping/transformation logic.
-\item
-  Explainable: system can create lineage graphs explaining the mappings
-  and transformations defined in the configuration.
-\end{enumerate}
-
-Revisiting Figure \ref{fig:sequencedp} with eel, points 3, 6 and 9 could
-be using the same eel configuration which defines the ingestion instead
-of redefining the ingestion across different tools. Likewise, Figure
-\ref{fig:sequencedp2} can be remained by creating the lineage graphs in
-step 5 automatically and reducing the need for communication between the
-Data Scientist and Data Engineer (points 8-10), since all required
-ingestion information is already included in the eel configuration.
-
-Points 2 and 11 in Figure \ref{fig:sequencedp2} highlight an additional
-benefit of the solution: the ability to switch from an in-memory storage
-solution to a persisted solution. This can be especially helpful for
-rapid prototyping and testing of data products.
-
-Modern data pipelines have many features: most of which will not be in
-scope for this project. Table \ref{tbl:scope} lists elements of a modern
-data pipeline and how they are scoped in relation to this project.
-
-\begin{longtable}[]{@{}llll@{}}
-\caption{\label{tbl:scope}Project scope summary.}\tabularnewline
-\toprule\noalign{}
-Element & In Scope & Out of Scope & More Details \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-Element & In Scope & Out of Scope & More Details \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-Sub-pattern & Ingestion/EtL & ETL/ELT/EtLT & Table \ref{tbl:elt} \\
-Transformations & Non-contextual & Contextual & Table \ref{tbl:tfm} \\
-End points & See Details & All others & Table \ref{tbl:ep} \\
-Schema type & Tabular & Document & \\
-Concurrency & Single-thread & Multi-thread & \\
-Scaling & Single-node & Multi-node & \\
-Locality & Local/Network & Cloud/Online & \\
-Transform Engine & python/pandas & Dynamic & \\
-Load table & Insert/Create & CDC/Continue & \\
-Lineage support & Table-level & Column-level & Data-based DAGs \\
-Method & Batch & Streaming & \\
-Interface & CLI/Yml schema & GUI & Use IDE/editor \\
-Orchestration & Static & Dynamic & \\
-Tracking/Stats & Not in Scope & & \\
-Security & Not in Scope & & \\
-\end{longtable}
-
-Table \ref{tbl:scope} lists some of the end points that will be
-supported in this phase of the project, those not listed are implicitly
-not in scope. Note the distinction between container and table: for the
-purposes of this project a container is analogous to a directory which
-contains one or more tables and/or containers.
-
-\begin{longtable}[]{@{}lllll@{}}
-\caption{\label{tbl:ep}Project scope via data store end
-points.}\tabularnewline
-\toprule\noalign{}
-Class & Store & Capacity & Scope: source & Scope: target \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-Class & Store & Capacity & Scope: source & Scope: target \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-File & Excel & Container & Yes & Yes \\
-File & csv & Table & Yes & Yes \\
-Database & mssql & Container & Yes & Yes \\
-Database & sqllite & Container & Yes & Yes \\
-In-process & dataframe & Table & No & Yes \\
-\end{longtable}
-
-\subsection{Timeliness and Novelty}\label{timeliness-and-novelty}
-
-Although the theory of a declarative ETL has been discussed in academia
-\citep{ingestbase} and industry \citep{mded}, there lacks a general
-purpose implementation. This project seeks a back to basics data
-approach, starting with small, single node data projects. If successful
-at the small data scale, it could serve as a foundation for a more
-advanced system for defining pipelines that have a greater scope.
-
-\subsection{Feasibility}\label{feasibility}
-
-A fully functional data pipeline system built from scratch is a large
-undertaking. To keep the scope realistic given limited time and
-resources, care has been taken to keep the scope of this project small.
-See Table \ref{tbl:scope} for details on scope.
-
-\subsection{Beneficiaries}\label{beneficiaries}
-
-The main beneficiaries of this project should be the following:
+Below are the specs in bullet form, followed by a code block for
+execution.
 
 \begin{itemize}
 \tightlist
 \item
-  Data engineers who work on small to medium data pipelines can use this
-  system to define their data ingestion.
-\item
-  Data scientists who want a common language to define (and share) their
-  data sources outside of the code-base.
-\item
-  Data professionals who wish to migrate data from one end point to
-  another.
-\end{itemize}
-
-\section{Background and Related Work}\label{background-and-related-work}
-
-Declarative data pipelines are not a novel concept \citep{ingestbase},
-however when implemented they are normally offered as part of a big data
-platforms that are integrated in a monolithic system
-\citep{nifi, ascend} and their realisation occurs in large cloud based
-infrastructure focusing on big data applications. When available as
-standalone solutions \citep{meltano}, they involve a complicated setup
-process and are built upon a technology \citep{singer} that is no longer
-under active development.
-
-\section{Programme and Methods}\label{programme-and-methods}
-
-The project will be planned using the waterfall method but executed more
-flexibly as required. This allows for clear planning pathway while being
-open to changes as the project progresses.
-
-This project has three main modules that will be developed: (1)
-eel-yaml, a pipeline configuration language, (2) eel-project, a
-folder-based project specification, and (3) eel-cli, a command line
-interface which interprets and among other functions, executes the
-pipelines defined in an eel-project. Figure \ref{fig:sequence} below is
-a high-level sequence diagram as to how these modules interact with a
-data pipeline.
-
-\includesvg{img/sequence.svg}
-
-\subsection{Work packages}\label{work-packages}
-
-The following four work packages are planned to be developed in sequence
-with some overlap in between. Each work package has approximately 2
-weeks of development, 1 week of waiting for supervisor feedback and a
-final week of revision. With the exception of \emph{Project setup}, each
-work package focuses on a single eel module.
-
-\subsubsection{Project setup}\label{project-setup}
-
-This work package will develop a testing and benchmarking suite that
-will be used as development progresses in the project
-
-Work package tasks:
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Determine datasets to be used in tests.
-\item
-  Develop a battery of tests to be performed in concert with each work
-  package.
-\end{enumerate}
-
-\subsubsection{eel-yaml: configuration
-language}\label{eel-yaml-configuration-language}
-
-A human-readable declarative configuration language defined in a YAML
-schema that can be used in most popular editors (such as Visual Studio
-Code) to facilitate the user's ability to create the extract-load
-configurations manually. The declarative language can be considered a
-configuration which details data end points (targets and sources.)
-
-Work package tasks:
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Create and document yaml schema in concert with a python interpreter.
-\item
-  Test interpreter/yaml against tests developed in project setup.
-\end{enumerate}
-
-\subsubsection{eel-project: intuitive project
-structure}\label{eel-project-intuitive-project-structure}
-
-A folder/directory representing the top level of an eel project, all
-sub-directories and files are considered part of the project's contents.
-
-The project structure will stress DRY principals allow for minimum
-configurations using some of the following methods:
-
-\begin{itemize}
-\item
-  Configuration inheritance via directory/folder structure:
-  configurations inherit from parent node (i.e., folder). Useful when a
-  target object (i.e.~database or table) is the same for multiple data
-  sources.
-\item
-  Use existing metadata (i.e., from database schema) for data types,
-  table and container names.
-\item
-  Type inferencing when no data type information available, for example
-  in csv files.
-\end{itemize}
-
-Work package tasks:
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Yaml interpreter to account for a project hierarchy, including passing
-  of configuration to child nodes.
-\item
-  Yaml interpreter to output defaults to yaml project directory.
-\end{enumerate}
-
-\subsubsection{eel-cli: interface
-development}\label{eel-cli-interface-development}
-
-A basic a command line tool that will interpret eel-project and perform
-certain actions:
-
-\begin{itemize}
-\tightlist
-\item
-  Show a preview of how eel-cli interprets the current eel-yaml project:
+  source
 
   \begin{itemize}
   \tightlist
   \item
-    config tree
+    \textbf{file:} customer.csv
   \item
-    task flow tree
-  \item
-    eel-yaml inherits
+    \textbf{encoding:} iso-8859-1 encoding
   \end{itemize}
 \item
-  Execute dataflow
+  transformations
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \textbf{none}
+  \end{itemize}
+\item
+  target
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \textbf{sql database:} sqlite:///my\_database.db
+  \item
+    \textbf{sql table:} customer
+  \item
+    \textbf{if table exists:} replace
+  \end{itemize}
 \end{itemize}
 
-Work package tasks:
+\begin{Shaded}
+\begin{Highlighting}[]
+\ImportTok{import}\NormalTok{ pandas }\ImportTok{as}\NormalTok{ pd}
+\ImportTok{from}\NormalTok{ sqlalchemy }\ImportTok{import}\NormalTok{ create\_engine}
 
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Fine-tune interpreter to work with a cli, beginning with pipeline
-  execution.
-\item
-  Add preview functionality to the cli to allow the user to see how a
-  pipeline will be executed before committing.
-\end{enumerate}
+\CommentTok{\# Create a connection to the database}
+\NormalTok{engine }\OperatorTok{=}\NormalTok{ create\_engine(}\StringTok{\textquotesingle{}sqlite:///my\_database.db\textquotesingle{}}\NormalTok{)}
 
-\subsubsection{Dissertation}\label{dissertation}
+\CommentTok{\# Read the CSV file with Brazilian Portuguese encoding}
+\NormalTok{df\_customers }\OperatorTok{=}\NormalTok{ pd.read\_csv(}\StringTok{\textquotesingle{}customer.csv\textquotesingle{}}\NormalTok{, encoding}\OperatorTok{=}\StringTok{\textquotesingle{}iso{-}8859{-}1\textquotesingle{}}\NormalTok{)}
 
-The dissertation will be written throughout the entirety of the project.
-With the end of each work unit, the dissertation will be submitted to
-the project supervisor for review. Feedback on dissertation work units
-are expected after a week of submission as reflected in the Gantt chart
-in Figure \ref{fig:gantt}.
+\CommentTok{\# Write the data from the CSV file to the database}
+\NormalTok{df\_customers.to\_sql(}\StringTok{\textquotesingle{}customer\textquotesingle{}}\NormalTok{, engine, if\_exists}\OperatorTok{=}\StringTok{\textquotesingle{}replace\textquotesingle{}}\NormalTok{, index}\OperatorTok{=}\VariableTok{False}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
 
-\subsubsection{Progress Report}\label{progress-report}
+This being a straightforward example we can quickly identify the source
+and the target for the customer dataset. The configuration for this
+\emph{ingestion} is hard-coded in our python script. Now imagine that
+the customer data comes in multiple csv files: one for each of Brazil's
+five regions.
 
-Not strictly a work package, but a mid-point progress report to be
-developed containing a summary of work done and remaining tasks.
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{customers/}
+\KeywordTok{|}\ExtensionTok{{-}{-}}\NormalTok{ north.csv}
+\KeywordTok{|}\ExtensionTok{{-}{-}}\NormalTok{ northeast.csv}
+\KeywordTok{|}\ExtensionTok{{-}{-}}\NormalTok{ central{-}west.csv}
+\KeywordTok{|}\ExtensionTok{{-}{-}}\NormalTok{ southeast.csv}
+\KeywordTok{|}\ExtensionTok{{-}{-}}\NormalTok{ south.csv}
+\end{Highlighting}
+\end{Shaded}
 
-\subsection{Risk Assessment}\label{risk-assessment}
+In order to accommodate this change to the way that this data will be
+ingested we would either have to explicitly code each of the five
+regions, or iterate each file in the customers folder. Either way we
+loose visibility into what data is being ingested. Another pain arises
+if we decide to add the name of the file as a new column as a
+transformation.
 
-This project has some risks associated with it listed in Table
-\ref{tbl:risks}.
-
-\begin{longtable}[]{@{}llll@{}}
-\caption{\label{tbl:risks}Risk assessment for project.}\tabularnewline
-\toprule\noalign{}
-& Risk Description & Impact & Likelihood \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-& Risk Description & Impact & Likelihood \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-1 & Misjudgments in scheduling & High & Medium \\
-2 & Existing solution solves problem & Low & Low \\
-3 & AI Emergence renders project redundant & Medium & Medium \\
-\end{longtable}
-
-The following mitigating actions have been taken to reduce the risks
-listed in Table \ref{tbl:risks}:
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  To reduce the likelihood of a misjudgment in scheduling, the project
-  is minimally scoped.
-\item
-  Extensive research has been conducted to find existing solutions to
-  the problems posed in this document.
-\item
-  Popularity of AI/LLMs and prompt engineering for data analysis is
-  nascent but progressing fast. However it is expected that there will
-  still be a need for communicating data pipelines with humans. As
-  AI/LLMs matures, it could be used to rapidly expand the project's
-  scope in later phases
-\end{enumerate}
-
-\subsection{Ethics}\label{ethics}
-
-This project has no no ethical concerns as defined in \citep{ethics}.
-
-\section{Evaluation}\label{evaluation}
-
-Evaluation will be based on the results of tests developed in the
-project setup phase. An example of a basic test is presented in Figure
-\ref{fig:roundtrip}. This round-trip test moves a dataset between
-different end points, landing in the same end point format in which it
-started. A simple hash test could be performed to test if anything has
-been modified in the process.
-
-\includesvg{img/roundtrip.svg}
-
-This is a very basic test that does not cover transformations: only the
-extract and load parts. There are other problems with this type of test
-as follows:
+Below we have a modified spec in bullet form: only the source files and
+transformations have been modified. We see how these minor changes
+causes a significant change in the code block that follows.
 
 \begin{itemize}
 \tightlist
 \item
-  Order of records and encoding need to be preserved for test to pass.
+  source
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \textbf{files:} customers/*.csv (five files)
+  \item
+    \textbf{encoding:} iso-8859-1
+  \end{itemize}
 \item
-  Transformations not tested.
+  transformations
+
+  \begin{itemize}
+  \tightlist
+  \item
+    add column containing base name of file (without .csv extension)
+  \end{itemize}
 \item
-  Not clear how are empty strings, nulls and zeros are handled.
-\item
-  Not clear how data types are handled.
+  target
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \textbf{sql database:} sqlite:///my\_database.db
+  \item
+    \textbf{sql table:} customer
+  \item
+    \textbf{if table exists:} replace
+  \end{itemize}
 \end{itemize}
 
-This is just one test of many that should be created in the project
-setup phase and agreed with the supervisor.
+\begin{Shaded}
+\begin{Highlighting}[]
+\ImportTok{import}\NormalTok{ os}
+\ImportTok{import}\NormalTok{ pandas }\ImportTok{as}\NormalTok{ pd}
+\ImportTok{from}\NormalTok{ sqlalchemy }\ImportTok{import}\NormalTok{ create\_engine}
 
-\section{Expected Outcomes}\label{expected-outcomes}
+\CommentTok{\# Create a connection to the database}
+\NormalTok{engine }\OperatorTok{=}\NormalTok{ create\_engine(}\StringTok{\textquotesingle{}sqlite:///my\_database.db\textquotesingle{}}\NormalTok{)}
 
-The expected outcome is a python package that fulfills of the goals
-listed in Table \ref{tbl:goals}, as well as an accompanying dissertation
-containing a description of the work undertaken and an evaluation of the
-resulting system.
+\CommentTok{\# Specify the directory you want to import files from}
+\NormalTok{directory }\OperatorTok{=} \StringTok{\textquotesingle{}customers\textquotesingle{}}
 
-\section{Project Plan, Milestones and
-Deliverables}\label{project-plan-milestones-and-deliverables}
+\CommentTok{\# Use os.listdir to get the list of files}
+\NormalTok{files }\OperatorTok{=}\NormalTok{ os.listdir(directory)}
 
-There are no deliverables defined in this project: milestones are used
-in their place. Most of the milestones are structured around feedback
-rounds between the author and the supervisor. These feedback rounds are
-represented as red bars in the Gantt chart in Figure \ref{fig:gantt}.
-Once a first iteration of each work package has been completed and
-written up in the dissertation, it is submitted to the supervisor for
-review. The supervisor then has one week to respond with feedback on the
-work package. Similarly, feedback on the final dissertation is expected
-within two weeks of submission for feedback. See Table \ref{tbl:del} for
-the concrete dates of each milestone review.
+\CommentTok{\# Filter the list to only include CSV files}
+\NormalTok{csv\_files }\OperatorTok{=}\NormalTok{ [f }\ControlFlowTok{for}\NormalTok{ f }\KeywordTok{in}\NormalTok{ files }\ControlFlowTok{if}\NormalTok{ f.endswith(}\StringTok{\textquotesingle{}.csv\textquotesingle{}}\NormalTok{)]}
 
-\includesvg{img/gantt.svg}
+\CommentTok{\# Loop over the CSV files and import each one into the database}
+\ControlFlowTok{for} \BuiltInTok{file} \KeywordTok{in}\NormalTok{ csv\_files:}
+    \CommentTok{\# Read the CSV file with Brazilian Portuguese encoding}
+\NormalTok{    file\_path }\OperatorTok{=}\NormalTok{ os.path.join(directory, }\BuiltInTok{file}\NormalTok{)}
+\NormalTok{    df\_customers }\OperatorTok{=}\NormalTok{ pd.read\_csv(file\_path, encoding}\OperatorTok{=}\StringTok{\textquotesingle{}iso{-}8859{-}1\textquotesingle{}}\NormalTok{)}
 
-\begin{longtable}[]{@{}llll@{}}
-\caption{\label{tbl:del}List of project milestones.}\tabularnewline
-\toprule\noalign{}
-Mx & Due 2024 & Description & Supervisor Response \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-Mx & Due 2024 & Description & Supervisor Response \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-M1 & Mar-18 & Project Setup feedback round & +1 week \\
-M2 & Apr-15 & eel-yaml feedback round & +1 week \\
-M3 & Apr-18 & Progress Report & \\
-M4 & May-15 & eel-project feedback round & +1 week \\
-M5 & Jun-10 & eel-cli feedback round & +1 week \\
-M6 & Jul-08 & Dissertation final review & +2 weeks \\
-M7 & Jul-31 & Dissertation submitted & \\
-\end{longtable}
+    \CommentTok{\# Get the file name without the extension}
+\NormalTok{    file\_name }\OperatorTok{=}\NormalTok{ os.path.splitext(}\BuiltInTok{file}\NormalTok{)[}\DecValTok{0}\NormalTok{]}
+
+    \CommentTok{\# Add the region column}
+\NormalTok{    df\_customers[}\StringTok{\textquotesingle{}region\textquotesingle{}}\NormalTok{] }\OperatorTok{=}\NormalTok{ file\_name}
+
+    \CommentTok{\# Write the data from the CSV file to the database}
+    \CommentTok{\# For the first file imported, replace existing table}
+    \CommentTok{\#  On subsequent runs, append to the existing data}
+    \CommentTok{\# Assumes csv have same column names, orders and types}
+\NormalTok{    if\_exists }\OperatorTok{=} \StringTok{\textquotesingle{}replace\textquotesingle{}} \ControlFlowTok{if}\NormalTok{ engine.has\_table(}\StringTok{\textquotesingle{}customer\textquotesingle{}}\NormalTok{) }\ControlFlowTok{else} \StringTok{\textquotesingle{}append\textquotesingle{}}
+
+\NormalTok{    df\_customers.to\_sql(}\StringTok{\textquotesingle{}customer\textquotesingle{}}\NormalTok{, engine, if\_exists}\OperatorTok{=}\NormalTok{if\_exists, index}\OperatorTok{=}\VariableTok{False}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+We see that relatively small changes to how the source is structured
+requires a big change to the code importing it. This is just giving a
+simple example with a single table of data and a few tweaks. If we
+consider a project with hundreds of sources, each with different
+settings we begin to see the challenges associated with coding and
+maintaining this in a python script.
+
+\subsection{Proposed Solution}\label{proposed-solution}
+
+To address the challenges proposed above, a solution that externalizes
+source and target data definitions in a pandas ingestion project is
+proposed below. In effect, what is being proposed is a pandas
+configuration layer which defines sources, simple transformations, and
+target data.
+
+Let's show what this configuration might look like for the example given
+above:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# ingest\_config.yml}
+\FunctionTok{target}\KeywordTok{:}
+\AttributeTok{  }\FunctionTok{type}\KeywordTok{:}\AttributeTok{ sqllite}
+\AttributeTok{  }\FunctionTok{location}\KeywordTok{:}\AttributeTok{ my\_database.db}
+\AttributeTok{  }\FunctionTok{table}\KeywordTok{:}\AttributeTok{ customer}
+\AttributeTok{  }\FunctionTok{if\_exists}\KeywordTok{:}\AttributeTok{ replace}
+\FunctionTok{source}\KeywordTok{:}
+\AttributeTok{  }\FunctionTok{type}\KeywordTok{:}\AttributeTok{ csv}
+\AttributeTok{  }\FunctionTok{encoding}\KeywordTok{:}\AttributeTok{ iso{-}8859{-}1}
+\AttributeTok{  }\FunctionTok{location}\KeywordTok{:}\AttributeTok{ customers/*.csv}
+\FunctionTok{add\_columns}\KeywordTok{:}
+\AttributeTok{  }\FunctionTok{region}\KeywordTok{:}\AttributeTok{ \_file\_name\_base}
+\end{Highlighting}
+\end{Shaded}
+
+To execute the pipeline defined above, a simple shell command could be
+called
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{eel} \AttributeTok{{-}execute}\NormalTok{ ingest\_config.yml}
+\end{Highlighting}
+\end{Shaded}

@@ -127,12 +127,15 @@
         }
     ],
     "cSpell.words": [
+        "endswith",
         "inferencing",
         "ingestbase",
+        "listdir",
         "mded",
         "meltano",
         "nifi",
-        "sequencedp"
+        "sequencedp",
+        "splitext"
     ],
     "python.testing.pytestArgs": [
         "tests"
