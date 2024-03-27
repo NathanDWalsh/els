@@ -1,3 +1,0 @@
-<!-- Each programming language, database platform, ETL system and data analysis software has distinct methods for implementing extraction and loading (ingestion) logic. Lacking is a system that can be used interchangeably across different formats and tools. A user-friendly system for declaring data ingestion can have several use cases, some of which are as follows: (1) less time spent writing code to extract, load, move or convert data; (2) easily swap a pipeline from one datastore to another; (3) Seamlessly migrate data projects from in-process to physical storage; and (4) generate data lineage directly from the configuration. -->
-
-TBD
