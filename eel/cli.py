@@ -63,7 +63,7 @@ def execute():
     taskflow = get_taskflow()
     if taskflow:
         taskflow.execute()
-        print(pandas_end_points)
+        # print(pandas_end_points)
     else:
         logging.error("taskflow not loaded")
     logging.info("Fin")

@@ -42,9 +42,10 @@ def is_numeric(s):
 # Get the ec.Config dictionary for a given DataFrame
 def get_df_config(df: pd.DataFrame) -> dict:
     config_df = get_config_default()
-    if config_df.source.read_csv is None:
-        config_df.source.read_csv = ec.ReadCsv()
-    config_df.source.read_csv.dtype = df.dtypes.apply(lambda x: x.name).to_dict()
+    # if config_df.source.read_csv is None:
+    #     config_df.source.read_csv = ec.ReadCsv()
+    # config_df.source.read_csv.dtype = df.dtypes.apply(lambda x: x.name).to_dict()
+    config_df.source.dtype = df.dtypes.apply(lambda x: x.name).to_dict()
 
     # this is to prevent empty strings from being read as NaN:
     # config_df.source.read_csv.keep_default_na = False
@@ -183,6 +184,9 @@ def round_trip_csv(test_case: Test, request):
     )
     execute()
     df2 = pandas_end_points[test_name]
+
+    print(df.dtypes)
+    print(df2.dtypes)
 
     assert df.equals(df2)
 

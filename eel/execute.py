@@ -184,23 +184,27 @@ def get_dataframe_from_excel(file_path, **kwargs):
     return df
 
 
-def get_nrows_kwargs(source_key, nrows: Optional[int] = None):
+def get_source_kwargs(source_key, nrows: Optional[int] = None, dtype=None):
     kwargs = {}
     if source_key:
         kwargs = source_key.model_dump(exclude_none=True)
     if nrows:
         kwargs["nrows"] = nrows
+    if dtype:
+        kwargs["dtype"] = dtype
     return kwargs
 
 
 def get_df(
-    frame: Union[ec.Source, ec.Target], nrows: Optional[int] = None
+    frame: Union[ec.Source, ec.Target],
+    nrows: Optional[int] = None,
+    dtype=None,
 ) -> pd.DataFrame:
     if frame.type in ("mssql", "postgres", "duckdb"):
         df = get_dataframe_from_sql(frame)
     elif frame.type in (".csv", ".tsv"):
         if isinstance(frame, ec.Source):
-            kwargs = get_nrows_kwargs(frame.read_csv, nrows)
+            kwargs = get_source_kwargs(frame.read_csv, nrows, dtype)
             print(kwargs)
             if frame.type == ".tsv":
                 kwargs["sep"] = "\t"
@@ -209,7 +213,7 @@ def get_df(
         df = get_dataframe_from_csv(frame.file_path, **kwargs)
     elif frame.type and frame.type in (".xlsx"):
         if isinstance(frame, ec.Source):
-            kwargs = get_nrows_kwargs(frame.read_excel, nrows)
+            kwargs = get_source_kwargs(frame.read_excel, nrows, dtype)
         else:
             kwargs = {}
         if frame.file_path in open_files:
@@ -318,7 +322,8 @@ def ingest(config: ec.Config) -> bool:
         or consistent
         or target.consistency == ec.TargetConsistencyValue.IGNORE
     ):
-        source_df = get_df(source, config.nrows)
+        print(config.dtype)
+        source_df = get_df(source, config.nrows, config.dtype)
         source_df = add_columns(source_df, add_cols)
         return put_df(source_df, target, add_cols)
     else:

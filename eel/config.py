@@ -138,12 +138,12 @@ class ReadCsv(BaseModel, extra="allow"):
     encoding: Optional[str] = None
     low_memory: Optional[bool] = None
     sep: Optional[str] = None
-    dtype: Optional[dict] = None
+    # dtype: Optional[dict] = None
 
 
 class ReadExcel(BaseModel, extra="allow"):
     sheet_name: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
-    dtype: Optional[dict] = None
+    # dtype: Optional[dict] = None
     names: Optional[list] = None
 
 
@@ -155,6 +155,7 @@ class Source(Frame, extra="forbid"):
 
     load_parallel: bool = False
     nrows: Optional[int] = None
+    dtype: Optional[dict] = None
     read_csv: Optional[ReadCsv] = None
     read_excel: Optional[ReadExcel] = None
 
@@ -179,3 +180,7 @@ class Config(BaseModel, extra="forbid"):
         else:
             res = 100
         return res
+
+    @property
+    def dtype(self):
+        return self.source.dtype
