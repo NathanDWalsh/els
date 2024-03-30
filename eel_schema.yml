@@ -40,6 +40,7 @@ $defs:
         default:
           database: null
           dbschema: null
+          dtype: null
           file_path: _file_path_abs
           load_parallel: false
           nrows: null
@@ -87,12 +88,6 @@ $defs:
   ReadCsv:
     additionalProperties: true
     properties:
-      dtype:
-        anyOf:
-        - type: object
-        - type: 'null'
-        default: null
-        title: Dtype
       encoding:
         anyOf:
         - type: string
@@ -116,12 +111,6 @@ $defs:
   ReadExcel:
     additionalProperties: true
     properties:
-      dtype:
-        anyOf:
-        - type: object
-        - type: 'null'
-        default: null
-        title: Dtype
       names:
         anyOf:
         - items: {}
@@ -152,6 +141,12 @@ $defs:
         - type: 'null'
         default: null
         title: Dbschema
+      dtype:
+        anyOf:
+        - type: object
+        - type: 'null'
+        default: null
+        title: Dtype
       file_path:
         anyOf:
         - type: string

@@ -148,6 +148,12 @@ class ReadExcel(BaseModel, extra="allow"):
 
 
 class Source(Frame, extra="forbid"):
+    # _parent: 'Config' = None
+
+    # @property
+    # def parent(self) -> 'Config':
+    #     return self._parent
+
     type: Optional[str] = "_" + HumanPathPropertiesMixin.file_extension.fget.__name__
     file_path: Optional[str] = (
         "_" + HumanPathPropertiesMixin.file_path_abs.fget.__name__
@@ -181,6 +187,6 @@ class Config(BaseModel, extra="forbid"):
             res = 100
         return res
 
-    @property
-    def dtype(self):
-        return self.source.dtype
+    # @property
+    # def dtype(self):
+    #     return self.source.dtype
