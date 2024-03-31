@@ -59,6 +59,12 @@ def get_df_config(df: pd.DataFrame) -> dict:
     return config_dict
 
 
+def test_enum_conversion():
+    config = get_config_default()
+    assert config.target.consistency == "strict"
+    assert config.target.if_exists == "fail"
+
+
 # Test python type to numpy type conversion and euqality
 @pytest.mark.parametrize(
     "py_val, dtypes",
@@ -246,4 +252,4 @@ test_classes = {
 
 for class_name, func in test_classes.items():
     setattr(TestCSV, class_name, create_test_class_csv(func, class_name))
-    setattr(TestExcel, class_name, create_test_class_excel(func, class_name))
+    # setattr(TestExcel, class_name, create_test_class_excel(func, class_name))

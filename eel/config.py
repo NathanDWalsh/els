@@ -1,4 +1,4 @@
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel
 from typing import Optional, Union
 import sqlalchemy as sa
 from enum import Enum
@@ -37,15 +37,6 @@ class TargetIfExistsValue(Enum):
     TRUNCATE = "truncate"
 
 
-class EnumToValueMixin(BaseModel):
-    @root_validator(skip_on_failure=True)
-    def convert_enums(cls, values):
-        for key, value in values.items():
-            if isinstance(value, Enum):
-                values[key] = value.value
-        return values
-
-
 class ToSql(BaseModel, extra="allow"):
     chunksize: Optional[int] = None
 
@@ -75,7 +66,8 @@ class Frame(BaseModel):
     file_path: Optional[str] = None
 
 
-class Target(Frame, EnumToValueMixin, extra="forbid"):
+class Target(Frame, extra="forbid", use_enum_values=True, validate_default=True):
+
     consistency: TargetConsistencyValue = TargetConsistencyValue.STRICT
     if_exists: TargetIfExistsValue = TargetIfExistsValue.FAIL
     to_sql: Optional[ToSql] = None
