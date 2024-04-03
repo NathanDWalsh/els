@@ -65,32 +65,48 @@ def test_enum_conversion():
     assert config.target.if_exists == "fail"
 
 
+# # Test python type to numpy type conversion and euqality
+# @pytest.mark.parametrize(
+#     "py_val, dtypes",
+#     [
+#         (1, (int, np.int32)),
+#         # (1.1, (float, np.float64)),
+#         # (True, (bool, np.bool_)),
+#         # ("a", (str, np.str_)),
+#     ],
+# )
+# def test_np_type_equality(py_val, dtypes):
+#     # numpy type should be the same as the python type
+#     assert np.dtype(dtypes[0]) == dtypes[1]
+#     for dtype in dtypes:
+#         # numpy type should be the same as the inferred python type
+#         assert np.array(py_val).dtype.type == np.dtype(dtype)
+
+
 # Test python type to numpy type conversion and euqality
 @pytest.mark.parametrize(
-    "py_val, dtypes",
+    "py_val, dtype",
     [
-        (1, (int, np.int32)),
-        (1.1, (float, np.float64)),
-        (True, (bool, np.bool_)),
-        ("a", (str, np.str_)),
+        (1, pd.Int64Dtype),
+        (1.1, pd.Float64Dtype),
+        (True, pd.BooleanDtype),
+        ("a", pd.StringDtype),
     ],
 )
-def test_np_type_equality(py_val, dtypes):
+def test_np_type_equality(py_val, dtype):
     # numpy type should be the same as the python type
-    np.dtype(dtypes[0]) == dtypes[1]
-    for dtype in dtypes:
-        # numpy type should be the same as the inferred python type
-        assert np.array(py_val).dtype.type == np.dtype(dtype)
+    assert type(pd.array([py_val]).dtype) == dtype
 
 
 def get_atomic_strings():
-    atomic_strings = {
+    res = {
         "Stringy": "a",
-        # "Inty": "1",
-        # "Floaty": "1.1",
-        # "Booly": "True",
-        # "Datey": "2021-01-01",
-        # "Datetimey": "2021-01-01 00:00:00",
+        "Inty": "1",
+        "Floaty": "1.1",
+        "Booly": "True",
+        "Datey": "2021-01-01",
+        "Datetimey": "2021-01-01 00:00:00",
+        "Null": None,
         # These will always be imported as NaN
         # "Empty": "",
         # "Noney": "None",
@@ -98,30 +114,45 @@ def get_atomic_strings():
         # "Nany": "NaN",
     }
 
-    return atomic_strings
+    return res
 
 
-def get_atomic_numbers():
-    atomic_numbers = {
-        f"{num_type.__name__.capitalize()}({num_val})": np.array(num_val)
-        .astype(np.dtype(num_type))
-        .item()
-        for num_type in [int, np.int32, np.int64, bool, np.bool_, float, np.float64]
-        for num_val in [-1, 0, 1]
+def get_atomic_string_arrays():
+    res = {
+        f"{pd.StringDtype.name.capitalize()}({k})": pd.array(
+            [v], dtype=pd.StringDtype.name
+        )
+        for k, v in get_atomic_strings().items()
     }
 
-    return atomic_numbers
+    return res
 
 
-def get_atomic_nans():
-    atomic_NaNs = {
-        f"NaN({num_type.__name__.capitalize()})": np.array(np.nan)
-        .astype(np.dtype(num_type))
-        .item()
-        for num_type in [int, np.int32, np.int64, bool, np.bool_, float, np.float64]
+def get_atomic_number_arrays():
+    res = {
+        # f"{num_type.__name__.capitalize()}({num_val})": np.array(num_val)
+        f"{num_type.name.capitalize()}({num_val})": pd.array(
+            [num_val], dtype=num_type.name
+        )
+        # .astype(np.dtype(num_type))
+        # .item()
+        # for num_type in [int, np.int32, np.int64, bool, np.bool_, float, np.float64]
+        for num_type in [pd.Float64Dtype, pd.Int64Dtype]
+        for num_val in [-1, 0, 1, None]
     }
 
-    return atomic_NaNs
+    return res
+
+
+# def get_atomic_nans():
+#     atomic_NaNs = {
+#         f"NaN({num_type.__name__.capitalize()})": np.array(np.nan)
+#         .astype(np.dtype(num_type))
+#         .item()
+#         # for num_type in [int, np.int32, np.int64, bool, np.bool_, float, np.float64]
+#         for num_type in [float, np.float64]
+#     }
+#     return atomic_NaNs
 
 
 def get_atomic_str_nans():
@@ -134,14 +165,14 @@ def get_1r1c_tests(atomics: dict):
 
     test_frames = [
         Test(
-            f"1r1c{type(val).__name__.capitalize()}{name}",
+            f"1r1c{name}",
             pd.DataFrame(
-                {name: [val]},
-                dtype="string" if "Object" in name or "Str" in name else None,
+                pd_arr,
+                columns=[name],
             ),
             {"quoting": quoting},
         )
-        for name, val in atomics.items()
+        for name, pd_arr in atomics.items()
         # for quoting in [0, 1, 2, 3]
         for quoting in [0]
         # consider adding 4 and 5 for later versions
@@ -149,13 +180,43 @@ def get_1r1c_tests(atomics: dict):
             quoting == 3
             # and (val in ("", None))
             and (
-                val in ("", None) or ((not isinstance(val, str)) and (np.isnan(val)))
+                pd_arr[0]
+                in (pd.NA)
+                # or ((not isinstance(pd_arr, str)) and (np.isnan(pd_arr)))
             )  # or (np.isnan(val)))
             # or ((not isinstance(val, str)) and np.isnan(val))
         )
     ]
 
     return test_frames
+
+
+# def get_1r1c_tests(atomics: dict):
+
+#     test_frames = [
+#         Test(
+#             f"1r1c{type(val).__name__.capitalize()}{name}",
+#             pd.DataFrame(
+#                 {name: [val]},
+#                 dtype="string" if "Object" in name or "Str" in name else None,
+#             ),
+#             {"quoting": quoting},
+#         )
+#         for name, val in atomics.items()
+#         # for quoting in [0, 1, 2, 3]
+#         for quoting in [0]
+#         # consider adding 4 and 5 for later versions
+#         if not (
+#             quoting == 3
+#             # and (val in ("", None))
+#             and (
+#                 val in ("", None) or ((not isinstance(val, str)) and (np.isnan(val)))
+#             )  # or (np.isnan(val)))
+#             # or ((not isinstance(val, str)) and np.isnan(val))
+#         )
+#     ]
+
+#     return test_frames
 
 
 def id_func(testcase_vals):
@@ -189,15 +250,16 @@ def round_trip_csv(test_case: Test, request):
         allow_unicode=True,
     )
     execute()
+    print(test_name)
     df2 = pandas_end_points[test_name]
 
-    print(df.dtypes)
-    print(df2.dtypes)
+    # print(df.dtypes)
+    # print(df2.dtypes)
 
     assert df.equals(df2)
 
-    os.remove(test_eel)
-    os.remove(test_file)
+    # os.remove(test_eel)
+    # os.remove(test_file)
 
 
 def round_trip_excel(test_name: str, df: pd.DataFrame):
@@ -244,8 +306,8 @@ class TestExcel:
 
 
 test_classes = {
-    "TestString": get_atomic_strings,
-    # "TestNumber": get_atomic_numbers,
+    "TestString": get_atomic_string_arrays,
+    "TestNumber": get_atomic_number_arrays,
     # "TestStrNan": get_atomic_str_nans,
     # "TestNan": get_atomic_nans,
 }
