@@ -23,14 +23,14 @@ def start_logging():
     logging.info("Getting Started")
 
 
-def plant_tree() -> Optional[CAPath]:
-    root = grow_branches()
+def plant_tree(path: CAPath) -> Optional[CAPath]:
+    root = grow_branches(path)
     logging.info("Tree Created")
     return root
 
 
-def get_taskflow():
-    tree = plant_tree()
+def get_taskflow(path: CAPath):
+    tree = plant_tree(path)
     if tree:
         taskflow = tree.get_ingest_taskflow()
         return taskflow
@@ -59,8 +59,12 @@ def flow():
 
 
 @app.command()
-def execute():
-    taskflow = get_taskflow()
+def execute(path: str = None):
+    if path:
+        ca_path = CAPath(path)
+    else:
+        ca_path = CAPath()
+    taskflow = get_taskflow(ca_path)
     if taskflow:
         taskflow.execute()
         # print(pandas_end_points)
@@ -143,5 +147,6 @@ def main():
 if __name__ == "__main__":
     start_logging()
     os.chdir("D:\\Sync\\repos\\eel\\temp")
-    execute()
+    # execute()
+    execute("1r1cString(Stringy)_quoting0.csv")
     print(list(pandas_end_points.values())[0].dtypes)

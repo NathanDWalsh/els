@@ -137,15 +137,17 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             return {}
 
     def get_paired_config_path(self) -> Optional[Path]:
-        if self.is_root:
-            config_path = self / get_root_config_name()
-        elif self.is_dir():
-            config_path = self / get_folder_config_name()
-        elif self.is_file():
+        # order matters, file is checked first in case a single data file passed
+        if self.is_file():
             if str(self).endswith(CONFIG_FILE_EXT):
                 return self
             else:
                 config_path = Path(str(self) + CONFIG_FILE_EXT)
+        # TODO: add scan root option: now assumes a root config present in passed dir
+        elif self.is_root:
+            config_path = self / get_root_config_name()
+        elif self.is_dir():
+            config_path = self / get_folder_config_name()
         else:
             return None
         if config_path.exists():
@@ -301,9 +303,12 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     @property
     def dir(self) -> Optional[Self]:
         if self.is_content() and self.parent:
-            res = self.parent.parent
+            res = self.parent.dir
         elif self.is_file():
-            res = self.parent
+            if self.parent:
+                res = self.parent
+            else:
+                res = Path(self).parent
         else:
             res = self
         return res

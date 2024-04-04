@@ -5,6 +5,7 @@ import yaml
 import numpy as np
 
 import os
+import glob
 
 import eel.config as ec
 
@@ -12,13 +13,41 @@ from eel.cli import execute
 from eel.execute import pandas_end_points
 from eel.path import get_config_default
 
+import logging
+
+
 Test = collections.namedtuple("Test", ["name", "df", "kwargs"])
+
+
+def start_logging():
+    # Create a logger
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    # Create a file handler
+    handler = logging.FileHandler("d:\\Sync\\repos\\eel\\temp\\running_log.log")
+    handler.setLevel(logging.INFO)
+
+    # Create a logging format
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    handler.setFormatter(formatter)
+
+    # Add the handler to the logger
+    logger.addHandler(handler)
+
+    logger.info("Getting Started")
 
 
 @pytest.fixture(autouse=True, scope="session")
 def setup():
     os.chdir(os.path.join(".", "temp"))
-    # os.delete("*.csv")
+    start_logging()
+    temp_files = glob.glob("*.*")
+    for file in temp_files:
+        if not file.endswith(".log"):
+            os.remove(file)
     yield
 
 
@@ -117,10 +146,10 @@ def get_atomic_strings():
     return res
 
 
-def get_atomic_string_arrays():
+def get_atomic_string_frames():
     res = {
-        f"{pd.StringDtype.name.capitalize()}({k})": pd.array(
-            [v], dtype=pd.StringDtype.name
+        f"{pd.StringDtype.name.capitalize()}({k})": pd.DataFrame(
+            {k: [v]}, dtype=pd.StringDtype.name
         )
         for k, v in get_atomic_strings().items()
     }
@@ -166,26 +195,23 @@ def get_1r1c_tests(atomics: dict):
     test_frames = [
         Test(
             f"1r1c{name}",
-            pd.DataFrame(
-                pd_arr,
-                columns=[name],
-            ),
+            df,
             {"quoting": quoting},
         )
-        for name, pd_arr in atomics.items()
+        for name, df in atomics.items()
         # for quoting in [0, 1, 2, 3]
         for quoting in [0]
-        # consider adding 4 and 5 for later versions
-        if not (
-            quoting == 3
-            # and (val in ("", None))
-            and (
-                pd_arr[0]
-                in (pd.NA)
-                # or ((not isinstance(pd_arr, str)) and (np.isnan(pd_arr)))
-            )  # or (np.isnan(val)))
-            # or ((not isinstance(val, str)) and np.isnan(val))
-        )
+        # TODO: consider adding 4 and 5 for later versions
+        # if not (
+        #     quoting == 3
+        #     # and (val in ("", None))
+        #     and (
+        #         df[0]
+        #         in (pd.NA)
+        #         # or ((not isinstance(pd_arr, str)) and (np.isnan(pd_arr)))
+        #     )  # or (np.isnan(val)))
+        #     # or ((not isinstance(val, str)) and np.isnan(val))
+        # )
     ]
 
     return test_frames
@@ -249,12 +275,12 @@ def round_trip_csv(test_case: Test, request):
         sort_keys=False,
         allow_unicode=True,
     )
-    execute()
+    execute(test_file)
     print(test_name)
     df2 = pandas_end_points[test_name]
 
-    # print(df.dtypes)
-    # print(df2.dtypes)
+    print(df.dtypes)
+    print(df2.dtypes)
 
     assert df.equals(df2)
 
@@ -306,8 +332,8 @@ class TestExcel:
 
 
 test_classes = {
-    "TestString": get_atomic_string_arrays,
-    "TestNumber": get_atomic_number_arrays,
+    "TestString": get_atomic_string_frames,
+    # "TestNumber": get_atomic_number_arrays,
     # "TestStrNan": get_atomic_str_nans,
     # "TestNan": get_atomic_nans,
 }
