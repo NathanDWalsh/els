@@ -19,31 +19,29 @@ import logging
 Test = collections.namedtuple("Test", ["name", "df", "kwargs"])
 
 
-def start_logging():
-    # Create a logger
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+# def start_logging():
+# Create a logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-    # Create a file handler
-    handler = logging.FileHandler("d:\\Sync\\repos\\eel\\temp\\running_log.log")
-    handler.setLevel(logging.INFO)
+# Create a file handler
+handler = logging.FileHandler("d:\\Sync\\repos\\eel\\temp\\running_log.log")
+handler.setLevel(logging.INFO)
 
-    # Create a logging format
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    handler.setFormatter(formatter)
+# Create a logging format
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler.setFormatter(formatter)
 
-    # Add the handler to the logger
-    logger.addHandler(handler)
+# Add the handler to the logger
+logger.addHandler(handler)
 
-    logger.info("Getting Started")
+logger.info("Getting Started")
 
 
 @pytest.fixture(autouse=True, scope="session")
 def setup():
     os.chdir(os.path.join(".", "temp"))
-    start_logging()
+    # start_logging()
     temp_files = glob.glob("*.*")
     for file in temp_files:
         if not file.endswith(".log"):
@@ -276,11 +274,11 @@ def round_trip_csv(test_case: Test, request):
         allow_unicode=True,
     )
     execute(test_file)
-    print(test_name)
+    logger.info(test_name)
     df2 = pandas_end_points[test_name]
 
-    print(df.dtypes)
-    print(df2.dtypes)
+    logger.info(df.dtypes)
+    logger.info(df2.dtypes)
 
     assert df.equals(df2)
 
