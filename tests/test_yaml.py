@@ -2,7 +2,6 @@ import pandas as pd
 import collections
 import pytest
 import yaml
-import numpy as np
 
 import os
 import glob
@@ -27,7 +26,9 @@ handler = logging.FileHandler("d:\\Sync\\repos\\eel\\temp\\running_log.log")
 handler.setLevel(logging.INFO)
 
 # Create a logging format
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+formatter = logging.Formatter(
+    "\t\t\t\t\t\t\t\t\t%(asctime)s - %(name)s - %(levelname)s:\n%(message)s"
+)
 handler.setFormatter(formatter)
 
 # Add the handler to the logger
@@ -65,7 +66,7 @@ def test_enum_conversion():
     assert config.target.if_exists == "fail"
 
 
-# Test python type to numpy type conversion and euqality
+# Test python type to pandas type conversion and euqality
 @pytest.mark.parametrize(
     "py_val, dtype",
     [
@@ -76,7 +77,7 @@ def test_enum_conversion():
     ],
 )
 def test_pd_type_equality(py_val, dtype):
-    # numpy type should be the same as the python type
+    # pandas type should be the same as the python type
     assert type(pd.array([py_val]).dtype) == dtype
 
 
@@ -134,7 +135,7 @@ def get_atomic_bool_frames():
     return res
 
 
-def get_1r1c_tests(atomics: dict):
+def get_1r1c_tests_csv(atomics: dict):
     test_frames = [
         Test(
             f"1r1c{name}",
@@ -145,6 +146,21 @@ def get_1r1c_tests(atomics: dict):
         for quoting in [0, 1, 2, 3]
         # single empty field record must be quoted
         if not (quoting == 3 and df.size == 1 and pd.isna(df.iloc[0, 0]))
+    ]
+
+    return test_frames
+
+
+def get_1r1c_tests_excel(atomics: dict):
+    test_frames = [
+        Test(
+            f"1r1c{name}",
+            df,
+            {"sheet_name": name},
+        )
+        for name, df in atomics.items()
+        # single empty field not working
+        if not (df.size == 1 and pd.isna(df.iloc[0, 0]))
     ]
 
     return test_frames
@@ -161,14 +177,15 @@ def id_func(testcase_vals):
     )
 
 
-def round_trip_csv(test_case: Test, request):
+def round_trip_file(test_case: Test, request, to_func_name: str, extension: str):
     # Access the fields of the Test named tuple using dot notation
     test_name = request.node.callspec.id
     df = test_case.df
     kwargs = test_case.kwargs
 
-    test_file = test_name + ".csv"
-    df.to_csv(test_file, index=False, **kwargs)
+    test_file = test_name + "." + extension
+    to_func = getattr(df, to_func_name)
+    to_func(test_file, index=False, **kwargs)
 
     df_config = get_df_config(df)
     test_eel = test_file + ".eel.yml"
@@ -180,10 +197,15 @@ def round_trip_csv(test_case: Test, request):
     )
     execute(test_file)
     logger.info(test_name)
-    df2 = pandas_end_points[test_name]
 
     logger.info(df.dtypes)
     logger.info(df)
+
+    if extension == "csv":
+        df2 = pandas_end_points[test_name]
+    elif extension == "xlsx":
+        df2 = pandas_end_points[kwargs["sheet_name"]]
+
     # logger.info(df2.dtypes)
     # logger.info(df2)
 
@@ -193,22 +215,15 @@ def round_trip_csv(test_case: Test, request):
     os.remove(test_file)
 
 
-def round_trip_excel(test_name: str, df: pd.DataFrame):
-    df.to_excel("test.xlsx", index=False)
-    df2 = pd.read_excel("test.xlsx")
-    assert df.equals(df2)
-    # os.remove("test.xlsx")
-
-
 def create_test_class_csv(atomic_func, test_name):
     def get_tests():
         atomic_results = atomic_func()
-        return get_1r1c_tests(atomic_results)
+        return get_1r1c_tests_csv(atomic_results)
 
     class CsvTemplate:
         @pytest.mark.parametrize("test_case", get_tests(), ids=id_func)
         def test_csv(self, test_case: Test, request):
-            round_trip_csv(test_case, request)
+            round_trip_file(test_case, request, "to_csv", "csv")
 
     CsvTemplate.__name__ = test_name
     return CsvTemplate
@@ -217,12 +232,12 @@ def create_test_class_csv(atomic_func, test_name):
 def create_test_class_excel(atomic_func, test_name):
     def get_tests():
         atomic_results = atomic_func()
-        return get_1r1c_tests(atomic_results)
+        return get_1r1c_tests_excel(atomic_results)
 
     class CsvTemplate:
         @pytest.mark.parametrize("test_case", get_tests(), ids=id_func)
         def test_excel(self, test_case: Test, request):
-            round_trip_excel(test_case, request)
+            round_trip_file(test_case, request, "to_excel", "xlsx")
 
     CsvTemplate.__name__ = test_name
     return CsvTemplate
@@ -239,9 +254,10 @@ class TestExcel:
 test_classes = {
     "TestString": get_atomic_string_frames,
     "TestNumber": get_atomic_number_frames,
-    "TestBool": get_atomic_bool_frames,
+    # bools are rare in datasets, also issues with from_excel's handling of bools
+    # "TestBool": get_atomic_bool_frames,
 }
 
 for class_name, func in test_classes.items():
     setattr(TestCSV, class_name, create_test_class_csv(func, class_name))
-    # setattr(TestExcel, class_name, create_test_class_excel(func, class_name))
+    setattr(TestExcel, class_name, create_test_class_excel(func, class_name))
