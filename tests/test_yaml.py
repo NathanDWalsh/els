@@ -254,7 +254,7 @@ class TestExcel:
 test_classes = {
     "TestString": get_atomic_string_frames,
     "TestNumber": get_atomic_number_frames,
-    # bools are rare in datasets, also issues with from_excel's handling of bools
+    # bools are rare in datasets + issues with from_excel's handling thereof
     # "TestBool": get_atomic_bool_frames,
 }
 

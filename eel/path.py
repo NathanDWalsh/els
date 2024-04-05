@@ -5,7 +5,9 @@ import os
 from stat import FILE_ATTRIBUTE_HIDDEN
 from typing import Union, Callable, Optional, TypeAlias, Self
 from collections.abc import Generator
-from openpyxl import load_workbook
+
+# from openpyxl import load_workbook
+from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 import yaml
 import logging
 
@@ -435,21 +437,27 @@ def dict_diff(dict1: dict, dict2: dict) -> dict:
     return diff
 
 
-def get_sheet_names(file_path, sheet_states: list = ["visible"]) -> list[str]:
-    workbook = load_workbook(
-        filename=file_path, read_only=True, data_only=True, keep_links=False
-    )
+# def get_sheet_names(file_path, sheet_states: list = ["visible"]) -> list[str]:
+def get_sheet_names(
+    file_path, sheet_states: list = [SheetVisibleEnum.Visible]
+) -> list[str]:
+    # workbook = load_workbook(
+    #     filename=file_path, read_only=True, data_only=True, keep_links=False
+    # )
+    workbook = CalamineWorkbook.from_path(file_path)
 
     if sheet_states is None:
-        worksheet_names = workbook.sheetnames
-    else:
-        worksheet_names = [
-            sheet.title
-            for sheet in workbook.worksheets
-            if sheet.sheet_state in sheet_states
-        ]
+        # worksheet_names = workbook.sheetnames
+        sheet_states = [SheetVisibleEnum.Visible]
+    # else:
+    worksheet_names = [
+        sheet.name
+        # for sheet in workbook.worksheets
+        for sheet in workbook.sheets_metadata
+        if (sheet.visible in sheet_states) and (sheet.typ == SheetTypeEnum.WorkSheet)
+    ]
 
-    workbook.close()
+    # workbook.close()
     return worksheet_names
 
 
