@@ -215,29 +215,17 @@ def round_trip_file(test_case: Test, request, to_func_name: str, extension: str)
     os.remove(test_file)
 
 
-def create_test_class_csv(atomic_func, test_name):
+def create_test_class_file(
+    atomic_func, test_name, get_tests_func, to_func_name, extension
+):
     def get_tests():
         atomic_results = atomic_func()
-        return get_1r1c_tests_csv(atomic_results)
+        return get_tests_func(atomic_results)
 
     class CsvTemplate:
         @pytest.mark.parametrize("test_case", get_tests(), ids=id_func)
-        def test_csv(self, test_case: Test, request):
-            round_trip_file(test_case, request, "to_csv", "csv")
-
-    CsvTemplate.__name__ = test_name
-    return CsvTemplate
-
-
-def create_test_class_excel(atomic_func, test_name):
-    def get_tests():
-        atomic_results = atomic_func()
-        return get_1r1c_tests_excel(atomic_results)
-
-    class CsvTemplate:
-        @pytest.mark.parametrize("test_case", get_tests(), ids=id_func)
-        def test_excel(self, test_case: Test, request):
-            round_trip_file(test_case, request, "to_excel", "xlsx")
+        def test_round_trip(self, test_case: Test, request):
+            round_trip_file(test_case, request, to_func_name, extension)
 
     CsvTemplate.__name__ = test_name
     return CsvTemplate
@@ -254,10 +242,21 @@ class TestExcel:
 test_classes = {
     "TestString": get_atomic_string_frames,
     "TestNumber": get_atomic_number_frames,
-    # bools are rare in datasets + issues with from_excel's handling thereof
+    # bools are rare in datasets + pandas has a bug with them
     # "TestBool": get_atomic_bool_frames,
 }
 
 for class_name, func in test_classes.items():
-    setattr(TestCSV, class_name, create_test_class_csv(func, class_name))
-    setattr(TestExcel, class_name, create_test_class_excel(func, class_name))
+    setattr(
+        TestCSV,
+        class_name,
+        create_test_class_file(func, class_name, get_1r1c_tests_csv, "to_csv", "csv"),
+    )
+    setattr(
+        TestExcel,
+        class_name,
+        create_test_class_file(
+            func, class_name, get_1r1c_tests_excel, "to_excel", "xlsx"
+        ),
+    )
+    # setattr(TestMssql, class_name, create_test_class_mssql(func, class_name))
