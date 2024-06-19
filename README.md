@@ -44,7 +44,7 @@ eel works with frames and containers as outlined in the below diagram:
 
 ```mermaid
 ---
-title: "Abstract ERD: Conatiners and Frames"
+title: Abstract ERD for conatiners and frames
 ---
 erDiagram
     CONTAINER ||--O{ CONTAINER: "contains"
@@ -76,10 +76,11 @@ title: "Example ERDs: Conatiners and Frames"
 ---
 erDiagram
 
-    CONTAINER-FOLDER ||--|| CONTAINER-WORKBOOK: "contains"
+    CONTAINER-DIRECTORY ||--|| CONTAINER-WORKBOOK: "contains"
     CONTAINER-WORKBOOK ||--|{ FRAME-WORKSHEET: "contains"
 
-    CONTAINER-FOLDER ||--|{ FRAME-CSV: "contains"
+    CONTAINER-DIRECTORY ||--|{ CONTAINER-CSV: "contains"
+    CONTAINER-CSV ||--|{ FRAME-CONTENT: "contains"
 
     CONTAINER-DATABASE ||--|{ CONTAINER-SCHEMA: "contains"
     CONTAINER-SCHEMA ||--|{ FRAME-TABLE: "contains"
@@ -320,155 +321,3 @@ Some intra-frame transformations are supported:
 - include file details
 - include frame specific properties from homogeneous containers
 - include custom columns defined in eel.yaml
-
-```mermaid
-graph LR
-    file --> config --> dataflow --> containers --> frames --> I/O
-    config --> taskflow --> DAG
-    dataflow --> taskflow
-
-    fs[fs:list] --> fs_config[fs_config:dict] --> implied_config[implied_config:dict]
-    implied_config --> dataflow2
-    fs2[fs:list hierarchy] --> dataflow2[dataflow:list hierarchy]
-    dataflow2 --> taskflow2
-```
-
-```mermaid
-graph LR
-
-subgraph "Config Layer"
-  root --> folder --> file --> document
-end
-
-subgraph "Config Types"
-  folder2[folder]
-  explicit
-  implicit
-  mixed
-end
-
-root --> folder2
-folder --> folder2
-file --> explicit
-file --> implicit
-file --> mixed
-document --> explicit
-
-```
-
-```mermaid
-graph LR
-
-subgraph "Config Layer"
-  direction TB
-  root
-  folder
-  file
-  document
-end
-
-
-subgraph "Config Types"
-  folder2[folder]
-  explicit
-  implicit
-  mixed
-end
-
-root --> folder2
-folder --> folder2
-file --> explicit
-file --> implicit
-file --> mixed
-document --> explicit
-
-subgraph "Data Container Layer"
-  folder3[folder]
-  file2[file container]
-  database
-end
-
-folder2 --> folder3
-explicit --> folder3
-explicit --> file2
-explicit --> database
-implicit --> file2
-mixed --> file2
-
-```
-
-```mermaid
-graph LR
-
-subgraph "Config Layer"
-  direction TB
-  root
-  folder
-  file
-  document
-end
-
-
-subgraph "Config Types"
-  folder2[folder]
-  explicit
-  implicit
-  mixed
-end
-
-root --> folder2
-folder --> folder2
-file --> explicit
-file --> implicit
-file --> mixed
-document --> explicit
-
-subgraph "Data Container Layer"
-  folder3[folder]
-  file2[file:container]
-  database
-end
-
-folder2 --> folder3
-explicit --> folder3
-explicit --> file2
-explicit --> database
-implicit --> file2
-mixed --> file2
-
-subgraph "Data Frame Layer"
-  file3[file contents]
-  table
-end
-
-file2 --> file3
-database --> table
-
-```
-
-```mermaid
-sequenceDiagram
-    participant y as eel-project<br>eel-yaml
-    participant c as eel-cli
-    participant s as data stores:<br>sources, trargets
-    c->>y: read explicit config
-    c->>s: validate explicit config
-    c->>s: infer implicit config
-    opt
-      c->>y: write inferred config
-    end
-    opt
-      c->>s: execute pipeline
-    end
-```
-
-```mermaid
-quadrantChart
-    title Data lineage
-    x-axis Business --> Technical
-    y-axis Detailed -->  Overview
-    quadrant-1 Technical presentations
-    quadrant-2 Business presentations
-    quadrant-3 Business understanding
-    quadrant-4 Technical handover
-```

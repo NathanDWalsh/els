@@ -65,6 +65,13 @@ class HumanPathPropertiesMixin(ABC):
     def leaf_name(self) -> Optional[str]:
         return self.name
 
+    # @property
+    # def leaf_name_dot_type(self) -> Optional[str]:
+    #     if self.config and self.config.target and self.config.target.type:
+    #         return f"{self.name}{self.config.target.type}"
+    #     else:
+    #         return self.name
+
     @property
     def file_name_full(self) -> str:
         return self.file.name if self.file else "not_file"

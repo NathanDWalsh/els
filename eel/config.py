@@ -1,6 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Union
 import sqlalchemy as sa
+import os
+import pandas as pd
 from enum import Enum
 
 from eel.pathprops import HumanPathPropertiesMixin
@@ -41,6 +43,10 @@ class ToSql(BaseModel, extra="allow"):
     chunksize: Optional[int] = None
 
 
+class ToCsv(BaseModel, extra="allow"):
+    pass
+
+
 class Stack(BaseModel, extra="forbid"):
     fixed_columns: int
     stack_header: int = 0
@@ -56,6 +62,32 @@ class Frame(BaseModel):
     def sqn(self):
         pass
 
+    @property
+    def address(self):
+        match self.type:
+            case ".xlsx":
+                return self.file_path + "!" + self.sheet_name
+            case ".csv":
+                return self.file_path
+            case "pandas":
+                return None
+            case _:
+                if self.dbschema and self.table:
+                    return (
+                        {self.server} / {self.database} / {self.dbschema} / {self.table}
+                    )
+                elif self.table:
+                    return {self.server} / {self.database} / {self.table}
+
+    @property
+    def file_path_dynamic(self):
+        if self.type in (".csv", ".tsv", ".xlsx") and not self.file_path.endswith(
+            self.type
+        ):
+            return f"{self.file_path}{self.type}"
+        else:
+            return self.file_path
+
     stack: Optional[Stack] = None
 
     type: Optional[str] = None
@@ -65,12 +97,24 @@ class Frame(BaseModel):
     table: Optional[str] = None
     file_path: Optional[str] = None
 
+    @property
+    def sheet_name(self):
+        if self.type == ".xlsx":
+            return self.table
+        else:
+            return None
 
-class Target(Frame, extra="forbid", use_enum_values=True, validate_default=True):
+
+class Target(Frame):
+
+    model_config = ConfigDict(
+        extra="forbid", use_enum_values=True, validate_default=True
+    )
 
     consistency: TargetConsistencyValue = TargetConsistencyValue.STRICT
     if_exists: TargetIfExistsValue = TargetIfExistsValue.FAIL
     to_sql: Optional[ToSql] = None
+    to_csv: Optional[ToCsv] = None
 
     table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
     type: Optional[str] = "pandas"
@@ -104,11 +148,32 @@ class Target(Frame, extra="forbid", use_enum_values=True, validate_default=True)
         return res
 
     @property
+    def file_exists(self) -> Optional[bool]:
+        if self.file_path_dynamic and self.type in (".csv", ".tsv", ".xlsx"):
+            # check file exists
+            res = os.path.exists(self.file_path_dynamic)
+        else:
+            res = None
+        return res
+
+    @property
     def table_exists(self) -> Optional[bool]:
         if self.db_connection_string and self.table and self.dbschema:
             with sa.create_engine(self.db_connection_string).connect() as sqeng:
                 inspector = sa.inspect(sqeng)
                 res = inspector.has_table(self.table, self.dbschema)
+        elif self.db_connection_string and self.table:
+            with sa.create_engine(self.db_connection_string).connect() as sqeng:
+                inspector = sa.inspect(sqeng)
+                res = inspector.has_table(self.table)
+        elif self.type in (".csv", ".tsv"):
+            res = self.file_exists
+        elif (
+            self.type in (".xlsx") and self.file_exists
+        ):  # TODO: add other file types supported by Calamine
+            # check if sheet exists
+            with pd.ExcelFile(self.file_path_dynamic) as xls:
+                res = self.sheet_name in xls.sheet_names
         else:
             res = None
         return res
@@ -177,6 +242,18 @@ class Config(BaseModel, extra="forbid"):
             res = self.source.nrows
         else:
             res = 100
+        return res
+
+    @property
+    def pipe_id(self) -> Optional[str]:
+        if self.source and self.source.address and self.target and self.target.address:
+            res = (self.source.address, self.target.address)
+        elif self.source and self.source.address:
+            res = (self.source.address,)
+        elif self.target and self.target.address:
+            res = (self.target.address,)
+        else:
+            res = None
         return res
 
     # @property

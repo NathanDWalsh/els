@@ -33,7 +33,7 @@ class EelExecute(FlowNodeMixin):
         if not isinstance(config, ec.Config):
             logging.error("INGEST without config")
         self.parent = parent
-        self.name = name
+        self.name = f"{name} ({execute_fn.__name__})"
         self.config = config
         self.execute_fn = execute_fn
 
@@ -59,7 +59,7 @@ class EelFlow(FlowNodeMixin):
         if self.is_root:
             return ""
         else:
-            return "flow"
+            return f"flow ({self.n_jobs} jobs)"
 
 
 class BuildWrapperMixin(FlowNodeMixin):
@@ -92,7 +92,7 @@ class EelFileWrapper(BuildWrapperMixin, SerialNodeMixin):
 
     @property
     def name(self):
-        return self.file_path
+        return f"{self.file_path} ({type(self).__name__})"
 
 
 class EelXlsxWrapper(EelFileWrapper):
@@ -117,10 +117,11 @@ class EelXlsxWrapper(EelFileWrapper):
         logging.info("CLOSED: " + self.file_path)
 
 
+# groups files together that share a common target frame so that target can be built once
 class EelFileGroupWrapper(FlowNodeMixin, SerialNodeMixin):
     def __init__(self, parent: FlowNodeMixin, name: str, exec_parallel: bool) -> None:
         self.parent = parent
-        self.name = name
+        self.name = f"{name} (EelFileGroupWrapper)"
         self.exec_parallel = exec_parallel
 
     def execute(self):

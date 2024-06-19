@@ -191,6 +191,9 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         else:
             return self.parent.is_file()
 
+    def is_config(self) -> bool:
+        return str(self).endswith(CONFIG_FILE_EXT)
+
     @property
     def subdir_patterns(self) -> list[str]:
         # TODO patterns may overlap
@@ -250,6 +253,12 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                             ContentAwarePath(str(subpath) + CONFIG_FILE_EXT)
                         )
                         yield subpath
+        # elif self.is_config():
+        #     if self.config.source:
+        #         # TODO: elaborate on this, db connection for example
+        #         yield self.source
+        #     else:
+        #         yield self / "memory"
         elif self.is_file():
             # content allows exact matches
             leaf_names = self.get_content_leaf_names()
@@ -265,9 +274,13 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     def get_content_leaf_names(self) -> list[str]:
         if self.suffix == ".xlsx":
             return get_sheet_names(str(self))
-        elif self.suffix == ".yml":  # and self._config.type =='mssql'
+        elif (
+            self.is_config() and self.config.source.type == "pandas"
+        ):  # and self._config.type =='mssql'
             # return get_db_tables
             # pass  # TODO
+            return list(ee.staged_frames)
+        elif self.is_config():
             return []
         else:
             return [self.stem]
@@ -484,11 +497,13 @@ def grow_branches(
     path: ContentAwarePath = ContentAwarePath(),
     parent: Optional[ContentAwarePath] = None,
 ) -> Optional[ContentAwarePath]:
+    # if path.is_config():
+    #     return node
     if path.is_dir() or path.is_file():
         node = ContentAwarePath(path, parent=parent)
         for path_item in node.iterbranch():
             grow_branches(path_item, parent=node)
-        if node.is_leaf and node.is_root:
+        if node.is_leaf and node.is_root and node.is_dir():
             logging.error("Root is an empty directory")
             return None
         else:

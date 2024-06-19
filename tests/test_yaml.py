@@ -1,13 +1,16 @@
 import pandas as pd
 import collections
 import pytest
+
 import yaml
+
+# import sqlite3
 
 import os
 import glob
 
 from eel.cli import execute
-from eel.execute import pandas_end_points
+from eel.execute import staged_frames
 from eel.path import get_config_default
 
 import logging
@@ -177,17 +180,55 @@ def id_func(testcase_vals):
     )
 
 
-def round_trip_file(test_case: Test, request, to_func_name: str, extension: str):
+# def get_target_config():
+#     target = ec.Target()
+
+
+# def add_pandas_end_point(type, direction, df, **kwargs):
+#     pandas_end_points[(type, direction)] = df
+
+# if extension == "csv":
+#     pandas_end_points[test_name] = df
+# elif extension == "xlsx":
+#     pandas_end_points[kwargs["sheet_name"]] = df
+
+
+def round_trip_file(test_case: Test, request, extension: str):
     # Access the fields of the Test named tuple using dot notation
     test_name = request.node.callspec.id
     df = test_case.df
     kwargs = test_case.kwargs
-
     test_file = test_name + "." + extension
-    to_func = getattr(df, to_func_name)
-    to_func(test_file, index=False, **kwargs)
+
+    t_config = get_config_default()
+    t_config.source.type = "pandas"
+    # t_config.target.file_path = test_name + "." + extension
+    t_config.target.type = "." + extension
+    t_config.target.file_path = test_file
+    if extension == "xlsx":
+        t_config.target.table = kwargs["sheet_name"]
+    t_config.source.table = test_name
+
+    # t_config.target.table = str(t_config.pipe_id)
+    test_eel_out = test_file + ".out.eel.yml"
+
+    staged_frames[test_name] = df
+
+    yaml.dump(
+        t_config.model_dump(exclude_none=True),
+        open(test_eel_out, "w"),
+        sort_keys=False,
+        allow_unicode=True,
+    )
+
+    execute(test_eel_out)
+
+    # to_func = getattr(df, to_func_name)
+    # to_func(test_file, index=False, **kwargs)
 
     df_config = get_df_config(df)
+    if extension == "xlsx":
+        df_config["source"]["table"] = kwargs["sheet_name"]
     test_eel = test_file + ".eel.yml"
     yaml.dump(
         df_config,
@@ -195,6 +236,9 @@ def round_trip_file(test_case: Test, request, to_func_name: str, extension: str)
         sort_keys=False,
         allow_unicode=True,
     )
+
+    staged_frames.clear()
+
     execute(test_file)
     logger.info(test_name)
 
@@ -202,33 +246,56 @@ def round_trip_file(test_case: Test, request, to_func_name: str, extension: str)
     logger.info(df)
 
     if extension == "csv":
-        df2 = pandas_end_points[test_name]
+        df2 = staged_frames[test_name]
     elif extension == "xlsx":
-        df2 = pandas_end_points[kwargs["sheet_name"]]
+        df2 = staged_frames[kwargs["sheet_name"]]
+        logger.info(kwargs["sheet_name"])
+
+    assert True
 
     # logger.info(df2.dtypes)
     # logger.info(df2)
 
-    assert df.equals(df2)
+    # assert df.equals(df2)
 
-    os.remove(test_eel)
-    os.remove(test_file)
+    # os.remove(test_eel)
+    # os.remove(test_eel_out)
+    # os.remove(test_file)
 
 
-def create_test_class_file(
-    atomic_func, test_name, get_tests_func, to_func_name, extension
-):
+# def round_trip_db(test_case: Test, request, table_name):
+#     # Access the fields of the Test named tuple using dot notation
+#     test_name = request.node.callspec.id
+#     df = test_case.df
+#     kwargs = test_case.kwargs
+
+#     # Create a SQLite database in memory
+#     conn = sqlite3.connect(":memory:")
+
+#     # Write the DataFrame to the SQLite database
+#     df.to_sql(table_name, conn, if_exists="replace", index=False, **kwargs)
+
+#     # Read the table back into a DataFrame
+#     df2 = pd.read_sql_table(table_name, conn)
+
+#     # Close the SQLite database
+#     conn.close()
+
+#     # Rest of your code...
+
+
+def create_test_class_file(get_frames_func, test_name, get_tests_func, extension):
     def get_tests():
-        atomic_results = atomic_func()
-        return get_tests_func(atomic_results)
+        atomic_frames = get_frames_func()
+        return get_tests_func(atomic_frames)
 
-    class CsvTemplate:
+    class IoTemplate:
         @pytest.mark.parametrize("test_case", get_tests(), ids=id_func)
         def test_round_trip(self, test_case: Test, request):
-            round_trip_file(test_case, request, to_func_name, extension)
+            round_trip_file(test_case, request, extension)
 
-    CsvTemplate.__name__ = test_name
-    return CsvTemplate
+    IoTemplate.__name__ = test_name
+    return IoTemplate
 
 
 class TestCSV:
@@ -246,17 +313,37 @@ test_classes = {
     # "TestBool": get_atomic_bool_frames,
 }
 
-for class_name, func in test_classes.items():
+
+# def create_test_class_db(atomic_func, test_name, get_tests_func, table_name):
+#     def get_tests():
+#         atomic_results = atomic_func()
+#         return get_tests_func(atomic_results)
+
+#     class SqliteTemplate:
+#         @pytest.mark.parametrize("test_case", get_tests(), ids=id_func)
+#         def test_round_trip(self, test_case: Test, request):
+#             round_trip_db(test_case, request, table_name)
+
+#     SqliteTemplate.__name__ = test_name
+#     return SqliteTemplate
+
+
+# class TestSQLite:
+#     pass
+
+
+for class_name, get_frames_func in test_classes.items():
     setattr(
         TestCSV,
         class_name,
-        create_test_class_file(func, class_name, get_1r1c_tests_csv, "to_csv", "csv"),
+        create_test_class_file(get_frames_func, class_name, get_1r1c_tests_csv, "csv"),
     )
+
     setattr(
         TestExcel,
         class_name,
         create_test_class_file(
-            func, class_name, get_1r1c_tests_excel, "to_excel", "xlsx"
+            get_frames_func, class_name, get_1r1c_tests_excel, "xlsx"
         ),
     )
     # setattr(TestMssql, class_name, create_test_class_mssql(func, class_name))

@@ -1,4 +1,18 @@
 {
-  "version": "2.0.0",
-  "tasks": []
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "run eel_schema_refresh",
+            "type": "shell",
+            "command": "python ${workspaceFolder}/eel_schema_refresh.py",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        }
+    ]
 }

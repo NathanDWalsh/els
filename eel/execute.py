@@ -3,12 +3,110 @@ import sqlalchemy as sa
 import logging
 from typing import Union, Optional
 import eel.config as ec
+import os
+import csv
+from python_calamine import CalamineWorkbook
+from openpyxl import load_workbook
+
 
 open_files = {}
-pandas_end_points = {}
+staged_frames = {}
 
 
-def get_dataframe_from_sql(frame: ec.Frame, nrows=None):
+def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
+    res = False
+    if df is not None:
+        if not target or not target.type:
+            logging.info("no target defined, printing first 100 rows:")
+            print(df.head(100))
+            res = True
+        else:
+            if target.type in (".csv"):
+                res = push_csv(df, target, add_cols)
+            if target.type in (".xlsx"):
+                res = push_excel(df, target, add_cols)
+            elif target.type in ("mssql", "postgres", "duckdb"):
+                res = push_sql(df, target, add_cols)
+            elif target.type in ("pandas"):
+                staged_frames[target.table] = df
+                res = True
+            else:
+                pass
+    return res
+
+
+def push_sql(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
+    if not target.db_connection_string:
+        raise Exception("invalid db_connection_string")
+    if not target.table:
+        raise Exception("invalid to_sql")
+    with sa.create_engine(
+        target.db_connection_string, fast_executemany=True
+    ).connect() as sqeng:
+        if target.to_sql:
+            kwargs = target.to_sql.model_dump()
+        else:
+            kwargs = {}
+        source_df.to_sql(
+            target.table,
+            sqeng,
+            target.dbschema,
+            index=False,
+            if_exists="append",
+            **kwargs,
+        )
+        sqeng.connection.commit()
+        return True
+
+
+def push_csv(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
+    if not target.file_path_dynamic:
+        raise Exception("no file path")
+    if not os.path.exists(os.path.isfile(target.file_path_dynamic)):
+        raise Exception("invalid file path")
+
+    if target.to_csv:
+        kwargs = target.to_csv.model_dump()
+    else:
+        kwargs = {}
+
+    source_df.to_csv(
+        target.file_path_dynamic, index=False, mode="a", header=False, **kwargs
+    )
+
+    return True
+
+
+def push_excel(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
+    if not target.file_path_dynamic:
+        raise Exception("invalid file_path")
+    sheet_name = target.table or "Sheet1"
+
+    if not sheet_name:
+        raise Exception("sheet name not defined")
+
+    # if target.to_excel:
+    #     kwargs = target.to_excel.model_dump()
+    # else:
+    #     kwargs = {}
+
+    sheet_height = get_excel_sheet_height(target.file_path_dynamic, sheet_name)
+    start_row = sheet_height + 1
+
+    if sheet_height is None:
+        raise Exception("sheet name not found")
+
+    with pd.ExcelWriter(
+        target.file_path_dynamic, mode="a", if_sheet_exists="overlay"
+    ) as writer:
+        source_df.to_excel(
+            writer, index=False, sheet_name=sheet_name, startrow=start_row, header=False
+        )
+
+    return True
+
+
+def pull_sql(frame: ec.Frame, nrows=None):
     if not frame.db_connection_string:
         raise Exception("invalid db_connection_string")
     if not frame.sqn:
@@ -19,7 +117,7 @@ def get_dataframe_from_sql(frame: ec.Frame, nrows=None):
     return df
 
 
-def build_sql_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
+def build_sql(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
     if not target.db_connection_string:
         raise Exception("invalid db_connection_string")
     if not target.sqn:
@@ -53,22 +151,77 @@ def build_sql_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
     return True
 
 
-def build_csv_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
-    if not target.file_path:
+def build_csv(df: pd.DataFrame, target: ec.Frame) -> bool:
+    if not target.file_path_dynamic:
         raise Exception("invalid file_path")
-    if not target.table:
-        raise Exception("invalid table")
 
-    df.to_csv(target.file_path, index=False)
+    # save header row to csv, overwriting if exists
+    df.head(0).to_csv(target.file_path_dynamic, index=False, mode="w")
 
     return True
 
 
-def build_end_point_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
+def get_excel_sheet_height(file_path: str, sheet_name: str) -> int:
+    workbook = CalamineWorkbook.from_path(file_path)
+    if sheet_name in workbook.sheet_names:
+        return workbook.get_sheet_by_name(sheet_name).total_height
+    else:
+        return None
+
+
+def get_excel_sheet_row(file_path: str, sheet_name: str, row_index: int) -> list:
+    workbook = CalamineWorkbook.from_path(file_path)
+    if sheet_name in workbook.sheet_names:
+        return workbook.get_sheet_by_name(sheet_name).to_python(nrows=row_index + 1)[-1]
+    else:
+        return None
+
+
+def build_excel_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
+    if not target.file_path_dynamic:
+        raise Exception("invalid file_path")
+    sheet_name = target.table or "Sheet1"
+
+    if not sheet_name:
+        raise Exception("sheet name not defined")
+
+    # save header row to csv, overwriting if exists
+    # df.head(0).to_excel(target.file_path_dynamic, index=False, mode="w")
+
+    kwargs = {}
+
+    if not os.path.exists(target.file_path_dynamic):
+        kwargs["mode"] = "w"
+    else:
+        kwargs["mode"] = "a"
+        kwargs["if_sheet_exists"] = "replace"
+
+    with pd.ExcelWriter(target.file_path_dynamic, **kwargs) as writer:
+        df.head(0).to_excel(writer, index=False, sheet_name=sheet_name)
+
+    return True
+
+
+# def build_excel_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
+#     if not target.file_path:
+#         raise Exception("invalid file_path")
+#     if not target.table:
+#         raise Exception("invalid table")
+
+#     # save header row to csv, overwriting if exists
+#     df.head(0).to_csv(target.file_path, index=False, mode="w")
+
+#     return True
+
+
+def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
     if target.type in ("mssql", "postgres", "duckdb"):
-        res = build_sql_table(df, target, add_cols)
+        res = build_sql(df, target, add_cols)
     elif target.type in (".csv"):
-        res = df.to_csv(target.file_path, index=False)
+        res = build_csv(df, target)
+    elif target.type in (".xlsx"):
+        # res = df.to_excel(target.file_path, index=False)
+        res = build_excel_frame(df, target)
     elif target.type in ("pandas"):
         res = df
     else:
@@ -76,39 +229,80 @@ def build_end_point_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) ->
     return res
 
 
-def truncate_sql_table(target: ec.Target) -> bool:
+def truncate_target(target: ec.Target) -> bool:
+    if target.type in ("mssql", "postgres", "duckdb"):
+        res = truncate_sql(target)
+    elif target.type in (".csv"):
+        res = truncate_csv(target)
+    elif target.type in (".xlsx"):
+        res = truncate_excel(target)
+    # elif target.type in ("pandas"):
+    #     res = truncate_pandas_table(target)
+    else:
+        raise Exception("invalid target type")
+    return res
+
+
+def truncate_csv(target: ec.Target) -> bool:
+    if not target.file_path_dynamic:
+        raise Exception("no file path")
+    if not os.path.exists(os.path.isfile(target.file_path_dynamic)):
+        raise Exception("invalid file path")
+
+    # read the first row of the file
+    with open(target.file_path_dynamic, "r") as f:
+        reader = csv.reader(f)
+        first_row = next(reader)
+
+    # write the first row back to the file
+    with open(target.file_path_dynamic, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(first_row)
+
+    return True
+
+
+def truncate_excel(target: ec.Target) -> bool:
+    if not target.file_path_dynamic:
+        raise Exception("no file path")
+    if not os.path.exists(os.path.isfile(target.file_path_dynamic)):
+        raise Exception("invalid file path")
+
+    # read the first row of the file
+    with open(target.file_path_dynamic, "r") as f:
+        reader = csv.reader(f)
+        first_row = next(reader)
+
+    # write the first row back to the file
+    with open(target.file_path_dynamic, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(first_row)
+
+    return True
+
+
+def clear_excel_sheet_after_row(file_path, sheet_name, row_start):
+    # Load the workbook and select the sheet
+    wb = load_workbook(file_path)
+    sheet = wb[sheet_name]
+
+    # Iterate over the rows
+    for i in range(row_start, sheet.max_row + 1):
+        for j in range(1, sheet.max_column + 1):
+            # Clear the cell
+            sheet.cell(row=i, column=j).value = None
+
+    # Save the workbook
+    wb.save(file_path)
+
+
+def truncate_sql(target: ec.Target) -> bool:
     if not target.db_connection_string:
         raise Exception("invalid db_connection_string")
     with sa.create_engine(target.db_connection_string).connect() as sqeng:
         sqeng.execute(sa.text(f"truncate table {target.sqn}"))
         sqeng.connection.commit()
     return True
-
-
-def load_dataframe_to_sql(
-    source_df: pd.DataFrame, target: ec.Target, add_cols: dict
-) -> bool:
-    if not target.db_connection_string:
-        raise Exception("invalid db_connection_string")
-    if not target.table:
-        raise Exception("invalid to_sql")
-    with sa.create_engine(
-        target.db_connection_string, fast_executemany=True
-    ).connect() as sqeng:
-        if target.to_sql:
-            kwargs = target.to_sql.model_dump()
-        else:
-            kwargs = {}
-        source_df.to_sql(
-            target.table,
-            sqeng,
-            target.dbschema,
-            index=False,
-            if_exists="append",
-            **kwargs,
-        )
-        sqeng.connection.commit()
-        return True
 
 
 def frames_consistent(config: ec.Config) -> bool:
@@ -123,9 +317,9 @@ def frames_consistent(config: ec.Config) -> bool:
             if v == ec.DynamicColumnValue.ROW_INDEX.value:
                 ignore_cols.append(k)
 
-    source_df = get_df(source, 100)
+    source_df = pull_frame(source, 100)
     source_df = add_columns(source_df, add_cols)
-    target_df = get_df(target, 100)
+    target_df = pull_frame(target, 100)
     return data_frames_consistent(source_df, target_df, ignore_cols)
 
 
@@ -174,12 +368,12 @@ def get_sql_data_type(dtype):
         return "VARCHAR(MAX)"
 
 
-def get_dataframe_from_csv(file_path, **kwargs):
+def pull_csv(file_path, **kwargs):
     df = pd.read_csv(file_path, **kwargs)
     return df
 
 
-def get_dataframe_from_excel(file_path, **kwargs):
+def pull_excel(file_path, **kwargs):
     df = pd.read_excel(file_path, **kwargs)
     return df
 
@@ -209,13 +403,13 @@ def get_source_kwargs(
     return kwargs
 
 
-def get_df(
+def pull_frame(
     frame: Union[ec.Source, ec.Target],
     nrows: Optional[int] = None,
     # dtype=None,
 ) -> pd.DataFrame:
     if frame.type in ("mssql", "postgres", "duckdb"):
-        df = get_dataframe_from_sql(frame)
+        df = pull_sql(frame)
     elif frame.type in (".csv", ".tsv"):
         if isinstance(frame, ec.Source):
             # kwargs = get_source_kwargs(frame.read_csv, nrows, dtype)
@@ -225,7 +419,7 @@ def get_df(
                 kwargs["sep"] = "\t"
         else:
             kwargs = {}
-        df = get_dataframe_from_csv(frame.file_path, **kwargs)
+        df = pull_csv(frame.file_path_dynamic, **kwargs)
     elif frame.type and frame.type in (".xlsx"):
         if isinstance(frame, ec.Source):
             # kwargs = get_source_kwargs(frame.read_excel, nrows, dtype)
@@ -235,14 +429,14 @@ def get_df(
         if frame.file_path in open_files:
             file = open_files[frame.file_path]
         else:
-            file = frame.file_path
+            file = frame.file_path_dynamic
         # kwargs["dtype"] = {1: "str"}
-        df = get_dataframe_from_excel(file, **kwargs)
+        df = pull_excel(file, **kwargs)
     elif frame.type in ("pandas"):
-        if frame.file_path in pandas_end_points:
-            df = pandas_end_points[frame.table]
+        if frame.table in staged_frames:
+            df = staged_frames[frame.table]
         else:
-            raise Exception("pandas target not found")
+            raise Exception("pandas frame not found")
     else:
         raise Exception("unable to build df")
     if isinstance(df.columns, pd.MultiIndex):
@@ -289,27 +483,6 @@ def multiindex_to_singleindex(df, separator="_"):
     return df
 
 
-def put_df(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
-    res = False
-    if df is not None:
-        if not target or not target.type:
-            logging.info("no target defined, printing first 100 rows:")
-            print(df.head(100))
-            res = True
-        else:
-            if target.type in (".csv"):
-                df.to_csv(target.file_path, index=False)
-                res = True
-            elif target.type in ("mssql", "postgres", "duckdb"):
-                res = load_dataframe_to_sql(df, target, add_cols)
-            elif target.type in ("pandas"):
-                pandas_end_points[target.table] = df
-                res = True
-            else:
-                pass
-    return res
-
-
 def get_configs(config):
     target = config.target
     source = config.source
@@ -336,13 +509,13 @@ def ingest(config: ec.Config) -> bool:
         not target
         or not target.table
         or consistent
-        or target.consistency == ec.TargetConsistencyValue.IGNORE
+        or target.consistency == ec.TargetConsistencyValue.IGNORE.value
     ):
         # print(config.dtype)
         # source_df = get_df(source, config.nrows, config.dtype)
-        source_df = get_df(source, config.nrows)
+        source_df = pull_frame(source, config.nrows)
         source_df = add_columns(source_df, add_cols)
-        return put_df(source_df, target, add_cols)
+        return push_frame(source_df, target, add_cols)
     else:
         logging.error(target.table + ": Inconsistent, not saved.")
         return False
@@ -357,11 +530,12 @@ def build(config: ec.Config) -> bool:
     ):
         action = target.preparation_action
         if action == "create_replace":
-            df = get_df(source, 100)
+            df = pull_frame(source, 100)
             df = add_columns(df, add_cols)
-            res = build_sql_table(df, target, add_cols)
+            # res = build_sql_table(df, target, add_cols)
+            res = build_target(df, target, add_cols)
         elif action == "truncate":
-            res = truncate_sql_table(target)
+            res = truncate_target(target)
         elif action == "fail":
             logging.error("Table Exists, failing")
             res = False
@@ -377,7 +551,7 @@ def detect(config: ec.Config) -> bool:
     source = source.model_copy()
     source.nrows = 100
 
-    df = get_df(source)
+    df = pull_frame(source)
     print(df.dtypes.to_dict())
     return True
 

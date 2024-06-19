@@ -13,7 +13,8 @@ from eel.path import ContentAwarePath as CAPath
 from eel.path import get_root_config_name
 from eel.path import grow_branches
 from eel.path import get_config_default
-from eel.execute import pandas_end_points
+
+# from eel.execute import staged_frames
 
 app = typer.Typer()
 
@@ -29,8 +30,17 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
     return root
 
 
-def get_taskflow(path: CAPath):
-    tree = plant_tree(path)
+def get_ca_path(path: str = None) -> CAPath:
+    if path:
+        ca_path = CAPath(path)
+    else:
+        ca_path = CAPath()
+    return ca_path
+
+
+def get_taskflow(path: str = None):
+    ca_path = get_ca_path(path)
+    tree = plant_tree(ca_path)
     if tree:
         taskflow = tree.get_ingest_taskflow()
         return taskflow
@@ -39,8 +49,9 @@ def get_taskflow(path: CAPath):
 
 
 @app.command()
-def tree():
-    tree = plant_tree()
+def tree(path: str = None):
+    ca_path = get_ca_path(path)
+    tree = plant_tree(ca_path)
     if tree:
         tree.display_tree()
     else:
@@ -49,8 +60,8 @@ def tree():
 
 
 @app.command()
-def flow():
-    taskflow = get_taskflow()
+def flow(path: str = None):
+    taskflow = get_taskflow(path)
     if taskflow:
         taskflow.display_tree()
     else:
@@ -60,11 +71,7 @@ def flow():
 
 @app.command()
 def execute(path: str = None):
-    if path:
-        ca_path = CAPath(path)
-    else:
-        ca_path = CAPath()
-    taskflow = get_taskflow(ca_path)
+    taskflow = get_taskflow(path)
     if taskflow:
         taskflow.execute()
         # print(pandas_end_points)
@@ -90,21 +97,22 @@ def test():
 
 
 @app.command()
-def preview(verbose: bool = False):
-    root = find_root()
-    cwd = Path(os.getcwd())
-    if root == cwd:
-        tree = plant_tree()
-        if tree and verbose:
-            ymls = tree.get_eel_yml_preview(diff=False)
-        elif tree:
-            ymls = tree.get_eel_yml_preview(diff=True)
-        else:
-            raise Exception("tree not loaded")
-        yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
-        write_yaml_str(yaml_str)
+def preview(path: str = None, verbose: bool = False):
+    # root = find_root()
+    # cwd = Path(os.getcwd())
+    # if root == cwd:
+    ca_path = get_ca_path(path)
+    tree = plant_tree(ca_path)
+    if tree and verbose:
+        ymls = tree.get_eel_yml_preview(diff=False)
+    elif tree:
+        ymls = tree.get_eel_yml_preview(diff=True)
     else:
-        print("current path different than eel root")
+        raise Exception("tree not loaded")
+    yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
+    write_yaml_str(yaml_str)
+    # else:
+    #     print("current path different than eel root")
 
 
 def find_dir_with_file(start_dir: Path, target_file: str) -> Optional[Path]:
@@ -148,5 +156,5 @@ if __name__ == "__main__":
     start_logging()
     os.chdir("D:\\Sync\\repos\\eel\\temp")
     # execute()
-    execute("1r1cString(Stringy)_quoting0.csv")
-    print(list(pandas_end_points.values())[0].dtypes)
+    execute("1r1cFloat64(-1)_sheet_nameFloat64(-1).xlsx")
+    # print(list(staged_frames.values())[0].dtypes)
