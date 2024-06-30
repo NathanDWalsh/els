@@ -4,6 +4,7 @@ $defs:
       anyOf:
       - $ref: '#/$defs/DynamicPathValue'
       - $ref: '#/$defs/DynamicColumnValue'
+      - $ref: '#/$defs/DynamicCellValue'
       - type: string
       - type: integer
       - type: number
@@ -22,11 +23,11 @@ $defs:
           additionalProperties: null
       children:
         anyOf:
-        - items:
-            additionalProperties:
-              $ref: '#/$defs/Config'
-            type: object
-          type: array
+        - additionalProperties:
+            anyOf:
+            - $ref: '#/$defs/Config'
+            - type: 'null'
+          type: object
         - items:
             type: string
           type: array
@@ -47,8 +48,7 @@ $defs:
           read_csv: null
           read_excel: null
           server: null
-          stack: null
-          table: null
+          table: _leaf_name
           type: _file_extension
       target:
         allOf:
@@ -60,15 +60,128 @@ $defs:
           file_path: null
           if_exists: fail
           server: null
-          stack: null
           table: _leaf_name
+          to_csv: null
+          to_excel: null
           to_sql: null
           type: pandas
+      transform:
+        anyOf:
+        - $ref: '#/$defs/Transform'
+        - type: 'null'
+        default: null
     title: Config
     type: object
+  DynamicCellValue:
+    enum:
+    - _r0c0
+    - _r0c1
+    - _r0c2
+    - _r0c3
+    - _r0c4
+    - _r0c5
+    - _r0c6
+    - _r0c7
+    - _r0c8
+    - _r0c9
+    - _r1c0
+    - _r1c1
+    - _r1c2
+    - _r1c3
+    - _r1c4
+    - _r1c5
+    - _r1c6
+    - _r1c7
+    - _r1c8
+    - _r1c9
+    - _r2c0
+    - _r2c1
+    - _r2c2
+    - _r2c3
+    - _r2c4
+    - _r2c5
+    - _r2c6
+    - _r2c7
+    - _r2c8
+    - _r2c9
+    - _r3c0
+    - _r3c1
+    - _r3c2
+    - _r3c3
+    - _r3c4
+    - _r3c5
+    - _r3c6
+    - _r3c7
+    - _r3c8
+    - _r3c9
+    - _r4c0
+    - _r4c1
+    - _r4c2
+    - _r4c3
+    - _r4c4
+    - _r4c5
+    - _r4c6
+    - _r4c7
+    - _r4c8
+    - _r4c9
+    - _r5c0
+    - _r5c1
+    - _r5c2
+    - _r5c3
+    - _r5c4
+    - _r5c5
+    - _r5c6
+    - _r5c7
+    - _r5c8
+    - _r5c9
+    - _r6c0
+    - _r6c1
+    - _r6c2
+    - _r6c3
+    - _r6c4
+    - _r6c5
+    - _r6c6
+    - _r6c7
+    - _r6c8
+    - _r6c9
+    - _r7c0
+    - _r7c1
+    - _r7c2
+    - _r7c3
+    - _r7c4
+    - _r7c5
+    - _r7c6
+    - _r7c7
+    - _r7c8
+    - _r7c9
+    - _r8c0
+    - _r8c1
+    - _r8c2
+    - _r8c3
+    - _r8c4
+    - _r8c5
+    - _r8c6
+    - _r8c7
+    - _r8c8
+    - _r8c9
+    - _r9c0
+    - _r9c1
+    - _r9c2
+    - _r9c3
+    - _r9c4
+    - _r9c5
+    - _r9c6
+    - _r9c7
+    - _r9c8
+    - _r9c9
+    title: DynamicCellValue
+    type: string
   DynamicColumnValue:
     const: _row_index
+    enum:
+    - _row_index
     title: DynamicColumnValue
+    type: string
   DynamicPathValue:
     enum:
     - _full_path_abs
@@ -85,6 +198,34 @@ $defs:
     - _parent_folder_name
     title: DynamicPathValue
     type: string
+  Melt:
+    additionalProperties: false
+    properties:
+      id_vars:
+        items:
+          type: string
+        title: Id Vars
+        type: array
+      value_name:
+        default: value
+        title: Value Name
+        type: string
+      value_vars:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: 'null'
+        default: null
+        title: Value Vars
+      var_name:
+        default: variable
+        title: Var Name
+        type: string
+    required:
+    - id_vars
+    title: Melt
+    type: object
   ReadCsv:
     additionalProperties: true
     properties:
@@ -179,16 +320,11 @@ $defs:
         - type: 'null'
         default: null
         title: Server
-      stack:
-        anyOf:
-        - $ref: '#/$defs/Stack'
-        - type: 'null'
-        default: null
       table:
         anyOf:
         - type: string
         - type: 'null'
-        default: null
+        default: _leaf_name
         title: Table
       type:
         anyOf:
@@ -251,17 +387,22 @@ $defs:
         - type: 'null'
         default: null
         title: Server
-      stack:
-        anyOf:
-        - $ref: '#/$defs/Stack'
-        - type: 'null'
-        default: null
       table:
         anyOf:
         - type: string
         - type: 'null'
         default: _leaf_name
         title: Table
+      to_csv:
+        anyOf:
+        - $ref: '#/$defs/ToCsv'
+        - type: 'null'
+        default: null
+      to_excel:
+        anyOf:
+        - $ref: '#/$defs/ToExcel'
+        - type: 'null'
+        default: null
       to_sql:
         anyOf:
         - $ref: '#/$defs/ToSql'
@@ -271,7 +412,7 @@ $defs:
         anyOf:
         - type: string
         - type: 'null'
-        default: pandas
+        default: null
         title: Type
     title: Target
     type: object
@@ -287,8 +428,19 @@ $defs:
     - replace
     - append
     - truncate
+    - replace_file
     title: TargetIfExistsValue
     type: string
+  ToCsv:
+    additionalProperties: true
+    properties: {}
+    title: ToCsv
+    type: object
+  ToExcel:
+    additionalProperties: true
+    properties: {}
+    title: ToExcel
+    type: object
   ToSql:
     additionalProperties: true
     properties:
@@ -299,6 +451,26 @@ $defs:
         default: null
         title: Chunksize
     title: ToSql
+    type: object
+  Transform:
+    additionalProperties: false
+    oneOf:
+    - required:
+      - melt
+    - required:
+      - stack
+    properties:
+      melt:
+        anyOf:
+        - $ref: '#/$defs/Melt'
+        - type: 'null'
+        default: null
+      stack:
+        anyOf:
+        - $ref: '#/$defs/Stack'
+        - type: 'null'
+        default: null
+    title: Transform
     type: object
 allOf:
 - $ref: '#/$defs/Config'

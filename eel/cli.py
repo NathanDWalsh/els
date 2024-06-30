@@ -14,7 +14,7 @@ from eel.path import get_root_config_name
 from eel.path import grow_branches
 from eel.path import get_config_default
 
-# from eel.execute import staged_frames
+from eel.execute import staged_frames
 
 app = typer.Typer()
 
@@ -49,7 +49,8 @@ def get_taskflow(path: str = None):
 
 
 @app.command()
-def tree(path: str = None):
+def tree(path: Optional[str] = typer.Argument(None)):
+    path = clean_none_path(path)
     ca_path = get_ca_path(path)
     tree = plant_tree(ca_path)
     if tree:
@@ -60,7 +61,8 @@ def tree(path: str = None):
 
 
 @app.command()
-def flow(path: str = None):
+def flow(path: Optional[str] = typer.Argument(None)):
+    path = clean_none_path(path)
     taskflow = get_taskflow(path)
     if taskflow:
         taskflow.display_tree()
@@ -69,14 +71,33 @@ def flow(path: str = None):
     logging.info("Fin")
 
 
+def clean_none_path(path):
+    if isinstance(path, typer.models.ArgumentInfo) and path.default is None:
+        path = None
+    return path
+
+
 @app.command()
-def execute(path: str = None):
+def execute(path: Optional[str] = typer.Argument(None)):
+    path = clean_none_path(path)
     taskflow = get_taskflow(path)
     if taskflow:
         taskflow.execute()
         # print(pandas_end_points)
     else:
         logging.error("taskflow not loaded")
+    if staged_frames:
+        print(f"Frames found: {len(staged_frames)}")
+        for key, value in staged_frames.items():
+            # store the count of unnamed columns in a variable
+            unnamed_cols = value.columns.str.contains("^Unnamed").sum()
+            # capture the number of rows and cols
+            r, c = value.shape
+            # print the rows and columns of the dataframe
+            print(
+                f"- {key}; rows:{r}; columns:{c}{'(' + str(unnamed_cols) + ' unnamed)' if unnamed_cols else ''}"
+            )
+            print(value.head(1))
     logging.info("Fin")
 
 
@@ -97,10 +118,11 @@ def test():
 
 
 @app.command()
-def preview(path: str = None, verbose: bool = False):
+def preview(path: Optional[str] = typer.Argument(None), verbose: bool = False):
     # root = find_root()
     # cwd = Path(os.getcwd())
     # if root == cwd:
+    path = clean_none_path(path)
     ca_path = get_ca_path(path)
     tree = plant_tree(ca_path)
     if tree and verbose:
@@ -154,7 +176,12 @@ def main():
 
 if __name__ == "__main__":
     start_logging()
-    os.chdir("D:\\Sync\\repos\\eel\\temp")
-    # execute()
-    execute("1r1cFloat64(-1)_sheet_nameFloat64(-1).xlsx")
+    # if os.path.exists(
+    #     "D:\\Sync\\test_data\\eel-wb-population\\targets\\excel_container.xlsx"
+    # ):
+    #     os.remove(
+    #         "D:\\Sync\\test_data\\eel-wb-population\\targets\\excel_container.xlsx"
+    #     )
+    os.chdir("D:\\Sync\\test_data\\eel-wb-population\\sources-project")
+    execute()
     # print(list(staged_frames.values())[0].dtypes)

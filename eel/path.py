@@ -1,4 +1,6 @@
 from pathlib import Path
+
+# import zipfile
 from anytree import NodeMixin, RenderTree, PreOrderIter
 import pandas as pd
 import os
@@ -75,6 +77,8 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 pass
             elif value in find_replace_dict:
                 dictionary[key] = find_replace_dict[value]
+            elif key == "file_path" and "*" in value:
+                dictionary[key] = value.replace("*", find_replace_dict["_leaf_name"])
 
     @staticmethod
     def merge_configs(*configs: list[Union[ec.Config, config_dict_type]]) -> ec.Config:
@@ -112,12 +116,13 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             self.parent
             and self.parent._config
             and ("children" in self.parent._config)
-            and isinstance(self.parent._config["children"], list)
-            and len(self.parent._config["children"]) > 0
-            and isinstance(self.parent._config["children"][0], dict)
+            and isinstance(self.parent._config["children"], dict)
+            # and len(self.parent._config["children"]) > 0
+            # and isinstance(self.parent._config["children"][0], dict)
         ):
-            if str(self) in self.parent._config["children"]:
-                return self.parent._config["children"][str(self)]
+            # check if leaf_name is in one of the keys in the dicts contained in the list
+            if str(self.leaf_name) in self.parent._config["children"]:
+                return self.parent._config["children"][str(self.leaf_name)]
             else:
                 logging.error("Config not found in parent config when expected")
                 return {}
@@ -158,7 +163,23 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def display_tree(self):
         for pre, fill, node in RenderTree(self):
-            print("%s%s" % (pre, node.name))
+            print(
+                "%s%s: %s%s"
+                % (
+                    pre,
+                    node.name,
+                    (
+                        f"{node.config.source.file_path}→"
+                        if node.is_leaf and node.config.source.file_path
+                        else ""
+                    ),
+                    (
+                        f" →{node.config.target.file_path}({node.config.target.type})"
+                        if node.is_leaf and node.config.target.file_path
+                        else ""
+                    ),
+                )
+            )
 
     @property
     def parent(self):
@@ -206,12 +227,12 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             res = ["*"]
         elif isinstance(children, str):
             res = [str(children)]  # recasting as str for linter
-        # if list of dicts
-        elif isinstance(children, list) and all(
-            isinstance(item, dict) for item in children
-        ):
+        elif isinstance(children, dict):
             # get key of each dict as list entries
-            res = [str(next(iter(d))) for d in children]
+            res = list(children.keys())
+        elif isinstance(children, list):
+            res = children
+        # if list of dicts
         else:
             raise Exception("Unexpected children")
         return res
@@ -272,8 +293,10 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                     yield ContentAwarePath(self / pattern, parent=self)
 
     def get_content_leaf_names(self) -> list[str]:
-        if self.suffix == ".xlsx":
+        if self.suffix in (".xlsx", ".xlsb", ".xlsm", ".xls"):
             return get_sheet_names(str(self))
+        # elif self.suffix == ".zip":
+        #     return get_zip_files(str(self))
         elif (
             self.is_config() and self.config.source.type == "pandas"
         ):  # and self._config.type =='mssql'
@@ -371,7 +394,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     ) -> None:
         ingest_files = ef.EelFlow(parent=parent, n_jobs=1)
         for file, file_gb in df.groupby(["file_path", "type"]):
-            if file[1] == ".xlsx":
+            if file[1] in (".xlsx", ".xls", ".xlsm", ".xlsb"):
                 file_wrapper = ef.EelXlsxWrapper(parent=ingest_files, file_path=file[0])
             else:
                 file_wrapper = ef.EelFileWrapper(parent=ingest_files, file_path=file[0])
@@ -448,6 +471,12 @@ def dict_diff(dict1: dict, dict2: dict) -> dict:
             diff[key] = value
 
     return diff
+
+
+# def get_zip_files(file_path) -> list[str]:
+#     with zipfile.ZipFile(file_path, "r") as zip_ref:
+#         zip_files = zip_ref.namelist()
+#     return zip_files
 
 
 # def get_sheet_names(file_path, sheet_states: list = ["visible"]) -> list[str]:

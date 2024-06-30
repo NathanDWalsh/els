@@ -33,7 +33,7 @@ class EelExecute(FlowNodeMixin):
         if not isinstance(config, ec.Config):
             logging.error("INGEST without config")
         self.parent = parent
-        self.name = f"{name} ({execute_fn.__name__})"
+        self.name = f"{name} ({execute_fn.__name__}) {config.source.table if execute_fn.__name__ == 'ingest' else ''} → {config.target.table + '(' + config.target.type + ')' if execute_fn.__name__ == 'ingest' else ''}"
         self.config = config
         self.execute_fn = execute_fn
 

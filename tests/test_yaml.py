@@ -251,16 +251,16 @@ def round_trip_file(test_case: Test, request, extension: str):
         df2 = staged_frames[kwargs["sheet_name"]]
         logger.info(kwargs["sheet_name"])
 
-    assert True
+    # assert True
 
     # logger.info(df2.dtypes)
     # logger.info(df2)
 
-    # assert df.equals(df2)
+    assert df.equals(df2)
 
-    # os.remove(test_eel)
-    # os.remove(test_eel_out)
-    # os.remove(test_file)
+    os.remove(test_eel)
+    os.remove(test_eel_out)
+    os.remove(test_file)
 
 
 # def round_trip_db(test_case: Test, request, table_name):

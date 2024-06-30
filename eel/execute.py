@@ -11,6 +11,7 @@ from openpyxl import load_workbook
 
 open_files = {}
 staged_frames = {}
+created_files = []
 
 
 def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
@@ -190,14 +191,23 @@ def build_excel_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
 
     kwargs = {}
 
-    if not os.path.exists(target.file_path_dynamic):
-        kwargs["mode"] = "w"
-    else:
+    if (
+        (
+            os.path.exists(target.file_path_dynamic)
+            and not target.if_exists == "replace_file"
+        )
+        or target.file_path_dynamic in created_files
+        #
+    ):
         kwargs["mode"] = "a"
         kwargs["if_sheet_exists"] = "replace"
+    else:
+        kwargs["mode"] = "w"
 
     with pd.ExcelWriter(target.file_path_dynamic, **kwargs) as writer:
         df.head(0).to_excel(writer, index=False, sheet_name=sheet_name)
+
+    created_files.append(target.file_path_dynamic)
 
     return True
 
@@ -218,15 +228,23 @@ def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
     if target.type in ("mssql", "postgres", "duckdb"):
         res = build_sql(df, target, add_cols)
     elif target.type in (".csv"):
+        create_directory_if_not_exists(target.file_path_dynamic)
         res = build_csv(df, target)
     elif target.type in (".xlsx"):
         # res = df.to_excel(target.file_path, index=False)
+        create_directory_if_not_exists(target.file_path_dynamic)
         res = build_excel_frame(df, target)
     elif target.type in ("pandas"):
         res = df
     else:
         raise Exception("invalid target type")
     return res
+
+
+def create_directory_if_not_exists(file_path: str):
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 
 def truncate_target(target: ec.Target) -> bool:
@@ -306,7 +324,7 @@ def truncate_sql(target: ec.Target) -> bool:
 
 
 def frames_consistent(config: ec.Config) -> bool:
-    target, source, add_cols = get_configs(config)
+    target, source, add_cols, transform = get_configs(config)
 
     if target and target.type in ("pandas"):
         return True
@@ -317,7 +335,7 @@ def frames_consistent(config: ec.Config) -> bool:
             if v == ec.DynamicColumnValue.ROW_INDEX.value:
                 ignore_cols.append(k)
 
-    source_df = pull_frame(source, 100)
+    source_df = pull_frame(source, 100, add_cols, transform)
     source_df = add_columns(source_df, add_cols)
     target_df = pull_frame(target, 100)
     return data_frames_consistent(source_df, target_df, ignore_cols)
@@ -368,19 +386,23 @@ def get_sql_data_type(dtype):
         return "VARCHAR(MAX)"
 
 
-def pull_csv(file_path, **kwargs):
-    df = pd.read_csv(file_path, **kwargs)
+def pull_csv(file, **kwargs):
+    df = pd.read_csv(file, **kwargs)
+    # check if last column is unnamed
+    if df.columns[-1].startswith("Unnamed"):
+        # check if the last column is all null
+        if df[df.columns[-1]].isnull().all():
+            # drop the last column
+            df = df.drop(df.columns[-1], axis=1)
     return df
 
 
-def pull_excel(file_path, **kwargs):
-    df = pd.read_excel(file_path, **kwargs)
+def pull_excel(file, **kwargs):
+    df = pd.read_excel(file, **kwargs)
     return df
 
 
-def get_source_kwargs(
-    read_x, frame: Union[ec.Source, ec.Target], nrows: Optional[int] = None
-):
+def get_source_kwargs(read_x, frame: ec.Source, nrows: Optional[int] = None):
     kwargs = {}
     if read_x:
         kwargs = read_x.model_dump(exclude_none=True)
@@ -403,35 +425,114 @@ def get_source_kwargs(
     return kwargs
 
 
+def get_target_kwargs(to_x, frame: ec.Target, nrows: Optional[int] = None):
+    kwargs = {}
+    if to_x:
+        kwargs = to_x.model_dump(exclude_none=True)
+
+    root_kwargs = (
+        "nrows",
+        "dtype",
+        "sheet_name",
+        "names",
+        "encoding",
+        "low_memory",
+        "sep",
+    )
+    for k in root_kwargs:
+        if hasattr(frame, k) and getattr(frame, k):
+            kwargs[k] = getattr(frame, k)
+    if nrows:
+        kwargs["nrows"] = nrows
+
+    return kwargs
+
+
 def pull_frame(
     frame: Union[ec.Source, ec.Target],
     nrows: Optional[int] = None,
+    add_cols: dict = {},
+    transform: Optional[ec.Transform] = None,
     # dtype=None,
 ) -> pd.DataFrame:
+    # logging.info(f"pulling frame {frame.file_path_dynamic}")
     if frame.type in ("mssql", "postgres", "duckdb"):
         df = pull_sql(frame)
     elif frame.type in (".csv", ".tsv"):
         if isinstance(frame, ec.Source):
             # kwargs = get_source_kwargs(frame.read_csv, nrows, dtype)
             kwargs = get_source_kwargs(frame.read_csv, frame, nrows)
-            print(kwargs)
+            # print(kwargs)
             if frame.type == ".tsv":
                 kwargs["sep"] = "\t"
+
         else:
             kwargs = {}
+        if "sep" not in kwargs.keys():
+            kwargs["sep"] = ","
         df = pull_csv(frame.file_path_dynamic, **kwargs)
-    elif frame.type and frame.type in (".xlsx"):
+
+        # read first 10 rows of csv file with python csv reader into a list of rows
+        with open(frame.file_path_dynamic, "r", encoding="utf-8-sig") as f:
+
+            row_scan_max = 10
+            # get row count and update line_number for each line read
+            row_scan = sum(
+                1 for line_number, row in enumerate(f, 1) if line_number <= row_scan_max
+            )
+            f.seek(0)
+            # take min of row count and 10
+            # row_scan = 2
+            reader = csv.reader(f, delimiter=kwargs["sep"])
+            rows_n = [next(reader) for _ in range(row_scan)]
+
+        # loop the values in add_cols
+        for k, v in add_cols.items():
+            # check if the value is a DynamicCellValue
+            if (
+                v
+                and isinstance(v, str)
+                and v[1:].upper() in ec.DynamicCellValue.__members__.keys()
+            ):
+                row, col = v[1:].upper().strip("R").split("C")
+                row = int(row)
+                col = int(col)
+                # if v == "_r1c1":
+                # get the cell value corresponding to the rxcx
+                add_cols[k] = rows_n[row][col]
+
+    elif frame.type and frame.type in (".xlsx", ".xls"):
         if isinstance(frame, ec.Source):
             # kwargs = get_source_kwargs(frame.read_excel, nrows, dtype)
             kwargs = get_source_kwargs(frame.read_excel, frame, nrows)
+        elif isinstance(frame, ec.Target):
+            kwargs = get_target_kwargs(frame.to_excel, frame, nrows)
         else:
             kwargs = {}
         if frame.file_path in open_files:
             file = open_files[frame.file_path]
         else:
+            # raise Exception("Excel file not opened")
             file = frame.file_path_dynamic
         # kwargs["dtype"] = {1: "str"}
+
+        # loop the values in add_cols
+        for k, v in add_cols.items():
+            # check if the value is a DynamicCellValue
+            if (
+                v
+                and isinstance(v, str)
+                and v[1:].upper() in ec.DynamicCellValue.__members__.keys()
+            ):
+                row, col = v[1:].upper().strip("R").split("C")
+                row = int(row)
+                col = int(col)
+                # if v == "_r1c1":
+                # get the cell value corresponding to the rxcx
+                add_cols[k] = get_excel_sheet_row(file, frame.sheet_name, row)[col]
+
         df = pull_excel(file, **kwargs)
+
     elif frame.type in ("pandas"):
         if frame.table in staged_frames:
             df = staged_frames[frame.table]
@@ -440,10 +541,18 @@ def pull_frame(
     else:
         raise Exception("unable to build df")
     if isinstance(df.columns, pd.MultiIndex):
-        if frame.stack:
-            df = stack_columns(df, frame.stack)
+        if transform and transform.stack:
+            df = stack_columns(df, transform.stack)
         else:
             df = multiindex_to_singleindex(df)
+    if transform and transform.melt:
+        df = pd.melt(
+            df,
+            id_vars=transform.melt.id_vars,
+            value_vars=transform.melt.value_vars,
+            value_name=transform.melt.value_name,
+            var_name=transform.melt.var_name,
+        )
     return pd.DataFrame(df)
 
 
@@ -487,8 +596,9 @@ def get_configs(config):
     target = config.target
     source = config.source
     add_cols = config.add_cols.model_dump()
+    transform = config.transform
 
-    return target, source, add_cols
+    return target, source, add_cols, transform
 
 
 def add_columns(df: pd.DataFrame, add_cols: dict) -> pd.DataFrame:
@@ -503,7 +613,7 @@ def add_columns(df: pd.DataFrame, add_cols: dict) -> pd.DataFrame:
 
 
 def ingest(config: ec.Config) -> bool:
-    target, source, add_cols = get_configs(config)
+    target, source, add_cols, transform = get_configs(config)
     consistent = frames_consistent(config)
     if (
         not target
@@ -513,7 +623,7 @@ def ingest(config: ec.Config) -> bool:
     ):
         # print(config.dtype)
         # source_df = get_df(source, config.nrows, config.dtype)
-        source_df = pull_frame(source, config.nrows)
+        source_df = pull_frame(source, config.nrows, add_cols, transform)
         source_df = add_columns(source_df, add_cols)
         return push_frame(source_df, target, add_cols)
     else:
@@ -522,15 +632,16 @@ def ingest(config: ec.Config) -> bool:
 
 
 def build(config: ec.Config) -> bool:
-    target, source, add_cols = get_configs(config)
+    target, source, add_cols, transform = get_configs(config)
     if (
         target
         and target.type not in ("pandas")
         and target.preparation_action != "no_action"
     ):
         action = target.preparation_action
-        if action == "create_replace":
-            df = pull_frame(source, 100)
+        if action in ("create_replace", "create_replace_file"):
+            # TODO, use caching to avoid pulling the same data twice
+            df = pull_frame(source, 100, add_cols, transform)
             df = add_columns(df, add_cols)
             # res = build_sql_table(df, target, add_cols)
             res = build_target(df, target, add_cols)
@@ -547,7 +658,7 @@ def build(config: ec.Config) -> bool:
 
 
 def detect(config: ec.Config) -> bool:
-    _, source, _ = get_configs(config)
+    _, source, _, _ = get_configs(config)
     source = source.model_copy()
     source.nrows = 100
 

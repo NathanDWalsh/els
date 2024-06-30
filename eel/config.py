@@ -1,11 +1,23 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, Union
+from pydantic import BaseModel, ConfigDict, model_validator, field_validator
+from typing import Optional, Union, Self
 import sqlalchemy as sa
 import os
 import pandas as pd
 from enum import Enum
 
 from eel.pathprops import HumanPathPropertiesMixin
+
+import yaml
+from copy import deepcopy
+
+
+# generate an enum in the format _rxcx for a 10 * 10 grid
+def generate_enum_from_grid(cls, enum_name):
+    properties = {f"R{r}C{c}": f"_r{r}c{c}" for r in range(10) for c in range(10)}
+    return Enum(enum_name, properties)
+
+
+DynamicCellValue = generate_enum_from_grid(HumanPathPropertiesMixin, "DynamicCellValue")
 
 
 def generate_enum_from_properties(cls, enum_name):
@@ -37,6 +49,7 @@ class TargetIfExistsValue(Enum):
     REPLACE = "replace"
     APPEND = "append"
     TRUNCATE = "truncate"
+    REPLACE_FILE = "replace_file"
 
 
 class ToSql(BaseModel, extra="allow"):
@@ -47,10 +60,32 @@ class ToCsv(BaseModel, extra="allow"):
     pass
 
 
+class ToExcel(BaseModel, extra="allow"):
+    pass
+
+
 class Stack(BaseModel, extra="forbid"):
     fixed_columns: int
     stack_header: int = 0
     stack_name: str = "stack_column"
+
+
+class Melt(BaseModel, extra="forbid"):
+    id_vars: list[str]
+    value_vars: Optional[list[str]] = None
+    value_name: str = "value"
+    var_name: str = "variable"
+
+
+class Transform(BaseModel):
+
+    melt: Optional[Melt] = None
+    stack: Optional[Stack] = None
+
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"oneOf": [{"required": ["melt"]}, {"required": ["stack"]}]},
+    )
 
 
 class Frame(BaseModel):
@@ -62,44 +97,52 @@ class Frame(BaseModel):
     def sqn(self):
         pass
 
-    @property
-    def address(self):
-        match self.type:
-            case ".xlsx":
-                return self.file_path + "!" + self.sheet_name
-            case ".csv":
-                return self.file_path
-            case "pandas":
-                return None
-            case _:
-                if self.dbschema and self.table:
-                    return (
-                        {self.server} / {self.database} / {self.dbschema} / {self.table}
-                    )
-                elif self.table:
-                    return {self.server} / {self.database} / {self.table}
+    # @property
+    # def address(self):
+    #     match self.type:
+    #         case ".xlsx":
+    #             return self.file_path + "!" + self.sheet_name
+    #         case ".csv":
+    #             return self.file_path
+    #         case "pandas":
+    #             return None
+    #         case _:
+    #             if self.dbschema and self.table:
+    #                 return (
+    #                     {self.server} / {self.database} / {self.dbschema} / {self.table}
+    #                 )
+    #             elif self.table:
+    #                 return {self.server} / {self.database} / {self.table}
 
     @property
     def file_path_dynamic(self):
-        if self.type in (".csv", ".tsv", ".xlsx") and not self.file_path.endswith(
-            self.type
-        ):
+        if self.type in (
+            ".csv",
+            ".tsv",
+            ".xlsx",
+            ".xls",
+        ) and not self.file_path.endswith(self.type):
             return f"{self.file_path}{self.type}"
         else:
             return self.file_path
-
-    stack: Optional[Stack] = None
 
     type: Optional[str] = None
     server: Optional[str] = None
     database: Optional[str] = None
     dbschema: Optional[str] = None
-    table: Optional[str] = None
-    file_path: Optional[str] = None
+    table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
+    file_path: Optional[Union[str, list[str]]] = None
+
+    @property
+    def uri_scheme_type(self):
+        if self.file_path:
+            return "file"
+        else:
+            return "sql"
 
     @property
     def sheet_name(self):
-        if self.type == ".xlsx":
+        if self.type in (".xlsx", ".xls"):
             return self.table
         else:
             return None
@@ -115,9 +158,22 @@ class Target(Frame):
     if_exists: TargetIfExistsValue = TargetIfExistsValue.FAIL
     to_sql: Optional[ToSql] = None
     to_csv: Optional[ToCsv] = None
+    to_excel: Optional[ToExcel] = None
 
-    table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
-    type: Optional[str] = "pandas"
+    # type: Optional[str] = "pandas"
+    type: Optional[str] = None
+
+    @model_validator(mode="after")
+    def set_default_type(self) -> Self:
+        if self.type is None or self.type == "pandas":
+            if self.file_path:
+                # set type as the extension of file_path
+                self.type = os.path.splitext(self.file_path)[-1]
+            else:
+                self.type = "pandas"
+            # print(self.file_path)
+            # print(self.type)
+        return self
 
     @property
     def db_connection_string(self) -> Optional[str]:
@@ -180,7 +236,14 @@ class Target(Frame):
 
     @property
     def preparation_action(self) -> str:
-        if not self.table_exists or self.if_exists == TargetIfExistsValue.REPLACE.value:
+        if self.uri_scheme_type == "file" and (
+            not self.file_exists
+            or self.if_exists == TargetIfExistsValue.REPLACE_FILE.value
+        ):
+            res = "create_replace_file"
+        elif (
+            not self.table_exists or self.if_exists == TargetIfExistsValue.REPLACE.value
+        ):
             res = "create_replace"
         elif self.if_exists == TargetIfExistsValue.TRUNCATE.value:
             res = "truncate"
@@ -225,7 +288,7 @@ class Source(Frame, extra="forbid"):
 
 class AddColumns(BaseModel, extra="allow"):
     additionalProperties: Optional[
-        Union[DynamicPathValue, DynamicColumnValue, str, int, float]  # type: ignore
+        Union[DynamicPathValue, DynamicColumnValue, DynamicCellValue, str, int, float]  # type: ignore
     ] = None
 
 
@@ -234,7 +297,8 @@ class Config(BaseModel, extra="forbid"):
     target: Target = Target()
     source: Source = Source()
     add_cols: AddColumns = AddColumns()
-    children: Union[list[dict[str, "Config"]], list[str], str, None] = None
+    transform: Optional[Transform] = None
+    children: Union[dict[str, Optional["Config"]], list[str], str, None] = None
 
     @property
     def nrows(self) -> Optional[int]:
@@ -259,3 +323,23 @@ class Config(BaseModel, extra="forbid"):
     # @property
     # def dtype(self):
     #     return self.source.dtype
+
+
+def main():
+    config_json = Config.model_json_schema()
+
+    # keep enum typehints on an arbatrary number of elements in AddColumns
+    # additionalProperties property attribute functions as a placeholder
+    config_json["$defs"]["AddColumns"]["additionalProperties"] = deepcopy(
+        config_json["$defs"]["AddColumns"]["properties"]["additionalProperties"]
+    )
+    del config_json["$defs"]["AddColumns"]["properties"]
+
+    config_yml = yaml.dump(config_json, default_flow_style=False)
+
+    with open("eel_schema.yml", "w") as file:
+        file.write(config_yml)
+
+
+if __name__ == "__main__":
+    main()
