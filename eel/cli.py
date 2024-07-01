@@ -255,7 +255,8 @@ if __name__ == "__main__":
     #     os.remove(
     #         "D:\\Sync\\test_data\\eel-wb-population\\targets\\excel_container.xlsx"
     #     )
-    os.chdir("C:\\Users\\nwals\\eel-demo")
+    # os.chdir("C:\\Users\\nwals\\eel-demo")
     # os.chdir("D:\\Sync\\repos\\eel\\temp")
+    os.chdir("D:\\Sync\\test_data\\eel-wb-population\\excel_lite")
     execute()
     # print(list(staged_frames.values())[0].dtypes)

@@ -92,6 +92,18 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         config_dict = config.model_dump(exclude_none=True)
         find_replace = self.get_path_props_find_replace()
         ContentAwarePath.swap_dict_vals(config_dict, find_replace)
+        if (
+            self.is_leaf
+            and config_dict
+            and "target" in config_dict
+            and "table" in config_dict["target"]
+            and "url" in config_dict["target"]
+            and "*" in config_dict["target"]["url"]
+        ):
+            config_dict["target"]["url"] = config_dict["target"]["url"].replace(
+                "*", config_dict["target"]["table"]
+            )
+
         res = ec.Config(**config_dict)
         return res
 
@@ -104,8 +116,8 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 pass
             elif value in find_replace_dict:
                 dictionary[key] = find_replace_dict[value]
-            elif key == "url" and "*" in value:
-                dictionary[key] = value.replace("*", find_replace_dict["_leaf_name"])
+            # elif key == "url" and "*" in value:
+            #     dictionary[key] = value.replace("*", find_replace_dict["_leaf_name"])
 
     @staticmethod
     def merge_configs(*configs: list[Union[ec.Config, config_dict_type]]) -> ec.Config:
