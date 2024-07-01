@@ -1,9 +1,10 @@
-from pydantic import BaseModel, ConfigDict, model_validator, field_validator
-from typing import Optional, Union, Self
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, Union
 import sqlalchemy as sa
 import os
 import pandas as pd
 from enum import Enum
+from urllib.parse import urlparse
 
 from eel.pathprops import HumanPathPropertiesMixin
 
@@ -98,47 +99,39 @@ class Frame(BaseModel):
         pass
 
     # @property
-    # def address(self):
-    #     match self.type:
-    #         case ".xlsx":
-    #             return self.file_path + "!" + self.sheet_name
-    #         case ".csv":
-    #             return self.file_path
-    #         case "pandas":
-    #             return None
-    #         case _:
-    #             if self.dbschema and self.table:
-    #                 return (
-    #                     {self.server} / {self.database} / {self.dbschema} / {self.table}
-    #                 )
-    #             elif self.table:
-    #                 return {self.server} / {self.database} / {self.table}
+    # def file_path(self):
+    #     if self.type in (
+    #         ".csv",
+    #         ".tsv",
+    #         ".xlsx",
+    #         ".xls",
+    #     ) and not self.file_path.endswith(self.type):
+    #         return f"{self.file_path}{self.type}"
+    #     else:
+    #         return self.file_path
 
-    @property
-    def file_path_dynamic(self):
-        if self.type in (
-            ".csv",
-            ".tsv",
-            ".xlsx",
-            ".xls",
-        ) and not self.file_path.endswith(self.type):
-            return f"{self.file_path}{self.type}"
-        else:
-            return self.file_path
-
-    type: Optional[str] = None
+    url: Optional[str] = None
+    # type: Optional[str] = None
     server: Optional[str] = None
     database: Optional[str] = None
     dbschema: Optional[str] = None
     table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
-    file_path: Optional[Union[str, list[str]]] = None
 
     @property
-    def uri_scheme_type(self):
-        if self.file_path:
-            return "file"
+    def type(self):
+        if not self.url:
+            return "pandas"
+        elif self.url_scheme == "file":
+            return os.path.splitext(self.url)[-1]
         else:
-            return "sql"
+            return self.url_scheme
+
+    @property
+    def url_scheme(self):
+        if self.url:
+            return urlparse(self.url, scheme="file").scheme
+        else:
+            return None
 
     @property
     def sheet_name(self):
@@ -161,19 +154,19 @@ class Target(Frame):
     to_excel: Optional[ToExcel] = None
 
     # type: Optional[str] = "pandas"
-    type: Optional[str] = None
+    # type: Optional[str] = None
 
-    @model_validator(mode="after")
-    def set_default_type(self) -> Self:
-        if self.type is None or self.type == "pandas":
-            if self.file_path:
-                # set type as the extension of file_path
-                self.type = os.path.splitext(self.file_path)[-1]
-            else:
-                self.type = "pandas"
-            # print(self.file_path)
-            # print(self.type)
-        return self
+    # @model_validator(mode="after")
+    # def set_default_type(self) -> Self:
+    #     if self.type is None or self.type == "pandas":
+    #         if self.url:
+    #             # set type as the extension of file_path
+    #             self.type = os.path.splitext(self.url)[-1]
+    #         else:
+    #             self.type = "pandas"
+    #         # print(self.file_path)
+    #         # print(self.type)
+    #     return self
 
     @property
     def db_connection_string(self) -> Optional[str]:
@@ -205,9 +198,9 @@ class Target(Frame):
 
     @property
     def file_exists(self) -> Optional[bool]:
-        if self.file_path_dynamic and self.type in (".csv", ".tsv", ".xlsx"):
+        if self.url and self.type in (".csv", ".tsv", ".xlsx"):
             # check file exists
-            res = os.path.exists(self.file_path_dynamic)
+            res = os.path.exists(self.url)
         else:
             res = None
         return res
@@ -228,7 +221,7 @@ class Target(Frame):
             self.type in (".xlsx") and self.file_exists
         ):  # TODO: add other file types supported by Calamine
             # check if sheet exists
-            with pd.ExcelFile(self.file_path_dynamic) as xls:
+            with pd.ExcelFile(self.url) as xls:
                 res = self.sheet_name in xls.sheet_names
         else:
             res = None
@@ -236,7 +229,7 @@ class Target(Frame):
 
     @property
     def preparation_action(self) -> str:
-        if self.uri_scheme_type == "file" and (
+        if self.url_scheme == "file" and (
             not self.file_exists
             or self.if_exists == TargetIfExistsValue.REPLACE_FILE.value
         ):
@@ -274,10 +267,10 @@ class Source(Frame, extra="forbid"):
     # def parent(self) -> 'Config':
     #     return self._parent
 
-    type: Optional[str] = "_" + HumanPathPropertiesMixin.file_extension.fget.__name__
-    file_path: Optional[str] = (
-        "_" + HumanPathPropertiesMixin.file_path_abs.fget.__name__
-    )
+    # type: Optional[str] = "_" + HumanPathPropertiesMixin.file_extension.fget.__name__
+    # file_path: Optional[str] = (
+    #     "_" + HumanPathPropertiesMixin.file_path_abs.fget.__name__
+    # )
 
     load_parallel: bool = False
     nrows: Optional[int] = None
@@ -294,8 +287,8 @@ class AddColumns(BaseModel, extra="allow"):
 
 class Config(BaseModel, extra="forbid"):
     # sub_path: str = "."
-    target: Target = Target()
     source: Source = Source()
+    target: Target = Target()
     add_cols: AddColumns = AddColumns()
     transform: Optional[Transform] = None
     children: Union[dict[str, Optional["Config"]], list[str], str, None] = None

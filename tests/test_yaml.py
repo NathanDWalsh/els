@@ -201,10 +201,10 @@ def round_trip_file(test_case: Test, request, extension: str):
     test_file = test_name + "." + extension
 
     t_config = get_config_default()
-    t_config.source.type = "pandas"
+    # t_config.source.type = "pandas"
     # t_config.target.file_path = test_name + "." + extension
-    t_config.target.type = "." + extension
-    t_config.target.file_path = test_file
+    # t_config.target.type = "." + extension
+    t_config.target.url = test_file
     if extension == "xlsx":
         t_config.target.table = kwargs["sheet_name"]
     t_config.source.table = test_name
@@ -229,6 +229,7 @@ def round_trip_file(test_case: Test, request, extension: str):
     df_config = get_df_config(df)
     if extension == "xlsx":
         df_config["source"]["table"] = kwargs["sheet_name"]
+    # df_config["source"]["url"] = f"*.{extension}"
     test_eel = test_file + ".eel.yml"
     yaml.dump(
         df_config,
@@ -253,8 +254,10 @@ def round_trip_file(test_case: Test, request, extension: str):
 
     # assert True
 
-    # logger.info(df2.dtypes)
-    # logger.info(df2)
+    logger.info(df2.dtypes)
+    logger.info(df2)
+    logger.info(df.dtypes)
+    logger.info(df)
 
     assert df.equals(df2)
 

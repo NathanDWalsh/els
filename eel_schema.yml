@@ -42,14 +42,13 @@ $defs:
           database: null
           dbschema: null
           dtype: null
-          file_path: _file_path_abs
           load_parallel: false
           nrows: null
           read_csv: null
           read_excel: null
           server: null
           table: _leaf_name
-          type: _file_extension
+          url: null
       target:
         allOf:
         - $ref: '#/$defs/Target'
@@ -57,14 +56,13 @@ $defs:
           consistency: strict
           database: null
           dbschema: null
-          file_path: null
           if_exists: fail
           server: null
           table: _leaf_name
           to_csv: null
           to_excel: null
           to_sql: null
-          type: pandas
+          url: null
       transform:
         anyOf:
         - $ref: '#/$defs/Transform'
@@ -288,12 +286,6 @@ $defs:
         - type: 'null'
         default: null
         title: Dtype
-      file_path:
-        anyOf:
-        - type: string
-        - type: 'null'
-        default: _file_path_abs
-        title: File Path
       load_parallel:
         default: false
         title: Load Parallel
@@ -326,12 +318,12 @@ $defs:
         - type: 'null'
         default: _leaf_name
         title: Table
-      type:
+      url:
         anyOf:
         - type: string
         - type: 'null'
-        default: _file_extension
-        title: Type
+        default: null
+        title: Url
     title: Source
     type: object
   Stack:
@@ -371,12 +363,6 @@ $defs:
         - type: 'null'
         default: null
         title: Dbschema
-      file_path:
-        anyOf:
-        - type: string
-        - type: 'null'
-        default: null
-        title: File Path
       if_exists:
         allOf:
         - $ref: '#/$defs/TargetIfExistsValue'
@@ -408,12 +394,12 @@ $defs:
         - $ref: '#/$defs/ToSql'
         - type: 'null'
         default: null
-      type:
+      url:
         anyOf:
         - type: string
         - type: 'null'
         default: null
-        title: Type
+        title: Url
     title: Target
     type: object
   TargetConsistencyValue:

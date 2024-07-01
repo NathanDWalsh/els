@@ -61,9 +61,9 @@ def push_sql(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool
 
 
 def push_csv(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
-    if not target.file_path_dynamic:
+    if not target.url:
         raise Exception("no file path")
-    if not os.path.exists(os.path.isfile(target.file_path_dynamic)):
+    if not os.path.exists(os.path.isfile(target.url)):
         raise Exception("invalid file path")
 
     if target.to_csv:
@@ -71,15 +71,13 @@ def push_csv(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool
     else:
         kwargs = {}
 
-    source_df.to_csv(
-        target.file_path_dynamic, index=False, mode="a", header=False, **kwargs
-    )
+    source_df.to_csv(target.url, index=False, mode="a", header=False, **kwargs)
 
     return True
 
 
 def push_excel(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
-    if not target.file_path_dynamic:
+    if not target.url:
         raise Exception("invalid file_path")
     sheet_name = target.table or "Sheet1"
 
@@ -91,15 +89,13 @@ def push_excel(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bo
     # else:
     #     kwargs = {}
 
-    sheet_height = get_excel_sheet_height(target.file_path_dynamic, sheet_name)
+    sheet_height = get_excel_sheet_height(target.url, sheet_name)
     start_row = sheet_height + 1
 
     if sheet_height is None:
         raise Exception("sheet name not found")
 
-    with pd.ExcelWriter(
-        target.file_path_dynamic, mode="a", if_sheet_exists="overlay"
-    ) as writer:
+    with pd.ExcelWriter(target.url, mode="a", if_sheet_exists="overlay") as writer:
         source_df.to_excel(
             writer, index=False, sheet_name=sheet_name, startrow=start_row, header=False
         )
@@ -153,11 +149,11 @@ def build_sql(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
 
 
 def build_csv(df: pd.DataFrame, target: ec.Frame) -> bool:
-    if not target.file_path_dynamic:
+    if not target.url:
         raise Exception("invalid file_path")
 
     # save header row to csv, overwriting if exists
-    df.head(0).to_csv(target.file_path_dynamic, index=False, mode="w")
+    df.head(0).to_csv(target.url, index=False, mode="w")
 
     return True
 
@@ -179,7 +175,7 @@ def get_excel_sheet_row(file_path: str, sheet_name: str, row_index: int) -> list
 
 
 def build_excel_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
-    if not target.file_path_dynamic:
+    if not target.url:
         raise Exception("invalid file_path")
     sheet_name = target.table or "Sheet1"
 
@@ -192,11 +188,8 @@ def build_excel_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
     kwargs = {}
 
     if (
-        (
-            os.path.exists(target.file_path_dynamic)
-            and not target.if_exists == "replace_file"
-        )
-        or target.file_path_dynamic in created_files
+        (os.path.exists(target.url) and not target.if_exists == "replace_file")
+        or target.url in created_files
         #
     ):
         kwargs["mode"] = "a"
@@ -204,10 +197,10 @@ def build_excel_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
     else:
         kwargs["mode"] = "w"
 
-    with pd.ExcelWriter(target.file_path_dynamic, **kwargs) as writer:
+    with pd.ExcelWriter(target.url, **kwargs) as writer:
         df.head(0).to_excel(writer, index=False, sheet_name=sheet_name)
 
-    created_files.append(target.file_path_dynamic)
+    created_files.append(target.url)
 
     return True
 
@@ -228,11 +221,11 @@ def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
     if target.type in ("mssql", "postgres", "duckdb"):
         res = build_sql(df, target, add_cols)
     elif target.type in (".csv"):
-        create_directory_if_not_exists(target.file_path_dynamic)
+        create_directory_if_not_exists(target.url)
         res = build_csv(df, target)
     elif target.type in (".xlsx"):
         # res = df.to_excel(target.file_path, index=False)
-        create_directory_if_not_exists(target.file_path_dynamic)
+        create_directory_if_not_exists(target.url)
         res = build_excel_frame(df, target)
     elif target.type in ("pandas"):
         res = df
@@ -243,7 +236,7 @@ def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
 
 def create_directory_if_not_exists(file_path: str):
     directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
+    if directory and not os.path.exists(directory):
         os.makedirs(directory)
 
 
@@ -262,18 +255,18 @@ def truncate_target(target: ec.Target) -> bool:
 
 
 def truncate_csv(target: ec.Target) -> bool:
-    if not target.file_path_dynamic:
+    if not target.url:
         raise Exception("no file path")
-    if not os.path.exists(os.path.isfile(target.file_path_dynamic)):
+    if not os.path.exists(os.path.isfile(target.url)):
         raise Exception("invalid file path")
 
     # read the first row of the file
-    with open(target.file_path_dynamic, "r") as f:
+    with open(target.url, "r") as f:
         reader = csv.reader(f)
         first_row = next(reader)
 
     # write the first row back to the file
-    with open(target.file_path_dynamic, "w", newline="") as f:
+    with open(target.url, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(first_row)
 
@@ -281,18 +274,18 @@ def truncate_csv(target: ec.Target) -> bool:
 
 
 def truncate_excel(target: ec.Target) -> bool:
-    if not target.file_path_dynamic:
+    if not target.url:
         raise Exception("no file path")
-    if not os.path.exists(os.path.isfile(target.file_path_dynamic)):
+    if not os.path.exists(os.path.isfile(target.url)):
         raise Exception("invalid file path")
 
     # read the first row of the file
-    with open(target.file_path_dynamic, "r") as f:
+    with open(target.url, "r") as f:
         reader = csv.reader(f)
         first_row = next(reader)
 
     # write the first row back to the file
-    with open(target.file_path_dynamic, "w", newline="") as f:
+    with open(target.url, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(first_row)
 
@@ -386,10 +379,10 @@ def get_sql_data_type(dtype):
         return "VARCHAR(MAX)"
 
 
-def pull_csv(file, **kwargs):
+def pull_csv(file, clean_last_column, **kwargs):
     df = pd.read_csv(file, **kwargs)
     # check if last column is unnamed
-    if df.columns[-1].startswith("Unnamed"):
+    if clean_last_column and df.columns[-1].startswith("Unnamed"):
         # check if the last column is all null
         if df[df.columns[-1]].isnull().all():
             # drop the last column
@@ -460,6 +453,7 @@ def pull_frame(
         df = pull_sql(frame)
     elif frame.type in (".csv", ".tsv"):
         if isinstance(frame, ec.Source):
+            clean_last_column = True
             # kwargs = get_source_kwargs(frame.read_csv, nrows, dtype)
             kwargs = get_source_kwargs(frame.read_csv, frame, nrows)
             # print(kwargs)
@@ -467,13 +461,14 @@ def pull_frame(
                 kwargs["sep"] = "\t"
 
         else:
+            clean_last_column = False
             kwargs = {}
         if "sep" not in kwargs.keys():
             kwargs["sep"] = ","
-        df = pull_csv(frame.file_path_dynamic, **kwargs)
+        df = pull_csv(frame.url, clean_last_column, **kwargs)
 
         # read first 10 rows of csv file with python csv reader into a list of rows
-        with open(frame.file_path_dynamic, "r", encoding="utf-8-sig") as f:
+        with open(frame.url, "r", encoding="utf-8-sig") as f:
 
             row_scan_max = 10
             # get row count and update line_number for each line read
@@ -509,11 +504,11 @@ def pull_frame(
             kwargs = get_target_kwargs(frame.to_excel, frame, nrows)
         else:
             kwargs = {}
-        if frame.file_path in open_files:
-            file = open_files[frame.file_path]
+        if frame.url in open_files:
+            file = open_files[frame.url]
         else:
             # raise Exception("Excel file not opened")
-            file = frame.file_path_dynamic
+            file = frame.url
         # kwargs["dtype"] = {1: "str"}
 
         # loop the values in add_cols
@@ -534,7 +529,7 @@ def pull_frame(
         df = pull_excel(file, **kwargs)
 
     elif frame.type in ("pandas"):
-        if frame.table in staged_frames:
+        if frame.table in staged_frames.keys():
             df = staged_frames[frame.table]
         else:
             raise Exception("pandas frame not found")

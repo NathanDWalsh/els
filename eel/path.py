@@ -7,6 +7,7 @@ import os
 from stat import FILE_ATTRIBUTE_HIDDEN
 from typing import Union, Callable, Optional, TypeAlias, Self
 from collections.abc import Generator
+from enum import Enum
 
 # from openpyxl import load_workbook
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
@@ -23,6 +24,29 @@ FOLDER_CONFIG_FILE_STEM = "_"
 ROOT_CONFIG_FILE_STEM = "__"
 
 config_dict_type: TypeAlias = dict[str, dict[str, str]]
+
+
+class ConfigType(Enum):
+    DIRECTORY = "directory"
+    FILE_EXPLICIT = "file_explicit"
+    FILE_IMPLICIT = "file_implicit"
+    FILE_MIXED = "file_mixed"
+
+
+class FileType(Enum):
+    EXCEL = "excel"
+    CSV = "csv"
+
+    @classmethod
+    def get(cls, extension: str):
+        mapping = {
+            "xlsx": cls.EXCEL,
+            "xls": cls.EXCEL,
+            "xlsm": cls.EXCEL,
+            "xlsb": cls.EXCEL,
+            "csv": cls.CSV,
+        }
+        return mapping.get(extension, None)
 
 
 def get_folder_config_name():
@@ -51,7 +75,10 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 config_line.append(node._config)
         config_merged = ContentAwarePath.merge_configs(*config_line)
         config_copied = config_merged.model_copy(deep=True)
+        # if self.is_leaf:
         config_evaled = self.eval_dynamic_attributes(config_copied)
+        # else:
+        #     config_evaled = config_copied
         return config_evaled
 
     def get_path_props_find_replace(self) -> dict:
@@ -77,7 +104,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 pass
             elif value in find_replace_dict:
                 dictionary[key] = find_replace_dict[value]
-            elif key == "file_path" and "*" in value:
+            elif key == "url" and "*" in value:
                 dictionary[key] = value.replace("*", find_replace_dict["_leaf_name"])
 
     @staticmethod
@@ -85,9 +112,13 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         dicts: list[dict] = []
         for config in configs:
             if isinstance(config, ec.Config):
-                dicts.append(config.model_dump())
+                dicts.append(config.model_dump(exclude={"children"}))
             elif isinstance(config, dict):
-                dicts.append(config)
+                # append all except children
+                config_to_append = config.copy()
+                if "children" in config_to_append:
+                    config_to_append.pop("children")
+                dicts.append(config_to_append)
             else:
                 raise Exception("configs should be a list of Configs or dicts")
         dict_result = ContentAwarePath.merge_dicts_by_top_level_keys(*dicts)
@@ -120,7 +151,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             # and len(self.parent._config["children"]) > 0
             # and isinstance(self.parent._config["children"][0], dict)
         ):
-            # check if leaf_name is in one of the keys in the dicts contained in the list
+            # check if leaf_name is in one of the keys in the dicts contained in list
             if str(self.leaf_name) in self.parent._config["children"]:
                 return self.parent._config["children"][str(self.leaf_name)]
             else:
@@ -137,9 +168,16 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                         "Found more than one yml document, using first one only"
                     )
                 yml = ymls[0]
+                if self.is_file() and (
+                    (str(self) != str(config_path))
+                    or (self.ext in FileType.__members__)
+                ):
+                    if "source" not in yml:
+                        yml["source"] = dict()
+                    yml["source"]["url"] = str(self)
                 return yml
             else:
-                return {}
+                return {"source": {"url": str(self)}}
         else:
             return {}
 
@@ -162,24 +200,26 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         return None
 
     def display_tree(self):
+        column1_width = 0
+        column2_width = 0
+        rows = []
         for pre, fill, node in RenderTree(self):
-            print(
-                "%s%s: %s%s"
-                % (
-                    pre,
-                    node.name,
-                    (
-                        f"{node.config.source.file_path}→"
-                        if node.is_leaf and node.config.source.file_path
-                        else ""
-                    ),
-                    (
-                        f" →{node.config.target.file_path}({node.config.target.type})"
-                        if node.is_leaf and node.config.target.file_path
-                        else ""
-                    ),
-                )
-            )
+            column1 = f"{pre}{node.name}"
+            column2 = ""
+            if node.is_leaf and node.config.target.url:
+                rel_path = os.path.relpath(node.config.target.url)
+                column2 = f" → {rel_path}"
+            # elif node.is_leaf and node.config.source.url:
+            elif node.is_leaf and node.config.target.type == "pandas":
+                column2 = f" → staged_frames['{node.config.target.table}']"
+
+            rows.append((column1, column2))
+
+            column1_width = max(column1_width, len(column1))
+            column2_width = max(column2_width, len(column2))
+
+        for column1, column2 in rows:
+            print(f"{column1:{column1_width}}{column2:{column2_width}}")
 
     @property
     def parent(self):
@@ -435,13 +475,13 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             node_config = node.config.model_dump(exclude_none=True)
             if node.is_root:
                 save_yml_dict = node_config
-            else:
+            elif diff:
                 parent_config = node.parent.config.model_dump(exclude_none=True)
-                if diff:
-                    save_yml_dict = dict_diff(parent_config, node_config)
-                else:
-                    save_yml_dict = node_config
-            ymls.append(save_yml_dict)
+                save_yml_dict = dict_diff(parent_config, node_config)
+            else:
+                save_yml_dict = node_config
+            if save_yml_dict and node.is_leaf:
+                ymls.append(save_yml_dict)
         return ymls
         # save_path = self.root.path / self.CONFIG_PREVIEW_FILE_NAME
         # with save_path.open("w", encoding="utf-8") as file:

@@ -21,6 +21,7 @@ app = typer.Typer()
 
 def start_logging():
     logging.basicConfig(level=logging.INFO, format="%(relativeCreated)d - %(message)s")
+    # logging.disable(logging.CRITICAL)
     logging.info("Getting Started")
 
 
@@ -61,6 +62,26 @@ def tree(path: Optional[str] = typer.Argument(None)):
 
 
 @app.command()
+def preview(path: Optional[str] = typer.Argument(None), verbose: bool = False):
+    # root = find_root()
+    # cwd = Path(os.getcwd())
+    # if root == cwd:
+    path = clean_none_path(path)
+    ca_path = get_ca_path(path)
+    tree = plant_tree(ca_path)
+    if tree and verbose:
+        ymls = tree.get_eel_yml_preview(diff=False)
+    elif tree:
+        ymls = tree.get_eel_yml_preview(diff=True)
+    else:
+        raise Exception("tree not loaded")
+    yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
+    write_yaml_str(yaml_str)
+    # else:
+    #     print("current path different than eel root")
+
+
+@app.command()
 def flow(path: Optional[str] = typer.Argument(None)):
     path = clean_none_path(path)
     taskflow = get_taskflow(path)
@@ -87,22 +108,55 @@ def execute(path: Optional[str] = typer.Argument(None)):
     else:
         logging.error("taskflow not loaded")
     if staged_frames:
-        print(f"Frames found: {len(staged_frames)}")
-        for key, value in staged_frames.items():
-            # store the count of unnamed columns in a variable
-            unnamed_cols = value.columns.str.contains("^Unnamed").sum()
-            # capture the number of rows and cols
-            r, c = value.shape
-            # print the rows and columns of the dataframe
-            print(
-                f"- {key}; rows:{r}; columns:{c}{'(' + str(unnamed_cols) + ' unnamed)' if unnamed_cols else ''}"
+        print("No target specified, printing summary information on pandas dataframes:")
+        print(f"Dataframe count: {len(staged_frames)}")
+
+        # Calculate maximum width for each column
+        key_width = (
+            max(len(key) for key in staged_frames.keys()) + 2
+        )  # Adding some padding
+        rows_width = (
+            max(len(str(value.shape[0])) for value in staged_frames.values()) + 2
+        )
+        cols_width = (
+            max(len(str(value.shape[1])) for value in staged_frames.values()) + 2
+        )
+        unnamed_cols_width = (
+            max(
+                len(str(value.columns.str.contains("^Unnamed").sum()))
+                for value in staged_frames.values()
             )
-            print(value.head(1))
+            + 2
+        )
+
+        # Ensure minimum width to fit headers
+        key_width = max(key_width, len(""))
+        rows_width = max(rows_width, len("Rows"))
+        cols_width = max(cols_width, len("Columns"))
+        unnamed_cols_width = max(unnamed_cols_width, len("Unnamed Columns"))
+
+        # Print headers with dynamic width
+        print(
+            f"{'':{key_width}} {'Rows':{rows_width}} {'Columns':{cols_width}} {'Unnamed Columns':{unnamed_cols_width}}"
+        )
+
+        for key, value in staged_frames.items():
+            # Store the count of unnamed columns in a variable
+            unnamed_cols = value.columns.str.contains("^Unnamed").sum()
+            # Capture the number of rows and cols
+            r, c = value.shape
+            # Print the rows and columns of the dataframe in four columns with dynamic width
+            print(
+                f"{key:{key_width}} {r:{rows_width}} {c:{cols_width}} {unnamed_cols if unnamed_cols else '':{unnamed_cols_width}}"
+            )
+
+        print(value.dtypes)
+
     logging.info("Fin")
 
 
 def write_yaml_str(yaml_str):
-    if sys.stdout.isatty():
+    if sys.stdout.isatty() and 1 == 2:
         colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
         sys.stdout.write(colored_yaml)
     else:
@@ -115,26 +169,6 @@ def test():
     yml = config_default.model_dump(exclude_none=True)
     yaml_str = yaml.dump(yml, sort_keys=False, allow_unicode=True)
     write_yaml_str(yaml_str)
-
-
-@app.command()
-def preview(path: Optional[str] = typer.Argument(None), verbose: bool = False):
-    # root = find_root()
-    # cwd = Path(os.getcwd())
-    # if root == cwd:
-    path = clean_none_path(path)
-    ca_path = get_ca_path(path)
-    tree = plant_tree(ca_path)
-    if tree and verbose:
-        ymls = tree.get_eel_yml_preview(diff=False)
-    elif tree:
-        ymls = tree.get_eel_yml_preview(diff=True)
-    else:
-        raise Exception("tree not loaded")
-    yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
-    write_yaml_str(yaml_str)
-    # else:
-    #     print("current path different than eel root")
 
 
 def find_dir_with_file(start_dir: Path, target_file: str) -> Optional[Path]:
@@ -163,6 +197,45 @@ def find_root() -> Union[Path, None]:
     return root
 
 
+def create_subfolder(project_path: Path, subfolder: str, silent: bool) -> None:
+    if silent or typer.confirm(f"Do you want to create the {subfolder} folder?"):
+        (project_path / subfolder).mkdir()
+        typer.echo(f"{subfolder} folder created.")
+
+
+@app.command()
+def new(
+    name: Optional[str] = typer.Argument(None),
+    silent: bool = typer.Option(False, "--silent", "-s"),
+):
+    # Verify project creation in the current directory
+    if not silent and not typer.confirm(
+        "Verify project to be created in the current directory?"
+    ):
+        typer.echo("Project creation cancelled.")
+        raise typer.Exit()
+
+    # If no project name is provided and not silent, prompt for it
+    if not name and not silent:
+        name = typer.prompt("Enter the project directory name")
+    elif not name:
+        typer.echo("Project name is required in silent mode.")
+        raise typer.Exit()
+
+    project_path = Path(os.getcwd()) / name
+    try:
+        project_path.mkdir()
+    except FileExistsError:
+        typer.echo(f"The directory {name} already exists.")
+        raise typer.Exit()
+
+    # Create subfolders
+    for subfolder in ["source", "target", "config"]:
+        create_subfolder(project_path, subfolder, silent)
+
+    typer.echo(f"Project {name} created successfully.")
+
+
 @app.command()
 def root():
     root = find_root()
@@ -182,6 +255,7 @@ if __name__ == "__main__":
     #     os.remove(
     #         "D:\\Sync\\test_data\\eel-wb-population\\targets\\excel_container.xlsx"
     #     )
-    os.chdir("D:\\Sync\\test_data\\eel-wb-population\\sources-project")
+    os.chdir("C:\\Users\\nwals\\eel-demo")
+    # os.chdir("D:\\Sync\\repos\\eel\\temp")
     execute()
     # print(list(staged_frames.values())[0].dtypes)
