@@ -175,7 +175,6 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 ymls = get_yml_docs(config_path)
                 # configs are loaded only to ensure they conform with yml schema
                 _ = get_configs(ymls)
-                # yml = ymls[0]
                 for yml in ymls:
                     if self.is_file() and (
                         (str(self) != str(config_path))
@@ -184,10 +183,19 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                         if "source" not in yml:
                             yml["source"] = dict()
                         yml["source"]["url"] = str(self)
-                yml_result = ymls[0]
                 if len(ymls) > 1:
+                    # if a table exists in the first doc, assume it is adjacent to a data file
+                    if "source" in ymls[0] and "table" in ymls[0]["source"]:
+                        yml_result = {"source": {"url": str(self)}}
+                        yml_children = ymls
+                    else:
+                        yml_result = ymls[0]
+                        yml_children = ymls[1:]
                     yml_result["children"] = {}
-                for yml in ymls[1:]:
+                else:
+                    yml_result = ymls[0]
+                    yml_children = {}
+                for yml in yml_children:
                     if "source" in yml and "table" in yml["source"]:
                         key = yml["source"].pop("table")
                         yml_result["children"][key] = yml
