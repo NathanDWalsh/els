@@ -174,20 +174,28 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             if config_path:
                 ymls = get_yml_docs(config_path)
                 # configs are loaded only to ensure they conform with yml schema
-                configs = get_configs(ymls)
-                if len(configs) > 1:
-                    logging.error(
-                        "Found more than one yml document, using first one only"
-                    )
-                yml = ymls[0]
-                if self.is_file() and (
-                    (str(self) != str(config_path))
-                    or (self.ext in FileType.__members__)
-                ):
-                    if "source" not in yml:
-                        yml["source"] = dict()
-                    yml["source"]["url"] = str(self)
-                return yml
+                _ = get_configs(ymls)
+                # yml = ymls[0]
+                for yml in ymls:
+                    if self.is_file() and (
+                        (str(self) != str(config_path))
+                        or (self.ext in FileType.__members__)
+                    ):
+                        if "source" not in yml:
+                            yml["source"] = dict()
+                        yml["source"]["url"] = str(self)
+                yml_result = ymls[0]
+                if len(ymls) > 1:
+                    yml_result["children"] = {}
+                for yml in ymls[1:]:
+                    if "source" in yml and "table" in yml["source"]:
+                        key = yml["source"].pop("table")
+                        yml_result["children"][key] = yml
+                    else:
+                        logging.warning(
+                            "yml file with multiple documents missing 'source.table'"
+                        )
+                return yml_result
             else:
                 return {"source": {"url": str(self)}}
         else:

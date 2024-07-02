@@ -13,63 +13,6 @@ $defs:
       title: Additionalproperties
     title: AddColumns
     type: object
-  Config:
-    additionalProperties: false
-    properties:
-      add_cols:
-        allOf:
-        - $ref: '#/$defs/AddColumns'
-        default:
-          additionalProperties: null
-      children:
-        anyOf:
-        - additionalProperties:
-            anyOf:
-            - $ref: '#/$defs/Config'
-            - type: 'null'
-          type: object
-        - items:
-            type: string
-          type: array
-        - type: string
-        - type: 'null'
-        default: null
-        title: Children
-      source:
-        allOf:
-        - $ref: '#/$defs/Source'
-        default:
-          database: null
-          dbschema: null
-          dtype: null
-          load_parallel: false
-          nrows: null
-          read_csv: null
-          read_excel: null
-          server: null
-          table: _leaf_name
-          url: null
-      target:
-        allOf:
-        - $ref: '#/$defs/Target'
-        default:
-          consistency: strict
-          database: null
-          dbschema: null
-          if_exists: fail
-          server: null
-          table: _leaf_name
-          to_csv: null
-          to_excel: null
-          to_sql: null
-          url: null
-      transform:
-        anyOf:
-        - $ref: '#/$defs/Transform'
-        - type: 'null'
-        default: null
-    title: Config
-    type: object
   DynamicCellValue:
     enum:
     - _r0c0
@@ -458,5 +401,45 @@ $defs:
         default: null
     title: Transform
     type: object
-allOf:
-- $ref: '#/$defs/Config'
+additionalProperties: false
+properties:
+  add_cols:
+    allOf:
+    - $ref: '#/$defs/AddColumns'
+    default:
+      additionalProperties: null
+  source:
+    allOf:
+    - $ref: '#/$defs/Source'
+    default:
+      database: null
+      dbschema: null
+      dtype: null
+      load_parallel: false
+      nrows: null
+      read_csv: null
+      read_excel: null
+      server: null
+      table: _leaf_name
+      url: null
+  target:
+    allOf:
+    - $ref: '#/$defs/Target'
+    default:
+      consistency: strict
+      database: null
+      dbschema: null
+      if_exists: fail
+      server: null
+      table: _leaf_name
+      to_csv: null
+      to_excel: null
+      to_sql: null
+      url: null
+  transform:
+    anyOf:
+    - $ref: '#/$defs/Transform'
+    - type: 'null'
+    default: null
+title: Config
+type: object

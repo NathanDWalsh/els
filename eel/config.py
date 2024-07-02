@@ -285,13 +285,18 @@ class AddColumns(BaseModel, extra="allow"):
     ] = None
 
 
-class Config(BaseModel, extra="forbid"):
+class Config(BaseModel):
     # sub_path: str = "."
     source: Source = Source()
     target: Target = Target()
     add_cols: AddColumns = AddColumns()
     transform: Optional[Transform] = None
     children: Union[dict[str, Optional["Config"]], list[str], str, None] = None
+
+    def schema_pop_children(s):
+        s["properties"].pop("children")
+
+    model_config = ConfigDict(extra="forbid", json_schema_extra=schema_pop_children)
 
     @property
     def nrows(self) -> Optional[int]:

@@ -258,5 +258,5 @@ if __name__ == "__main__":
     # os.chdir("C:\\Users\\nwals\\eel-demo")
     # os.chdir("D:\\Sync\\repos\\eel\\temp")
     os.chdir("D:\\Sync\\test_data\\eel-wb-population\\excel_lite")
-    execute()
+    tree()
     # print(list(staged_frames.values())[0].dtypes)
