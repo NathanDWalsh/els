@@ -76,6 +76,11 @@ def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath]
 
 def plant_tree(path: CAPath) -> Optional[CAPath]:
     root_paths = list(reversed(find_root_paths(str(path))))
+    root_path = Path(root_paths[0])
+    if root_path.is_dir():
+        os.chdir(root_path)
+    else:
+        os.chdir(root_path.parent)
     # print(root_paths)
     parent = None
     for index, path_ in enumerate(root_paths):
@@ -300,9 +305,9 @@ if __name__ == "__main__":
     #     os.remove(
     #         "D:\\Sync\\test_data\\eel-wb-population\\targets\\excel_container.xlsx"
     #     )
-    # os.chdir("C:\\Users\\nwals\\eel-demo")
-    os.chdir("D:\\Sync\\repos\\eel\\temp")
+    os.chdir("C:\\Users\\nwals\\eel-demo\\config")
+    # os.chdir("D:\\Sync\\repos\\eel\\temp")
     # os.chdir("D:\\Sync\\test_data\\eel-wb-population\\excel_lite")
     # os.chdir("C:\\Users\\nwals\\eel-demo\\config\\excel")
-    execute()
+    tree()
     # print(list(staged_frames.values())[0].dtypes)

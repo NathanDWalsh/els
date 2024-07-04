@@ -115,9 +115,11 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         else:
             self.parent = parent
 
-        print(self)
+        # print(self)
+        # print(self.children)
 
     def spawn_document_children(self, config_docs):
+        last_url = ""
         for doc in config_docs:
             # print(doc)
             if "source" in doc:
@@ -126,17 +128,22 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 raise Exception(
                     f"source not found in one of the documents in config {self}"
                 )
-            last_url = ""
             if "url" in source and last_url != source["url"]:
                 last_url = source["url"]
                 # print(f"data url: {last_url}")
                 url_parent = ContentAwarePath(self / last_url, parent=self, config=doc)
+                # print(f"url parent, child: {self}, {url_parent}")
+                # raise Exception()
             if "table" in source:
+                if last_url == "":
+                    raise Exception("expected to have a url for child config doc")
                 # print(f"table: {source['table']}")
                 table = source["table"]
                 if table == "_leaf_name":
                     table = get_content_leaf_names2(url_parent.config.source)[0]
+                # print(f"self / last_url / table: {self} / {last_url} / {table}")
                 ContentAwarePath(self / last_url / table, parent=url_parent, config=doc)
+                # print(f"tab parent, child: {url_parent}, {last_table}")
 
     def spawn_config_children(self):
         for subpath in self.glob("*"):
