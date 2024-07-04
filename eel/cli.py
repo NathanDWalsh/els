@@ -11,8 +11,11 @@ from typing import Union, Optional
 
 from eel.path import ContentAwarePath as CAPath
 from eel.path import get_root_config_name
-from eel.path import grow_branches
+
+# from eel.path import grow_branches
 from eel.path import get_config_default
+from eel.path import config_path_valid
+from eel.path import CONFIG_FILE_EXT
 
 from eel.execute import staged_frames
 
@@ -25,15 +28,83 @@ def start_logging():
     logging.info("Getting Started")
 
 
+def find_root_paths(path: str = None) -> list[Union[CAPath, None]]:
+    if path:
+        path_arg = Path(path)
+    else:
+        path_arg = Path()
+
+    paths_to_root = find_dirs_with_file(path_arg, get_root_config_name())
+    # if paths_to_root:
+    #     root = paths_to_root[-1]
+    # else:
+    #     root = None
+    # if not paths_to_root:
+    #     logging.info("eel root not found, using cwd")
+    #     paths_to_root = [CAPath()]
+    # if paths_to_root == [None]:
+    #     logging.error("unknown error, root not found")
+    #     return [None]
+    # raise Exception("debug")
+    return paths_to_root
+
+
+def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath], None]:
+    dirs = []
+    current_dir = start_dir.absolute()
+    file_found = False
+    while (
+        current_dir != current_dir.parent
+    ):  # This condition ensures we haven't reached the root
+        dirs.append(current_dir)
+        if (current_dir / target_file).exists():
+            file_found = True
+            break
+        current_dir = current_dir.parent
+    # Check and add the root directory if not already added
+    if current_dir not in dirs and (current_dir / target_file).exists():
+        dirs.append(current_dir)
+        file_found = True
+    # raise Exception()
+    if file_found:
+        # print(dirs)
+        return dirs
+    else:
+        logging.info(f"eel root not found, using {start_dir}")
+        return [start_dir]
+
+
 def plant_tree(path: CAPath) -> Optional[CAPath]:
-    root = grow_branches(path)
+    root_paths = list(reversed(find_root_paths(str(path))))
+    # print(root_paths)
+    parent = None
+    for index, path_ in enumerate(root_paths):
+        if config_path_valid(path_):
+            if index < len(root_paths) - 1:  # For all items except the last one
+                ca_path = CAPath(path_, parent=parent)
+                parent = ca_path
+            # else:  # For the last item
+            #     parent = grow_branches(
+            #         path_, parent=parent
+            #     )  # Assuming you want to call grow_branches for the last item
+            else:
+                ca_path = CAPath(path_, parent=parent, spawn_children=True)
+        else:
+            raise Exception("Invalid file in explicit path: " + str(path_))
     logging.info("Tree Created")
+    root = parent.root if parent else ca_path
+    if root.is_leaf and root.is_dir():
+        logging.error("Root is an empty directory")
     return root
 
 
 def get_ca_path(path: str = None) -> CAPath:
     if path:
-        ca_path = CAPath(path)
+        pl_path = Path(path)
+        if pl_path.is_file() and not str(pl_path).endswith(CONFIG_FILE_EXT):
+            ca_path = CAPath(path + CONFIG_FILE_EXT)
+        else:
+            ca_path = CAPath(path)
     else:
         ca_path = CAPath()
     return ca_path
@@ -171,32 +242,6 @@ def test():
     write_yaml_str(yaml_str)
 
 
-def find_dir_with_file(start_dir: Path, target_file: str) -> Optional[Path]:
-    current_dir = start_dir
-    while (
-        current_dir != current_dir.parent
-    ):  # This condition ensures we haven't reached the root
-        if (current_dir / target_file).exists():
-            return current_dir
-        current_dir = current_dir.parent
-    # Check for the root directory
-    if (current_dir / target_file).exists():
-        return current_dir
-    return None
-
-
-def find_root() -> Union[Path, None]:
-    cwd = Path(os.getcwd())
-    root = find_dir_with_file(cwd, get_root_config_name())
-    if not root:
-        logging.info("eel root not found, using cwd")
-        root = cwd
-    if not root:
-        logging.error("unknown error, root not found")
-        return None
-    return root
-
-
 def create_subfolder(project_path: Path, subfolder: str, silent: bool) -> None:
     if silent or typer.confirm(f"Do you want to create the {subfolder} folder?"):
         (project_path / subfolder).mkdir()
@@ -238,8 +283,8 @@ def new(
 
 @app.command()
 def root():
-    root = find_root()
-    print(root)
+    root = find_root_paths()
+    print(root[-1])
 
 
 def main():
@@ -256,7 +301,8 @@ if __name__ == "__main__":
     #         "D:\\Sync\\test_data\\eel-wb-population\\targets\\excel_container.xlsx"
     #     )
     # os.chdir("C:\\Users\\nwals\\eel-demo")
-    # os.chdir("D:\\Sync\\repos\\eel\\temp")
-    os.chdir("D:\\Sync\\test_data\\eel-wb-population\\excel_lite")
-    tree()
+    os.chdir("D:\\Sync\\repos\\eel\\temp")
+    # os.chdir("D:\\Sync\\test_data\\eel-wb-population\\excel_lite")
+    # os.chdir("C:\\Users\\nwals\\eel-demo\\config\\excel")
+    execute()
     # print(list(staged_frames.values())[0].dtypes)

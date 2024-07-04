@@ -6,7 +6,8 @@ import pandas as pd
 import os
 from stat import FILE_ATTRIBUTE_HIDDEN
 from typing import Union, Callable, Optional, TypeAlias, Self
-from collections.abc import Generator
+
+# from collections.abc import Generator
 from enum import Enum
 
 # from openpyxl import load_workbook
@@ -26,27 +27,40 @@ ROOT_CONFIG_FILE_STEM = "__"
 config_dict_type: TypeAlias = dict[str, dict[str, str]]
 
 
-class ConfigType(Enum):
-    DIRECTORY = "directory"
-    FILE_EXPLICIT = "file_explicit"
-    FILE_IMPLICIT = "file_implicit"
-    FILE_MIXED = "file_mixed"
+# class ConfigType(Enum):
+#     DIRECTORY = "directory"
+#     FILE_EXPLICIT = "file_explicit"
+#     FILE_IMPLICIT = "file_implicit"
+
+
+class NodeType(Enum):
+    CONFIG_DIRECTORY = "config_directory"
+    CONFIG_EXPLICIT = "config_explicit"
+    CONFIG_IMPLICIT = "config_implicit"
+    CONFIG_DOC = "config_doc"
+    DATA_URL = "data_url"
+    DATA_TABLE = "data_table"
 
 
 class FileType(Enum):
     EXCEL = "excel"
     CSV = "csv"
+    EEL = "eel"
 
     @classmethod
-    def get(cls, extension: str):
+    def suffix_to_type(cls, extension: str):
         mapping = {
             "xlsx": cls.EXCEL,
             "xls": cls.EXCEL,
             "xlsm": cls.EXCEL,
             "xlsb": cls.EXCEL,
             "csv": cls.CSV,
+            "tsv": cls.CSV,
+            # TODO: handle double extension eel.yml
+            # for now assumes any yml file is an eel config
+            "yml": cls.EEL,
         }
-        return mapping.get(extension, None)
+        return mapping.get(extension.lower().strip("."), None)
 
 
 def get_folder_config_name():
@@ -60,9 +74,191 @@ def get_root_config_name():
 class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     _flavour = type(Path())._flavour  # type: ignore
 
-    def __init__(self, *args, parent: Optional[Self] = None, **kwargs):
-        self.parent = parent
-        self._config = self.get_paired_config()
+    def __init__(
+        self,
+        *args,
+        parent: Optional[Self] = None,
+        spawn_children: Optional[bool] = False,
+        config: dict = None,
+        **kwargs,
+    ):
+        # if self.is_file() and not self.is_config_file()
+
+        if self.is_dir() or self.is_config_file():
+            if config:
+                raise Exception(
+                    "should not pass explicit config for directories or config files"
+                )
+            paired_config2 = self.get_paired_config2()
+            if self.is_dir():
+                self._config = paired_config2
+            elif self.is_config_file:
+                self._config = {}
+                # print(f"spawning {self}")
+                self.spawn_document_children(paired_config2)
+                # print(f"fininshed spawning {self}")
+        elif not config:
+            raise Exception("should pass explicit config for urls and tables")
+        else:
+            self._config = config
+
+        if spawn_children:
+            if self.is_dir():
+                self.spawn_config_children()
+
+        # TODO: re-enable
+        if self.is_dir() and spawn_children and not self.has_leaf_table:
+            # do not add dirs with no leaf nodes which are tables
+            # TODO this could be changed to search for config files instead ...
+            # ... making debugging faulty config files easier
+            pass
+        else:
+            self.parent = parent
+
+        print(self)
+
+    def spawn_document_children(self, config_docs):
+        for doc in config_docs:
+            # print(doc)
+            if "source" in doc:
+                source = doc["source"]
+            else:
+                raise Exception(
+                    f"source not found in one of the documents in config {self}"
+                )
+            last_url = ""
+            if "url" in source and last_url != source["url"]:
+                last_url = source["url"]
+                # print(f"data url: {last_url}")
+                url_parent = ContentAwarePath(self / last_url, parent=self, config=doc)
+            if "table" in source:
+                # print(f"table: {source['table']}")
+                table = source["table"]
+                if table == "_leaf_name":
+                    table = get_content_leaf_names2(url_parent.config.source)[0]
+                ContentAwarePath(self / last_url / table, parent=url_parent, config=doc)
+
+    def spawn_config_children(self):
+        for subpath in self.glob("*"):
+            if subpath.name in (
+                get_folder_config_name(),
+                get_root_config_name(),
+            ):
+                pass
+            elif config_path_valid(subpath):
+                if (
+                    not subpath.is_dir() and not subpath.is_config_file()
+                ):  # an implicit config
+                    self.__class__(
+                        str(subpath) + CONFIG_FILE_EXT, parent=self, spawn_children=True
+                    )
+                elif subpath not in (
+                    self.children
+                ):  # a directory or an explicit config file
+                    self.__class__(subpath, parent=self, spawn_children=True)
+            else:
+                logging.warning(f"Invalid path not added to tree: {str(subpath)}")
+
+    # def iterbranch(self) -> Generator[Self, None, None]:
+    #     if self.is_dir():
+    #         skip_paths = []
+    #         skip_paths.append(self / get_folder_config_name())
+    #         skip_paths.append(self / get_root_config_name())
+    #         # dirs allow glob matches
+    #         for pattern in self.subdir_patterns:
+    #             for subpath in self.glob(pattern):
+    #                 subpath._config = subpath.get_paired_config()
+    #                 if (subpath not in skip_paths) and (
+    #                     (subpath.is_file() and not subpath.is_hidden())
+    #                     or (subpath.count_recursive_files_in_subdirs())
+    #                 ):  # not str(subpath).endswith(CONFIG_FILE_EXT) and
+    #                     # paths will not repeat due to overlapping globs
+    #                     skip_paths.append(subpath)
+    #                     # do not yield a paired yml
+    #                     # TODO: assumes pathlib sorts ascending
+    #                     skip_paths.append(
+    #                         ContentAwarePath(str(subpath) + CONFIG_FILE_EXT)
+    #                     )
+    #                     if (
+    #                         subpath.is_file()
+    #                         and config_path_valid(subpath)
+    #                         and not subpath.is_config_file()
+    #                     ):  # implicit config node
+    #                         yield ContentAwarePath(str(subpath) + CONFIG_FILE_EXT)
+    #                     else:
+    #                         yield subpath
+    #     elif self.is_config_file():
+    #         urls = self.get_url_leaf_names()
+    #         # print(urls)
+    #         for url in urls:
+    #             # print(f" here {url}")
+    #             yield ContentAwarePath(self / url)
+    #         # if self.config.source:
+    #         #     # TODO: elaborate on this, db connection for example
+    #         #     yield self.source
+    #         # else:
+    #         #     yield self / "memory"
+    #     elif self.is_file():  # assume config
+    #         # content allows exact matches
+    #         leaf_names = self.get_content_leaf_names()
+
+    #         for pattern in self.subdir_patterns:
+    #             if pattern == "*":
+    #                 for leaf in leaf_names:
+    #                     ContentAwarePath(self / leaf, parent=self)
+    #                 break
+    #             elif pattern in leaf_names:
+    #                 ContentAwarePath(self / pattern, parent=self)
+
+    # @property
+    # def node_type(self) -> NodeType:
+    #     if self.is_dir():
+    #         return NodeType.CONFIG_DIRECTORY
+    #     elif self.is_config_file():
+    #         if self.is_file():
+    #             return NodeType.CONFIG_EXPLICIT
+    #         else:
+    #             return NodeType.CONFIG_IMPLICIT
+    #     elif self.is_file():
+    #         return NodeType.DATA_URL
+    #     elif self.parent.is_config_file() or self.parent.node_type == NodeType.DATA_URL:
+    #         if self.config.source.url:
+    #             if self.config.source.table:
+    #                 return NodeType.DATA_TABLE_URL
+    #             else:
+    #                 return NodeType.DATA_URL
+    #         elif self.config.source.table:
+    #             return NodeType.DATA_TABLE
+    #     return NodeType.CONFIG_DOC
+
+    @property
+    def node_type(self) -> NodeType:
+        if self.is_dir():
+            return NodeType.CONFIG_DIRECTORY
+        elif self.is_config_file():
+            if self.is_file():
+                return NodeType.CONFIG_EXPLICIT
+            else:
+                return NodeType.CONFIG_IMPLICIT
+        elif self.is_file():
+            return NodeType.DATA_URL
+        elif self.parent.is_config_file():
+            return NodeType.CONFIG_DOC
+        else:
+            return NodeType.DATA_TABLE
+
+    @property
+    def get_leaf_tables(self) -> list[Self]:
+        leaf_tables = []
+        for leaf in self.leaves:
+            if leaf.node_type == NodeType.DATA_TABLE:
+                leaf_tables.append(leaf)
+        # print(leaf_tables)
+        return leaf_tables
+
+    @property
+    def has_leaf_table(self) -> bool:
+        return self.get_leaf_tables != []
 
     @property
     def config(self) -> ec.Config:
@@ -153,69 +349,118 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                     merged_dict[key] = value
         return merged_dict
 
-    def get_paired_config(self) -> config_dict_type:
-        # Optional[config_dict_type]:
-        if (
-            self.parent
-            and self.parent._config
-            and ("children" in self.parent._config)
-            and isinstance(self.parent._config["children"], dict)
-            # and len(self.parent._config["children"]) > 0
-            # and isinstance(self.parent._config["children"][0], dict)
-        ):
-            # check if leaf_name is in one of the keys in the dicts contained in list
-            if str(self.leaf_name) in self.parent._config["children"]:
-                return self.parent._config["children"][str(self.leaf_name)]
-            else:
-                logging.error("Config not found in parent config when expected")
-                return {}
-        elif not self.is_content():
-            config_path = self.get_paired_config_path()
-            if config_path:
-                ymls = get_yml_docs(config_path)
-                # configs are loaded only to ensure they conform with yml schema
-                _ = get_configs(ymls)
-                for yml in ymls:
-                    if self.is_file() and (
-                        (str(self) != str(config_path))
-                        or (self.ext in FileType.__members__)
-                    ):
-                        if "source" not in yml:
-                            yml["source"] = dict()
-                        yml["source"]["url"] = str(self)
-                if len(ymls) > 1:
-                    # if a table exists in the first doc, assume it is adjacent to a data file
-                    if "source" in ymls[0] and "table" in ymls[0]["source"]:
-                        yml_result = {"source": {"url": str(self)}}
-                        yml_children = ymls
+    def get_paired_configs(self) -> list[dict]:
+        res = []
+        if self.is_dir():
+            if self.is_root:
+                config_path = self / get_root_config_name()
+                if config_path.exists():
+                    ymls = get_yml_docs(config_path, expected=1)
+                    res.append(ymls[0])
+            config_path = self / get_folder_config_name()
+            if config_path.exists():
+                ymls = get_yml_docs(config_path, expected=1)
+                res.append(ymls[0])
+        if self.is_config_file():
+            adjacent_file_path = Path(str(self).replace(CONFIG_FILE_EXT, ""))
+            if adjacent_file_path.exists():
+                if self.exists():
+                    yml = get_yml_docs(self)
+                    if "source" in yml[0] and "url" in yml[0]["source"]:
+                        if yml[0]["source"]["url"] == str(self):
+                            res += yml
+                        else:
+                            raise Exception(
+                                f"adjacent config {self} has url: {yml[0]['source']['url']} than its adjacent data file: {adjacent_file_path}"
+                            )
                     else:
-                        yml_result = ymls[0]
-                        yml_children = ymls[1:]
-                    yml_result["children"] = {}
+                        res.append({"source": {"url": str(adjacent_file_path)}})
+                        res += yml
                 else:
-                    yml_result = ymls[0]
-                    yml_children = {}
-                for yml in yml_children:
-                    if "source" in yml and "table" in yml["source"]:
-                        key = yml["source"].pop("table")
-                        yml_result["children"][key] = yml
-                    else:
-                        logging.warning(
-                            "yml file with multiple documents missing 'source.table'"
-                        )
-                return yml_result
+                    res.append({"source": {"url": str(adjacent_file_path)}})
+                    tables = get_content_leaf_names2(
+                        ec.Source(url=str(adjacent_file_path))
+                    )
+                    for table in tables:
+                        res.append({"source": {"table": table}})
+            elif self.exists():
+                yml = get_yml_docs(self)
+                res += yml
+        return res
+
+    def get_paired_config2(self) -> dict:
+        paired_configs = self.get_paired_configs()
+        if self.is_dir():
+            if len(paired_configs) > 0:
+                return ContentAwarePath.merge_configs(*paired_configs)
             else:
-                return {"source": {"url": str(self)}}
-        else:
-            return {}
+                return {}
+        return paired_configs
+
+    # def get_paired_config(self) -> config_dict_type:
+    #     # Optional[config_dict_type]:
+    #     # if (
+    #     #     self.parent
+    #     #     and self.parent._config
+    #     #     and ("children" in self.parent._config)
+    #     #     and isinstance(self.parent._config["children"], dict)
+    #     #     # and len(self.parent._config["children"]) > 0
+    #     #     # and isinstance(self.parent._config["children"][0], dict)
+    #     # ):
+    #     #     # check if leaf_name is in one of the keys in the dicts contained in list
+    #     #     if str(self.leaf_name) in self.parent._config["children"]:
+    #     #         return self.parent._config["children"][str(self.leaf_name)]
+    #     #     else:
+    #     #         logging.error("Config not found in parent config when expected")
+    #     #         return {}
+    #     if self.is_config_file():
+    #         return {}
+    #     if self.is_dir():
+    #         # print("test")
+    #         config_path = self.get_paired_config_path()
+    #         if config_path:
+    #             ymls = get_yml_docs(config_path)
+    #             # configs are loaded only to ensure they conform with yml schema
+    #             _ = get_configs(ymls)
+    #             return ymls[0]
+    #             for yml in ymls:
+    #                 if self.is_file() and (
+    #                     (str(self) != str(config_path))
+    #                     or (self.ext in FileType.__members__)
+    #                 ):
+    #                     if "source" not in yml:
+    #                         yml["source"] = dict()
+    #                     yml["source"]["url"] = str(self)
+    #             if len(ymls) > 1:
+    #                 # if a table exists in the first doc, assume it is adjacent to a data file
+    #                 if "source" in ymls[0] and "table" in ymls[0]["source"]:
+    #                     yml_result = {"source": {"url": str(self)}}
+    #                     yml_children = ymls
+    #                 else:
+    #                     yml_result = ymls[0]
+    #                     yml_children = ymls[1:]
+    #                 yml_result["children"] = {}
+    #             else:
+    #                 yml_result = ymls[0]
+    #                 yml_children = {}
+    #             for yml in yml_children:
+    #                 if "source" in yml and "table" in yml["source"]:
+    #                     key = yml["source"].pop("table")
+    #                     yml_result["children"][key] = yml
+    #                 else:
+    #                     logging.warning(
+    #                         "yml file with multiple documents missing 'source.table'"
+    #                     )
+    #             return yml_result
+    #         else:
+    #             return {"source": {"url": str(self)}}
+    #     else:
+    #         return {}
 
     def get_paired_config_path(self) -> Optional[Path]:
         # order matters, file is checked first in case a single data file passed
-        if self.is_file():
-            if str(self).endswith(CONFIG_FILE_EXT):
-                return self
-            else:
-                config_path = Path(str(self) + CONFIG_FILE_EXT)
+        if self.is_config_file():
+            return self
         # TODO: add scan root option: now assumes a root config present in passed dir
         elif self.is_root:
             config_path = self / get_root_config_name()
@@ -232,9 +477,13 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         column2_width = 0
         rows = []
         for pre, fill, node in RenderTree(self):
-            column1 = f"{pre}{node.name}"
+            if node.is_root and node.is_dir():
+                column1 = f"{pre}{str(node.abs.name)} ({node.node_type.value})"
+            else:
+                column1 = f"{pre}{node.name} ({node.node_type.value})"
+
             column2 = ""
-            if node.is_leaf and node.config.target.url:
+            if node.node_type == NodeType.DATA_TABLE and node.config.target.url:
                 rel_path = os.path.relpath(node.config.target.url)
                 column2 = f" → {rel_path}"
             # elif node.is_leaf and node.config.source.url:
@@ -280,8 +529,16 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         else:
             return self.parent.is_file()
 
-    def is_config(self) -> bool:
+    def is_config_file(self) -> bool:
         return str(self).endswith(CONFIG_FILE_EXT)
+
+    # def is_config_file(self, exclude_directory_adjacent=True) -> bool:
+    #     if exclude_directory_adjacent and str(self) in (
+    #         get_folder_config_name(),
+    #         get_root_config_name(),
+    #     ):
+    #         return False
+    #     return str(self).endswith(CONFIG_FILE_EXT)
 
     @property
     def subdir_patterns(self) -> list[str]:
@@ -291,7 +548,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             if self._config and "children" in self._config
             else None
         )
-        if children is None:
+        if children is None or children == {}:
             res = ["*"]
         elif isinstance(children, str):
             res = [str(children)]  # recasting as str for linter
@@ -321,57 +578,22 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                     count += 1
         return count
 
-    def iterbranch(self) -> Generator[Self, None, None]:
-        if self.is_dir():
-            skip_paths = []
-            skip_paths.append(self / get_folder_config_name())
-            skip_paths.append(self / get_root_config_name())
-            # dirs allow glob matches
-            for pattern in self.subdir_patterns:
-                for subpath in self.glob(pattern):
-                    subpath._config = subpath.get_paired_config()
-                    if (subpath not in skip_paths) and (
-                        (subpath.is_file() and not subpath.is_hidden())
-                        or (subpath.count_recursive_files_in_subdirs())
-                    ):  # not str(subpath).endswith(CONFIG_FILE_EXT) and
-                        # paths will not repeat due to overlapping globs
-                        skip_paths.append(subpath)
-                        # do not yield a paired yml
-                        # TODO: assumes pathlib sorts ascending
-                        skip_paths.append(
-                            ContentAwarePath(str(subpath) + CONFIG_FILE_EXT)
-                        )
-                        yield subpath
-        # elif self.is_config():
-        #     if self.config.source:
-        #         # TODO: elaborate on this, db connection for example
-        #         yield self.source
-        #     else:
-        #         yield self / "memory"
-        elif self.is_file():
-            # content allows exact matches
-            leaf_names = self.get_content_leaf_names()
-
-            for pattern in self.subdir_patterns:
-                if pattern == "*":
-                    for leaf in leaf_names:
-                        yield ContentAwarePath(self / leaf, parent=self)
-                    break
-                if pattern in leaf_names:
-                    yield ContentAwarePath(self / pattern, parent=self)
+    def get_url_leaf_names(self) -> list[str]:
+        if self.config.source.url:
+            return [self.config.source.url]
 
     def get_content_leaf_names(self) -> list[str]:
-        if self.suffix in (".xlsx", ".xlsb", ".xlsm", ".xls"):
+        if self.config.source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
             return get_sheet_names(str(self))
         # elif self.suffix == ".zip":
         #     return get_zip_files(str(self))
         elif (
-            self.is_config() and self.config.source.type == "pandas"
+            self.is_config_file() and self.config.source.type == "pandas"
         ):  # and self._config.type =='mssql'
             # return get_db_tables
             # pass  # TODO
             return list(ee.staged_frames)
-        elif self.is_config():
+        elif self.is_config_file():
             return []
         else:
             return [self.stem]
@@ -442,7 +664,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         def leaf_to_dict(leaf):
             data = {}
             data["name"] = leaf.name
-            data["file_path"] = str(leaf.file.abs)
+            data["file_path"] = leaf.config.source.url
             data["type"] = leaf.config.source.type
             data["table"] = leaf.config.target.table
             data["load_parallel"] = leaf.config.source.load_parallel
@@ -450,7 +672,11 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
             return data
 
-        data = [leaf_to_dict(leaf) for leaf in self.leaves]
+        data = [
+            leaf_to_dict(leaf)
+            for leaf in self.leaves
+            if leaf.node_type == NodeType.DATA_TABLE
+        ]
         df = pd.DataFrame(data)
         return df
 
@@ -508,7 +734,8 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 save_yml_dict = dict_diff(parent_config, node_config)
             else:
                 save_yml_dict = node_config
-            if save_yml_dict and node.is_leaf:
+            # if save_yml_dict and node.is_leaf:
+            if save_yml_dict:
                 ymls.append(save_yml_dict)
         return ymls
         # save_path = self.root.path / self.CONFIG_PREVIEW_FILE_NAME
@@ -571,11 +798,25 @@ def get_sheet_names(
     return worksheet_names
 
 
-def get_yml_docs(path: Union[ContentAwarePath, Path]) -> list[dict]:
-    with path.open() as file:
-        yaml_text = file.read()
-        documents = list(yaml.safe_load_all(yaml_text))
-    return documents
+def get_yml_docs(
+    path: Union[ContentAwarePath, Path], expected: int = None
+) -> list[dict]:
+    if path.exists():
+        with path.open() as file:
+            yaml_text = file.read()
+            documents = list(yaml.safe_load_all(yaml_text))
+    # elif str(path).endswith(CONFIG_FILE_EXT):
+    #     documents = [{"source": {"url": str(path).removesuffix(CONFIG_FILE_EXT)}}]
+
+    # configs are loaded only to ensure they conform with yml schema
+    _ = get_configs(documents)
+
+    if expected is None or len(documents) == expected:
+        return documents
+    else:
+        raise Exception(
+            f"unexpected number of documents in {path}; expected: {expected}; found: {len(documents)}"
+        )
 
 
 def get_configs(ymls: list[dict]) -> list[ec.Config]:
@@ -590,21 +831,48 @@ def get_config_default() -> ec.Config:
     return ec.Config()
 
 
-def grow_branches(
-    path: ContentAwarePath = ContentAwarePath(),
-    parent: Optional[ContentAwarePath] = None,
-) -> Optional[ContentAwarePath]:
-    # if path.is_config():
-    #     return node
-    if path.is_dir() or path.is_file():
-        node = ContentAwarePath(path, parent=parent)
-        for path_item in node.iterbranch():
-            grow_branches(path_item, parent=node)
-        if node.is_leaf and node.is_root and node.is_dir():
-            logging.error("Root is an empty directory")
-            return None
-        else:
-            return node
+# def grow_branches(
+#     path: ContentAwarePath = ContentAwarePath(),
+#     parent: Optional[ContentAwarePath] = None,
+# ) -> Optional[ContentAwarePath]:
+#     # if path.is_config():
+#     #     return node
+#     # if path.is_dir() or path.is_file():
+#     if config_path_valid(path):
+#         node = ContentAwarePath(path, parent=parent)
+#         for path_item in node.iterbranch():
+#             grow_branches(path_item, parent=node)
+#         if node.is_leaf and node.is_root and node.is_dir():
+#             logging.error("Root is an empty directory")
+#             return None
+#         else:
+#             return node
+#     else:
+#         logging.warning(f"Invalid path not added to tree: {str(path)}")
+#         return None
+#     # TODO: consider how database connections / ymls will be handled
+
+
+def config_path_valid(path: ContentAwarePath) -> bool:
+    if path.is_dir():
+        return True
+    if path.is_file() or path.is_config_file():
+        file_type = FileType.suffix_to_type(path.suffix)
+        if isinstance(file_type, FileType):
+            return True
+    return False
+
+
+def get_content_leaf_names2(source: ec.Source) -> list[str]:
+    if source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
+        return get_sheet_names(source.url)
+    elif source.type in (".csv", ".tsv"):
+        return [source.url.removesuffix(source.type)]
+    # elif self.suffix == ".zip":
+    #     return get_zip_files(str(self))
+    elif source.type == "pandas":  # and self._config.type =='mssql'
+        # return get_db_tables
+        # pass  # TODO
+        return list(ee.staged_frames)
     else:
-        return None
-    # TODO: consider how database connections / ymls will be handled
+        return [source.url]

@@ -3,6 +3,7 @@ from typing import Optional, Union
 import sqlalchemy as sa
 import os
 import pandas as pd
+import re
 from enum import Enum
 from urllib.parse import urlparse
 
@@ -129,7 +130,11 @@ class Frame(BaseModel):
     @property
     def url_scheme(self):
         if self.url:
-            return urlparse(self.url, scheme="file").scheme
+            url_parse_scheme = urlparse(self.url, scheme="file").scheme
+            drive_letter_pattern = re.compile(r"^[a-zA-Z]$")
+            if drive_letter_pattern.match(url_parse_scheme):
+                return "file"
+            return url_parse_scheme
         else:
             return None
 

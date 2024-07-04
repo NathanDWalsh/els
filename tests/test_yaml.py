@@ -208,6 +208,7 @@ def round_trip_file(test_case: Test, request, extension: str):
     if extension == "xlsx":
         t_config.target.table = kwargs["sheet_name"]
     t_config.source.table = test_name
+    t_config.source.url = "pandas://"
 
     # t_config.target.table = str(t_config.pipe_id)
     test_eel_out = test_file + ".out.eel.yml"
