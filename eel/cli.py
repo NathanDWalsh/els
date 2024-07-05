@@ -70,8 +70,13 @@ def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath]
         # print(dirs)
         return dirs
     else:
-        logging.info(f"eel root not found, using {start_dir}")
-        return [start_dir]
+        glob_pattern = "**/*" + target_file
+        below = sorted(start_dir.glob(glob_pattern))
+        if len(below) > 0:
+            return [CAPath(below[0].parent.absolute())]
+        else:
+            logging.info(f"eel root not found, using {start_dir}")
+            return [start_dir]
 
 
 def plant_tree(path: CAPath) -> Optional[CAPath]:
