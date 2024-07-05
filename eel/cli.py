@@ -255,40 +255,59 @@ def test():
 def create_subfolder(project_path: Path, subfolder: str, silent: bool) -> None:
     if silent or typer.confirm(f"Do you want to create the {subfolder} folder?"):
         (project_path / subfolder).mkdir()
-        typer.echo(f"{subfolder} folder created.")
+        typer.echo(f" ./{project_path.name}/{subfolder}/")
 
 
 @app.command()
 def new(
     name: Optional[str] = typer.Argument(None),
-    silent: bool = typer.Option(False, "--silent", "-s"),
+    yes: bool = typer.Option(False, "--yes", "-y"),
 ):
     # Verify project creation in the current directory
-    if not silent and not typer.confirm(
+    if not yes and not typer.confirm(
         "Verify project to be created in the current directory?"
     ):
         typer.echo("Project creation cancelled.")
         raise typer.Exit()
 
-    # If no project name is provided and not silent, prompt for it
-    if not name and not silent:
+    # If no project name is provided and not yes mode, prompt for it
+    if not name and not yes:
         name = typer.prompt("Enter the project directory name")
     elif not name:
-        typer.echo("Project name is required in silent mode.")
+        typer.echo("Project name is required in yes mode.")
         raise typer.Exit()
 
     project_path = Path(os.getcwd()) / name
     try:
         project_path.mkdir()
+        print("Creating directories:")
+        print(f" ./{name}/")
     except FileExistsError:
         typer.echo(f"The directory {name} already exists.")
         raise typer.Exit()
 
     # Create subfolders
     for subfolder in ["source", "target", "config"]:
-        create_subfolder(project_path, subfolder, silent)
+        create_subfolder(project_path, subfolder, yes)
 
-    typer.echo(f"Project {name} created successfully.")
+    # Ensure the config folder exists
+    config_folder_path = project_path / "config"
+    if config_folder_path.exists():
+
+        # Define the file path for __.eel.yml
+        config_file_path = config_folder_path / get_root_config_name()
+
+        # Define the contents to be serialized
+        contents = {"target": {"url": "../target/*.csv", "if_exists": "fail"}}
+
+        # Serialize and write the contents to the file
+        with open(config_file_path, "w") as file:
+            yaml.dump(contents, file, sort_keys=False)
+
+        typer.echo("Creating project config file:")
+        typer.echo(f" ./{project_path.name}/config/{get_root_config_name()}")
+
+    typer.echo(f"Done!")
 
 
 @app.command()
