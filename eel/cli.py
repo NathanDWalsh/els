@@ -1,6 +1,7 @@
 import typer
 import logging
 import yaml
+import pandas as pd
 from pygments import highlight
 from pygments.lexers import YamlLexer
 from pygments.formatters import TerminalFormatter
@@ -24,7 +25,7 @@ app = typer.Typer()
 
 def start_logging():
     logging.basicConfig(level=logging.INFO, format="%(relativeCreated)d - %(message)s")
-    # logging.disable(logging.CRITICAL)
+    logging.disable(logging.CRITICAL)
     logging.info("Getting Started")
 
 
@@ -120,9 +121,11 @@ def get_ca_path(path: str = None) -> CAPath:
     return ca_path
 
 
-def get_taskflow(path: str = None):
+def get_taskflow(path: str = None, force_pandas_target: bool = False):
     ca_path = get_ca_path(path)
     tree = plant_tree(ca_path)
+    if force_pandas_target:
+        tree.force_pandas_target()
     if tree:
         taskflow = tree.get_ingest_taskflow()
         return taskflow
@@ -143,7 +146,16 @@ def tree(path: Optional[str] = typer.Argument(None)):
 
 
 @app.command()
-def preview(path: Optional[str] = typer.Argument(None), verbose: bool = False):
+def generate(path: Optional[str] = typer.Argument(None)):
+    preview_yaml(path, verbose=False)
+
+
+def preview_yaml(
+    path: Optional[str] = typer.Argument(None),
+    verbose: bool = False,
+    overwrite=True,
+    skip_root=True,
+):
     # root = find_root()
     # cwd = Path(os.getcwd())
     # if root == cwd:
@@ -156,10 +168,55 @@ def preview(path: Optional[str] = typer.Argument(None), verbose: bool = False):
         ymls = tree.get_eel_yml_preview(diff=True)
     else:
         raise Exception("tree not loaded")
-    yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
-    write_yaml_str(yaml_str)
+    if overwrite:
+        # print(organize_yaml_files_for_output(ymls))
+        for file_name, yaml_file_content in organize_yaml_files_for_output(
+            ymls
+        ).items():
+            if not (skip_root and file_name.endswith(get_root_config_name())):
+                yaml_str = yaml.dump_all(
+                    yaml_file_content, sort_keys=False, allow_unicode=True
+                )
+                with open(file_name, "w") as file:
+                    file.write(yaml_str)
+    else:
+        yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
+        write_yaml_str(yaml_str)
     # else:
     #     print("current path different than eel root")
+
+
+def organize_yaml_files_for_output(ymls) -> dict[list[dict]]:
+    current_path = None
+    res = dict()
+    for yml in ymls:
+        if "config_path" in yml:
+            current_path = yml.pop("config_path")
+            res[current_path] = []
+        res[current_path].append(yml)
+    return res
+
+
+def process_ymls(ymls, overwrite=False):
+    current_path = None
+    for yml_dict in ymls:
+        # Check if 'config_path' is present
+        if "config_path" in yml_dict:
+            current_path = yml_dict["config_path"]
+            # Prepare the dict for serialization by removing 'config_path'
+            yml_dict.pop("config_path")
+
+        # Serialize the YAML
+        serialized_yaml = yaml.dump(yml_dict, default_flow_style=False)
+
+        if overwrite and current_path:
+            # Append to the file if it's meant for multiple documents
+            mode = "a" if "---" in serialized_yaml else "w"
+            with open(current_path, mode) as file:
+                file.write(serialized_yaml)
+                file.write("\n---\n")  # Separate documents within the same file
+        else:
+            print(serialized_yaml)
 
 
 @app.command()
@@ -180,6 +237,63 @@ def clean_none_path(path):
 
 
 @app.command()
+def preview(path: Optional[str] = typer.Argument(None)):
+    path = clean_none_path(path)
+    taskflow = get_taskflow(path, force_pandas_target=True)
+    if taskflow:
+        taskflow.execute()
+        # print(pandas_end_points)
+    else:
+        logging.error("taskflow not loaded")
+    if staged_frames:
+
+        # print("\nNo target specified, sources saved to dataframes.\n\nTable summary:")
+
+        # Initialize a list to hold dictionaries for each DataFrame
+        # frames_info = []
+
+        # for key, value in staged_frames.items():
+        #     # Store the count of unnamed columns in a variable
+        #     unnamed_cols = value.columns.str.contains("^Unnamed").sum()
+        #     # Capture the number of rows and cols
+        #     r, c = value.shape
+        #     # Append the information as a dictionary to the list
+        #     frames_info.append(
+        #         {"Name": key, "Rows": r, "Columns": c, "Unnamed Columns": unnamed_cols}
+        #     )
+
+        # # Convert the list of dictionaries into a DataFrame
+        # info_df = pd.DataFrame(frames_info)
+
+        # Optionally, set the DataFrame to print without truncation for large DataFrames
+        pd.set_option("display.max_rows", None)
+        pd.set_option("display.show_dimensions", False)
+        # pd.set_option("display.max_columns", 4)
+        pd.set_option("display.width", 79)
+        # pd.set_option("display.max_colwidth", None)
+
+        # Print the new DataFrame
+        # make the Name column the row index
+        # info_df.set_index("Name", inplace=True)
+        # info_df.index.name = "Table Name"
+        # print(info_df)
+
+        print()
+        # print("Printing the first five rows of each DataFrame below:\n")
+
+        pd.set_option("display.max_rows", 5)
+
+        for name, df in staged_frames.items():
+            r, c = df.shape
+            print(f"{name} [{r} rows x {c} columns]:")
+            # df.index.name = " "
+            print(df)
+            print()
+
+        # print(value.dtypes)
+
+
+@app.command()
 def execute(path: Optional[str] = typer.Argument(None)):
     path = clean_none_path(path)
     taskflow = get_taskflow(path)
@@ -189,49 +303,49 @@ def execute(path: Optional[str] = typer.Argument(None)):
     else:
         logging.error("taskflow not loaded")
     if staged_frames:
-        print("No target specified, printing summary information on pandas dataframes:")
-        print(f"Dataframe count: {len(staged_frames)}")
 
-        # Calculate maximum width for each column
-        key_width = (
-            max(len(key) for key in staged_frames.keys()) + 2
-        )  # Adding some padding
-        rows_width = (
-            max(len(str(value.shape[0])) for value in staged_frames.values()) + 2
-        )
-        cols_width = (
-            max(len(str(value.shape[1])) for value in staged_frames.values()) + 2
-        )
-        unnamed_cols_width = (
-            max(
-                len(str(value.columns.str.contains("^Unnamed").sum()))
-                for value in staged_frames.values()
-            )
-            + 2
-        )
+        print("\nNo target specified, sources saved to dataframes.\n\nTable summary:")
 
-        # Ensure minimum width to fit headers
-        key_width = max(key_width, len(""))
-        rows_width = max(rows_width, len("Rows"))
-        cols_width = max(cols_width, len("Columns"))
-        unnamed_cols_width = max(unnamed_cols_width, len("Unnamed Columns"))
+        # Initialize a list to hold dictionaries for each DataFrame
+        # frames_info = []
 
-        # Print headers with dynamic width
-        print(
-            f"{'':{key_width}} {'Rows':{rows_width}} {'Columns':{cols_width}} {'Unnamed Columns':{unnamed_cols_width}}"
-        )
+        # for key, value in staged_frames.items():
+        #     # Store the count of unnamed columns in a variable
+        #     unnamed_cols = value.columns.str.contains("^Unnamed").sum()
+        #     # Capture the number of rows and cols
+        #     r, c = value.shape
+        #     # Append the information as a dictionary to the list
+        #     frames_info.append(
+        #         {"Name": key, "Rows": r, "Columns": c, "Unnamed Columns": unnamed_cols}
+        #     )
 
-        for key, value in staged_frames.items():
-            # Store the count of unnamed columns in a variable
-            unnamed_cols = value.columns.str.contains("^Unnamed").sum()
-            # Capture the number of rows and cols
-            r, c = value.shape
-            # Print the rows and columns of the dataframe in four columns with dynamic width
-            print(
-                f"{key:{key_width}} {r:{rows_width}} {c:{cols_width}} {unnamed_cols if unnamed_cols else '':{unnamed_cols_width}}"
-            )
+        # # Convert the list of dictionaries into a DataFrame
+        # info_df = pd.DataFrame(frames_info)
 
-        print(value.dtypes)
+        # # Optionally, set the DataFrame to print without truncation for large DataFrames
+        # pd.set_option("display.max_rows", None)
+        # # pd.set_option("display.max_columns", None)
+        # # pd.set_option("display.width", None)
+        # # pd.set_option("display.max_colwidth", None)
+
+        # # Print the new DataFrame
+        # # make the Name column the row index
+        # info_df.set_index("Name", inplace=True)
+        # info_df.index.name = "Table Name"
+        # print(info_df)
+
+        print()
+        print("Printing the first five rows of each DataFrame below:\n")
+
+        pd.set_option("display.max_rows", 5)
+
+        for name, df in staged_frames.items():
+            print(f"{name}:")
+            df.index.name = " "
+            print(df)
+            print()
+
+        # print(value.dtypes)
 
     logging.info("Fin")
 
@@ -287,7 +401,7 @@ def new(
         raise typer.Exit()
 
     # Create subfolders
-    for subfolder in ["source", "target", "config"]:
+    for subfolder in ["config", "source", "target"]:
         create_subfolder(project_path, subfolder, yes)
 
     # Ensure the config folder exists
@@ -307,7 +421,7 @@ def new(
         typer.echo("Creating project config file:")
         typer.echo(f" ./{project_path.name}/config/{get_root_config_name()}")
 
-    typer.echo(f"Done!")
+    typer.echo("Done!")
 
 
 @app.command()

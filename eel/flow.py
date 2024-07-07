@@ -101,7 +101,7 @@ class EelXlsxWrapper(EelFileWrapper):
 
     def open(self):
         if self.file_path not in ee.open_files:
-            logging.info("OPEN: " + self.file_path)
+            # logging.info("OPEN: " + self.file_path)
             file = pd.ExcelFile(self.file_path)
             ee.open_files[self.file_path] = file
 
@@ -114,7 +114,7 @@ class EelXlsxWrapper(EelFileWrapper):
         file = ee.open_files[self.file_path]
         file.close()
         del ee.open_files[self.file_path]
-        logging.info("CLOSED: " + self.file_path)
+        # logging.info("CLOSED: " + self.file_path)
 
 
 # groups files together that share a common target frame so that target can be built once
@@ -129,6 +129,7 @@ class EelFileGroupWrapper(FlowNodeMixin, SerialNodeMixin):
         file_child = flow_child.children[0]
         file_child.open()
         if file_child.build_target():
+            # print("TARGET BUILT: " + file_child.name)
             flow_child.execute()
         else:
             file_child.close()

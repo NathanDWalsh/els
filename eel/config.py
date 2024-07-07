@@ -292,6 +292,7 @@ class AddColumns(BaseModel, extra="allow"):
 
 class Config(BaseModel):
     # sub_path: str = "."
+    config_path: Optional[str] = None
     source: Source = Source()
     target: Target = Target()
     add_cols: AddColumns = AddColumns()
