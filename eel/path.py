@@ -29,11 +29,11 @@ config_dict_type: TypeAlias = dict[str, dict[str, str]]
 
 
 class NodeType(Enum):
-    CONFIG_DIRECTORY = "config_directory"
-    CONFIG_EXPLICIT = "config_explicit"
-    CONFIG_IMPLICIT = "config_implicit"
-    CONFIG_DOC = "config_doc"
-    DATA_URL = "data_url"
+    CONFIG_DIRECTORY = "config directory"
+    CONFIG_EXPLICIT = "explicit config"
+    CONFIG_VIRTUAL = "virtual config"
+    # CONFIG_DOC = "config_doc"
+    DATA_URL = "source url"
     DATA_TABLE = "data_table"
 
 
@@ -79,12 +79,15 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     ):
         # if self.is_file() and not self.is_config_file()
 
+        self.parent = parent
+
         if self.is_dir() or self.is_config_file():
             if config:
                 raise Exception(
                     "should not pass explicit config for directories or config files"
                 )
             paired_config2 = self.get_paired_config()
+
             if self.is_dir():
                 self._config = paired_config2
             elif self.is_config_file:
@@ -106,9 +109,10 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             # do not add dirs with no leaf nodes which are tables
             # TODO this could be changed to search for config files instead ...
             # ... making debugging faulty config files easier
-            pass
-        else:
-            self.parent = parent
+            # pass
+            self.parent = None
+        # else:
+        #     self.parent = parent
 
         # print(self)
         # print(self.children)
@@ -120,9 +124,10 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             if "source" in doc:
                 source = doc["source"]
             else:
-                raise Exception(
-                    f"source not found in one of the documents in config {self}"
-                )
+                source = self.parent.config.source.model_dump(exclude_none=True)
+                # raise Exception(
+                #     f"source not found in one of the documents in config {self}"
+                # )
             if "url" in source and last_url != source["url"]:
                 last_url = source["url"]
                 # print(f"data url: {last_url}")
@@ -138,6 +143,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                     table = get_content_leaf_names2(url_parent.config.source)[0]
                 # print(f"self / last_url / table: {self} / {last_url} / {table}")
                 ContentAwarePath(self / last_url / table, parent=url_parent, config=doc)
+
                 # print(f"tab parent, child: {url_parent}, {last_table}")
 
     def spawn_config_children(self):
@@ -169,11 +175,11 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             if self.is_file():
                 return NodeType.CONFIG_EXPLICIT
             else:
-                return NodeType.CONFIG_IMPLICIT
+                return NodeType.CONFIG_VIRTUAL
         elif self.is_file():
             return NodeType.DATA_URL
         elif self.parent.is_config_file():
-            return NodeType.CONFIG_DOC
+            return NodeType.DATA_URL
         else:
             return NodeType.DATA_TABLE
 
@@ -199,7 +205,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 return f"{self.abs}\{get_folder_config_name()}"
         elif (
             self.node_type == NodeType.CONFIG_EXPLICIT
-            or self.node_type == NodeType.CONFIG_IMPLICIT
+            or self.node_type == NodeType.CONFIG_VIRTUAL
         ):
             return str(self.abs)
         elif self.node_type == NodeType.DATA_URL:
@@ -227,6 +233,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         config_copied = self.config_raw()
         # if self.is_leaf:
         config_evaled = self.eval_dynamic_attributes(config_copied)
+
         # else:
         #     config_evaled = config_copied
         return config_evaled
@@ -321,7 +328,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 if self.exists():
                     yml = get_yml_docs(self)
                     if "source" in yml[0] and "url" in yml[0]["source"]:
-                        if yml[0]["source"]["url"] == str(self):
+                        if yml[0]["source"]["url"] == str(adjacent_file_path):
                             res += yml
                         else:
                             raise Exception(
@@ -336,10 +343,18 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                         ec.Source(url=str(adjacent_file_path))
                     )
                     for table in tables:
-                        res.append({"source": {"table": table}})
+                        if (
+                            not self.parent.config.source.table
+                            or table == self.parent.config.source.table
+                        ):
+                            res.append({"source": {"table": table}})
+                        # raise Exception(self.parent.config)
+
             elif self.exists():
                 yml = get_yml_docs(self)
                 res += yml
+        # if str(self) != ".":
+        #     raise Exception()
         return res
 
     def get_paired_config(self) -> dict:
@@ -371,30 +386,40 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         column2_width = 0
         rows = []
         for pre, fill, node in RenderTree(self):
+            column2 = ""
             if node.is_root and node.is_dir():
-                # column1 = f"{pre}{str(node.abs.name)} ({node.node_type.value})"
                 column1 = f"{pre}{str(node.abs.name)}"
+                # column2 = f": {node.node_type.value}"
+                # column1 = f"{pre}{str(node.abs.name)}"
             elif node.node_type == NodeType.DATA_TABLE:
                 column1 = f"{pre}{node.name}"
+            # TODO: this might be useful
+            # elif node.node_type == NodeType.DATA_URL:
+            #     column1 = f"{pre}{node.config.source.url}"
             else:
+                # column1 = f"{pre}{node.name}"
                 column1 = f"{pre}{node.name}"
-                # column1 = f"{pre}{node.name} ({node.node_type.value})"
+                # column2 = f" : {node.node_type.value}"
 
-            column2 = ""
+            # column2 = ""
             if node.node_type == NodeType.DATA_TABLE and node.config.target.url:
                 rel_path = os.path.relpath(node.config.target.url)
                 column2 = f" → {rel_path}"
             # elif node.is_leaf and node.config.source.url:
             elif node.is_leaf and node.config.target.type == "pandas":
-                column2 = f" → staged_frames['{node.config.target.table}']"
+                column2 = f" → memory['{node.config.target.table}']"
 
             rows.append((column1, column2))
 
-            column1_width = max(column1_width, len(column1))
-            column2_width = max(column2_width, len(column2))
+            if column2 != "":  # only count if there is a second column
+                column1_width = max(column1_width, len(column1))
+                column2_width = max(column2_width, len(column2))
 
         for column1, column2 in rows:
-            typer.echo(f"{column1:{column1_width}}{column2:{column2_width}}")
+            # if column2 == "":
+            #     typer.echo(column1)
+            # else:
+            typer.echo(f"{column1:{column1_width}}{column2}".rstrip())
 
     @property
     def parent(self):
@@ -601,7 +626,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         ymls = []
         # for path, node in self.index.items():
         for node in [node for node in PreOrderIter(self)]:
-            if node.node_type != NodeType.CONFIG_IMPLICIT:
+            if node.node_type != NodeType.CONFIG_VIRTUAL:
                 node_config = node.config_raw(True).model_dump(
                     # TODO: excluding load_parallel for demo purposes
                     exclude_none=True,
@@ -610,7 +635,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 if node.is_root:
                     save_yml_dict = node_config
                 elif diff:
-                    if node.parent.node_type != NodeType.CONFIG_IMPLICIT:
+                    if node.parent.node_type != NodeType.CONFIG_VIRTUAL:
                         parent_config = node.parent.config_raw(True).model_dump(
                             exclude_none=True
                         )
@@ -634,9 +659,18 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         for node in PreOrderIter(self):
             # remove target from config
             if type(node._config) is ec.Config:
-                node._config.target = ec.Target()
-            elif "target" in node._config:
-                node._config.target = {}
+                node._config.target.url = None
+            elif "target" in node._config and "url" in node._config["target"]:
+                node._config["target"]["url"] = None
+
+    def set_nrows(self, nrows: int):
+        # iterate all branches and leaves
+        for node in PreOrderIter(self):
+            # remove target from config
+            if type(node._config) is ec.Config:
+                node._config.source.nrows = nrows
+            elif "source" in node._config and "nrows" in node._config["source"]:
+                node._config["source"]["nrows"] = None
 
 
 def dict_diff(dict1: dict, dict2: dict) -> dict:
@@ -724,7 +758,7 @@ def get_config_default() -> ec.Config:
 def config_path_valid(path: ContentAwarePath) -> bool:
     if path.is_dir():
         return True
-    if path.is_file() or path.is_config_file():
+    if path.is_file() or ContentAwarePath(path).is_config_file():
         file_type = FileType.suffix_to_type(path.suffix)
         if isinstance(file_type, FileType):
             return True

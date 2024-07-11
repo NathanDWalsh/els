@@ -1,22 +1,30 @@
 import typer
 import logging
-import yaml
+import ruamel.yaml as yaml
 import pandas as pd
+from anytree import PreOrderIter
+from enum import Enum
+from typing import Type
 from pygments import highlight
 from pygments.lexers import YamlLexer
 from pygments.formatters import TerminalFormatter
 import sys
 import os
+import io
 from pathlib import Path
 from typing import Union, Optional
 
 from eel.path import ContentAwarePath as CAPath
 from eel.path import get_root_config_name
+from eel.path import get_folder_config_name
 
 # from eel.path import grow_branches
-from eel.path import get_config_default
+# from eel.path import get_config_default
 from eel.path import config_path_valid
 from eel.path import CONFIG_FILE_EXT
+
+from eel.config import TargetIfExistsValue
+from eel.path import NodeType
 
 from eel.execute import staged_frames
 
@@ -54,6 +62,7 @@ def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath]
     dirs = []
     current_dir = start_dir.absolute()
     file_found = False
+
     while (
         current_dir != current_dir.parent
     ):  # This condition ensures we haven't reached the root
@@ -77,10 +86,17 @@ def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath]
             return [CAPath(below[0].parent.absolute())]
         else:
             logging.info(f"eel root not found, using {start_dir}")
-            return [start_dir]
+            if (
+                start_dir.is_file()
+                and (start_dir.parent / get_folder_config_name()).exists()
+            ):
+                return [start_dir, start_dir.parent]
+            else:
+                return [start_dir]
 
 
 def plant_tree(path: CAPath) -> Optional[CAPath]:
+
     root_paths = list(reversed(find_root_paths(str(path))))
     root_path = Path(root_paths[0])
     if root_path.is_dir():
@@ -109,23 +125,39 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
     return root
 
 
-def get_ca_path(path: str = None) -> CAPath:
+def get_ca_path(path: str = None) -> Path:
     if path:
         pl_path = Path(path)
         if pl_path.is_file() and not str(pl_path).endswith(CONFIG_FILE_EXT):
-            ca_path = CAPath(path + CONFIG_FILE_EXT)
+            ca_path = Path(path + CONFIG_FILE_EXT)
         else:
-            ca_path = CAPath(path)
+            ca_path = Path(path)
     else:
-        ca_path = CAPath()
+        ca_path = Path()
     return ca_path
 
 
-def get_taskflow(path: str = None, force_pandas_target: bool = False):
+# def get_ca_path(path: str = None) -> CAPath:
+#     if path:
+#         pl_path = Path(path)
+#         if pl_path.is_file() and not str(pl_path).endswith(CONFIG_FILE_EXT):
+#             ca_path = CAPath(path + CONFIG_FILE_EXT)
+#         else:
+#             ca_path = CAPath(path)
+#     else:
+#         ca_path = CAPath()
+#     return ca_path
+
+
+def get_taskflow(
+    path: str = None, force_pandas_target: bool = False, nrows: Optional[bool] = None
+):
     ca_path = get_ca_path(path)
     tree = plant_tree(ca_path)
     if force_pandas_target:
         tree.force_pandas_target()
+    if nrows:
+        tree.set_nrows(nrows)
     if tree:
         taskflow = tree.get_ingest_taskflow()
         return taskflow
@@ -133,11 +165,31 @@ def get_taskflow(path: str = None, force_pandas_target: bool = False):
         return None
 
 
+# Function to remove a node and reassign its children to its parent
+def remove_node_and_reassign_children(node):
+    parent = node.parent
+    if parent is not None:
+        for child in node.children:
+            child.parent = parent
+        node.parent = None  # Detach the node from the tree
+
+
+def remove_virtual_nodes(tree):
+    # Iterate through the tree in reverse order
+    for node in PreOrderIter(tree):
+        # If the node is virtual
+        if node.node_type == NodeType.CONFIG_VIRTUAL:
+            # Remove the node and reassign its children to its parent
+            remove_node_and_reassign_children(node)
+
+
 @app.command()
-def tree(path: Optional[str] = typer.Argument(None)):
+def tree(path: Optional[str] = typer.Argument(None), keep_virtual: bool = False):
     path = clean_none_path(path)
     ca_path = get_ca_path(path)
     tree = plant_tree(ca_path)
+    if not keep_virtual:
+        remove_virtual_nodes(tree)
     if tree:
         tree.display_tree()
     else:
@@ -146,54 +198,79 @@ def tree(path: Optional[str] = typer.Argument(None)):
 
 
 @app.command()
-def generate(path: Optional[str] = typer.Argument(None)):
-    preview_yaml(path, verbose=False)
-
-
-def preview_yaml(
+def generate(
     path: Optional[str] = typer.Argument(None),
-    verbose: bool = False,
-    overwrite=True,
-    skip_root=True,
+    tables: Optional[str] = typer.Option(
+        None, help="Comma-separated list of table names, optionally double-quoted"
+    ),
+    overwrite: bool = True,
+    skip_root: bool = True,
 ):
     # root = find_root()
     # cwd = Path(os.getcwd())
     # if root == cwd:
+    if tables:
+        table_filter = [table.strip().strip('"') for table in tables.split(",")]
+    else:
+        table_filter = []
+    verbose = False
     path = clean_none_path(path)
     ca_path = get_ca_path(path)
     tree = plant_tree(ca_path)
+
     if tree and verbose:
         ymls = tree.get_eel_yml_preview(diff=False)
     elif tree:
         ymls = tree.get_eel_yml_preview(diff=True)
     else:
         raise Exception("tree not loaded")
-    if overwrite:
-        # print(organize_yaml_files_for_output(ymls))
-        for file_name, yaml_file_content in organize_yaml_files_for_output(
-            ymls
-        ).items():
-            if not (skip_root and file_name.endswith(get_root_config_name())):
-                yaml_str = yaml.dump_all(
-                    yaml_file_content, sort_keys=False, allow_unicode=True
-                )
+    yml_grouped = organize_yaml_files_for_output(ymls, table_filter)
+    # raise Exception()
+    for file_name, yaml_file_content in yml_grouped.items():
+        if not (skip_root and file_name.endswith(get_root_config_name())):
+            yaml_stream = io.StringIO()
+            yml = yaml.YAML()
+            yml.dump_all(yaml_file_content, yaml_stream)
+            yaml_str = yaml_stream.getvalue()
+            if overwrite and yaml_str:
                 with open(file_name, "w") as file:
                     file.write(yaml_str)
-    else:
-        yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
-        write_yaml_str(yaml_str)
+            elif yaml_str:
+                # yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
+                write_yaml_str(yaml_str)
     # else:
     #     print("current path different than eel root")
 
 
-def organize_yaml_files_for_output(ymls) -> dict[list[dict]]:
+def organize_yaml_files_for_output(
+    yamls, table_filter: Optional[list[str]] = None
+) -> dict[list[dict]]:
     current_path = None
     res = dict()
-    for yml in ymls:
+    # raise Exception()
+    previous_path = ""
+    for yml in yamls:
         if "config_path" in yml:
             current_path = yml.pop("config_path")
-            res[current_path] = []
-        res[current_path].append(yml)
+            if current_path != previous_path:
+                res[current_path] = []
+            # res[current_path].append(yml)
+            previous_path = current_path
+        if (
+            "source" in yml
+            and "table" in yml["source"]
+            and not ("target" in yml and "table" in yml["target"])
+        ):
+            if "target" not in yml:
+                yml["target"] = dict()
+            yml["target"]["table"] = yml["source"]["table"]
+        if not table_filter or (
+            table_filter
+            and "target" in yml
+            and "table" in yml["target"]
+            and yml["target"]["table"] in table_filter
+        ):
+            res[current_path].append(yml)
     return res
 
 
@@ -237,9 +314,13 @@ def clean_none_path(path):
 
 
 @app.command()
-def preview(path: Optional[str] = typer.Argument(None)):
+def preview(
+    path: Optional[str] = typer.Argument(None),
+    nrows: int = 100,
+    transpose: bool = False,
+):
     path = clean_none_path(path)
-    taskflow = get_taskflow(path, force_pandas_target=True)
+    taskflow = get_taskflow(path, force_pandas_target=True, nrows=nrows)
     if taskflow:
         taskflow.execute()
         # print(pandas_end_points)
@@ -265,11 +346,9 @@ def preview(path: Optional[str] = typer.Argument(None)):
         # # Convert the list of dictionaries into a DataFrame
         # info_df = pd.DataFrame(frames_info)
 
-        # Optionally, set the DataFrame to print without truncation for large DataFrames
-        pd.set_option("display.max_rows", None)
         pd.set_option("display.show_dimensions", False)
         # pd.set_option("display.max_columns", 4)
-        pd.set_option("display.width", 79)
+        pd.set_option("display.width", 80)
         # pd.set_option("display.max_colwidth", None)
 
         # Print the new DataFrame
@@ -281,13 +360,16 @@ def preview(path: Optional[str] = typer.Argument(None)):
         print()
         # print("Printing the first five rows of each DataFrame below:\n")
 
-        pd.set_option("display.max_rows", 5)
+        pd.set_option("display.max_rows", 6)
 
         for name, df in staged_frames.items():
             r, c = df.shape
             print(f"{name} [{r} rows x {c} columns]:")
             # df.index.name = " "
-            print(df)
+            if transpose:
+                print(df.T)
+            else:
+                print(df)
             print()
 
         # print(value.dtypes)
@@ -351,6 +433,7 @@ def execute(path: Optional[str] = typer.Argument(None)):
 
 
 def write_yaml_str(yaml_str):
+    # TODO, check the colors issues with pwsh
     if sys.stdout.isatty() and 1 == 2:
         colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
         sys.stdout.write(colored_yaml)
@@ -358,12 +441,32 @@ def write_yaml_str(yaml_str):
         sys.stdout.write(yaml_str)
 
 
+def concat_enum_values(enum_class: Type[Enum]) -> str:
+    # Use a list comprehension to get the value of each enum member
+    values = [member.value for member in enum_class]
+    values = sorted(values)
+    # Concatenate the values into a single string
+    concatenated_values = ",".join(values)
+    return concatenated_values
+
+
 @app.command()
 def test():
-    config_default = get_config_default()
-    yml = config_default.model_dump(exclude_none=True)
-    yaml_str = yaml.dump(yml, sort_keys=False, allow_unicode=True)
-    write_yaml_str(yaml_str)
+    yml = yaml.YAML()
+    contents = {"target": {"url": "../target/*.csv", "if_exists": "fail"}}
+    yml_stream = io.StringIO()
+    yml.dump(contents, yml_stream)
+    yml_obj = yml.load(yml_stream.getvalue())
+    comment = concat_enum_values(TargetIfExistsValue)
+    yml_obj["target"].yaml_add_eol_comment(comment, key="if_exists")
+    yml_stream = io.StringIO()
+    yml.dump(yml_obj, yml_stream)
+    print(yml_stream.getvalue())
+    # yml = ryaml.load(yml_str)
+    # config_default = get_config_default()
+    # yml = config_default.model_dump(exclude_none=True)
+    # yaml_str = yaml.dump(yml, sort_keys=False, allow_unicode=True)
+    # write_yaml_str(yaml_str)
 
 
 def create_subfolder(project_path: Path, subfolder: str, silent: bool) -> None:
@@ -377,6 +480,7 @@ def new(
     name: Optional[str] = typer.Argument(None),
     yes: bool = typer.Option(False, "--yes", "-y"),
 ):
+
     # Verify project creation in the current directory
     if not yes and not typer.confirm(
         "Verify project to be created in the current directory?"
@@ -411,12 +515,19 @@ def new(
         # Define the file path for __.eel.yml
         config_file_path = config_folder_path / get_root_config_name()
 
-        # Define the contents to be serialized
+        yml = yaml.YAML()
         contents = {"target": {"url": "../target/*.csv", "if_exists": "fail"}}
+        yml_stream = io.StringIO()
+        yml.dump(contents, yml_stream)
+        yml_obj = yml.load(yml_stream.getvalue())
+        comment = concat_enum_values(TargetIfExistsValue)
+        yml_obj["target"].yaml_add_eol_comment(comment, key="if_exists")
+        # yml_stream = io.StringIO()
+        # yml.dump(yml_obj, yml_stream)
 
         # Serialize and write the contents to the file
         with open(config_file_path, "w") as file:
-            yaml.dump(contents, file, sort_keys=False)
+            yml.dump(yml_obj, file)
 
         typer.echo("Creating project config file:")
         typer.echo(f" ./{project_path.name}/config/{get_root_config_name()}")

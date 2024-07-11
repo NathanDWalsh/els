@@ -29,11 +29,23 @@ def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
             elif target.type in ("mssql", "postgres", "duckdb"):
                 res = push_sql(df, target, add_cols)
             elif target.type in ("pandas"):
-                staged_frames[target.table] = df
-                res = True
+                # staged_frames[target.table] = df
+                res = push_pandas(df, target, add_cols)
             else:
                 pass
     return res
+
+
+def push_pandas(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
+    if not target.table:
+        raise Exception("invalid table")
+    if target.table not in staged_frames.keys():
+        raise Exception("table not found in staged frames")
+
+    staged_frames[target.table] = pd.concat(
+        [staged_frames[target.table], source_df], ignore_index=True
+    )
+    return True
 
 
 def push_sql(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
@@ -228,10 +240,22 @@ def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
         create_directory_if_not_exists(target.url)
         res = build_excel_frame(df, target)
     elif target.type in ("pandas"):
-        res = df
+        res = build_pandas_frame(df, target)
     else:
         raise Exception("invalid target type")
     return res
+
+
+def build_pandas_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
+    if not target.table:
+        raise Exception("invalid table")
+
+    if target.table in staged_frames.keys():
+        raise Exception(f"table {target.table} already exists in staged frames")
+    else:
+        staged_frames[target.table] = df.head(0)
+
+    return True
 
 
 def create_directory_if_not_exists(file_path: str):
@@ -319,8 +343,8 @@ def truncate_sql(target: ec.Target) -> bool:
 def frames_consistent(config: ec.Config) -> bool:
     target, source, add_cols, transform = get_configs(config)
 
-    if target and target.type in ("pandas"):
-        return True
+    # if target and target.type in ("pandas"):
+    #     return True
 
     ignore_cols = []
     if add_cols:
@@ -496,7 +520,7 @@ def pull_frame(
                 # get the cell value corresponding to the rxcx
                 add_cols[k] = rows_n[row][col]
 
-    elif frame.type and frame.type in (".xlsx", ".xls"):
+    elif frame.type and frame.type in (".xlsx", ".xls", ".xlsm", ".xlsb"):
         if isinstance(frame, ec.Source):
             # kwargs = get_source_kwargs(frame.read_excel, nrows, dtype)
             kwargs = get_source_kwargs(frame.read_excel, frame, nrows)
@@ -628,11 +652,7 @@ def ingest(config: ec.Config) -> bool:
 
 def build(config: ec.Config) -> bool:
     target, source, add_cols, transform = get_configs(config)
-    if (
-        target
-        and target.type not in ("pandas")
-        and target.preparation_action != "no_action"
-    ):
+    if target and target.preparation_action != "no_action":
         action = target.preparation_action
         if action in ("create_replace", "create_replace_file"):
             # TODO, use caching to avoid pulling the same data twice
