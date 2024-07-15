@@ -91,6 +91,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             if self.is_dir():
                 self._config = paired_config2
             elif self.is_config_file:
+
                 self._config = {}
                 # print(f"spawning {self}")
                 self.spawn_document_children(paired_config2)
@@ -104,7 +105,6 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             if self.is_dir():
                 self.spawn_config_children()
 
-        # TODO: re-enable
         if self.is_dir() and spawn_children and not self.has_leaf_table:
             # do not add dirs with no leaf nodes which are tables
             # TODO this could be changed to search for config files instead ...
@@ -121,6 +121,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         last_url = ""
         for doc in config_docs:
             # print(doc)
+            # raise Exception()
             if "source" in doc:
                 source = doc["source"]
             else:
@@ -131,20 +132,43 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             if "url" in source and last_url != source["url"]:
                 last_url = source["url"]
                 # print(f"data url: {last_url}")
-                url_parent = ContentAwarePath(self / last_url, parent=self, config=doc)
+                # url_parent = ContentAwarePath(self / last_url, parent=self, config=doc)
+                url_parent = ContentAwarePath(Path(last_url), parent=self, config=doc)
+                # raise Exception("not implemented")
+
                 # print(f"url parent, child: {self}, {url_parent}")
                 # raise Exception()
+            # print(url_parent.children)
+            # print(self.node_type)
+            # raise Exception("not implemented")
             if "table" in source:
+                source_table = source["table"]
+            elif (
+                not self.node_type == NodeType.CONFIG_VIRTUAL
+                and not self.is_config_adjacent
+                and self.parent
+                and self.parent.config
+                and self.parent.config.source
+                and self.parent.config.source.table
+            ):
+                source_table = self.parent.config.source.table
+            else:
+                source_table = None
+            if source_table:
                 if last_url == "":
                     raise Exception("expected to have a url for child config doc")
                 # print(f"table: {source['table']}")
-                table = source["table"]
-                if table == "_leaf_name":
-                    table = get_content_leaf_names2(url_parent.config.source)[0]
+                if source_table == "_leaf_name":
+                    source_table = get_content_leaf_names2(url_parent.config.source)[0]
                 # print(f"self / last_url / table: {self} / {last_url} / {table}")
-                ContentAwarePath(self / last_url / table, parent=url_parent, config=doc)
+                # ContentAwarePath(self / last_url / table, parent=url_parent, config=doc)
+                ContentAwarePath(
+                    Path(last_url) / source_table, parent=url_parent, config=doc
+                )
 
-                # print(f"tab parent, child: {url_parent}, {last_table}")
+            # raise Exception()
+
+        # print(f"tab parent, child: {url_parent}, {last_table}")
 
     def spawn_config_children(self):
         for subpath in self.glob("*"):
@@ -184,6 +208,12 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             return NodeType.DATA_TABLE
 
     @property
+    def is_config_adjacent(self) -> bool:
+        if self.node_type == NodeType.CONFIG_EXPLICIT:
+            return Path(str(self).replace(CONFIG_FILE_EXT, "")).exists()
+        return False
+
+    @property
     def get_leaf_tables(self) -> list[Self]:
         leaf_tables = []
         for leaf in self.leaves:
@@ -220,20 +250,30 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
         for node in self.ancestors + (self,):
             if node._config:
-                config_line.append(node._config)
+                if isinstance(node._config, ec.Config):
+                    config_line.append(node._config.model_dump(exclude_none=True))
+                else:
+                    config_line.append(node._config)
+
+        # if str(self) == "world_bank":
+        #     raise Exception()
+
         config_merged = ContentAwarePath.merge_configs(*config_line)
         config_copied = config_merged.model_copy(deep=True)
         if add_config_file_path:
             config_copied.config_path = self.config_file_path
         # res = {**{"config_path": self.config_file_path}, **config_copied}
+        # if str(self) == "world_bank":
+        #     raise Exception(config_copied.model_dump(exclude_none=True))
+
         return config_copied
 
     @property
     def config(self) -> ec.Config:
         config_copied = self.config_raw()
+
         # if self.is_leaf:
         config_evaled = self.eval_dynamic_attributes(config_copied)
-
         # else:
         #     config_evaled = config_copied
         return config_evaled
@@ -344,7 +384,10 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                     )
                     for table in tables:
                         if (
-                            not self.parent.config.source.table
+                            not self.parent
+                            or not self.parent.config
+                            or not self.parent.config.source
+                            or not self.parent.config.source.table
                             or table == self.parent.config.source.table
                         ):
                             res.append({"source": {"table": table}})
@@ -578,6 +621,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             if leaf.node_type == NodeType.DATA_TABLE
         ]
         df = pd.DataFrame(data)
+        # raise Exception(self.leaves)
         return df
 
     @staticmethod

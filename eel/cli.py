@@ -33,7 +33,7 @@ app = typer.Typer()
 
 def start_logging():
     logging.basicConfig(level=logging.INFO, format="%(relativeCreated)d - %(message)s")
-    logging.disable(logging.CRITICAL)
+    # logging.disable(logging.CRITICAL)
     logging.info("Getting Started")
 
 
@@ -71,6 +71,7 @@ def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath]
             file_found = True
             break
         current_dir = current_dir.parent
+
     # Check and add the root directory if not already added
     if current_dir not in dirs and (current_dir / target_file).exists():
         dirs.append(current_dir)
@@ -88,6 +89,12 @@ def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath]
             logging.info(f"eel root not found, using {start_dir}")
             if (
                 start_dir.is_file()
+                and (start_dir.parent / get_folder_config_name()).exists()
+            ):
+
+                return [start_dir, start_dir.parent]
+            elif (
+                not start_dir.exists()
                 and (start_dir.parent / get_folder_config_name()).exists()
             ):
                 return [start_dir, start_dir.parent]
@@ -118,6 +125,10 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
                 ca_path = CAPath(path_, parent=parent, spawn_children=True)
         else:
             raise Exception("Invalid file in explicit path: " + str(path_))
+        # print(ca_path.config.model_dump(exclude_none=True))
+        # print(ca_path.config.children)
+        # if str(ca_path) != ".":
+        #     raise Exception()
     logging.info("Tree Created")
     root = parent.root if parent else ca_path
     if root.is_leaf and root.is_dir():
@@ -175,12 +186,15 @@ def remove_node_and_reassign_children(node):
 
 
 def remove_virtual_nodes(tree):
+    if tree.node_type == NodeType.CONFIG_VIRTUAL:
+        return tree.children[0]
     # Iterate through the tree in reverse order
     for node in PreOrderIter(tree):
         # If the node is virtual
         if node.node_type == NodeType.CONFIG_VIRTUAL:
             # Remove the node and reassign its children to its parent
             remove_node_and_reassign_children(node)
+    return tree
 
 
 @app.command()
@@ -188,8 +202,15 @@ def tree(path: Optional[str] = typer.Argument(None), keep_virtual: bool = False)
     path = clean_none_path(path)
     ca_path = get_ca_path(path)
     tree = plant_tree(ca_path)
+    # print(tree)
+    # print(tree.config.model_dump(exclude_none=True))
+
+    # debug_node = tree.children[0]
+    # print(debug_node)
+    # print(debug_node.config.model_dump(exclude_none=True))
+    # raise Exception()
     if not keep_virtual:
-        remove_virtual_nodes(tree)
+        tree = remove_virtual_nodes(tree)
     if tree:
         tree.display_tree()
     else:
