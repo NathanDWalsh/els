@@ -106,13 +106,29 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
 
     root_paths = list(reversed(find_root_paths(str(path))))
     root_path = Path(root_paths[0])
+    # print(root_paths[0].absolute())
     if root_path.is_dir():
+        # print(root_path.absolute())
         os.chdir(root_path)
+        # seemingly redundant lines below fix strange bug when passing a directory as an
+        # argument it got duplicated in the path, i.e. /foo/bar/bar when just /foo/bar
+        # expected
+        root_path = Path()
+        root_paths[0] = Path()
+        # print(root_path.absolute())
+        # print(root_paths[0].absolute())
     else:
         os.chdir(root_path.parent)
+        # print(2)
     # print(root_paths)
+    # raise Exception(root_path.absolute())
+    # print(root_paths[0].absolute())
+    # raise Exception()
     parent = None
+    # raise Exception(root_path.absolute())
     for index, path_ in enumerate(root_paths):
+        # print(root_path.absolute())
+        # raise Exception(path_.absolute())
         if config_path_valid(path_):
             if index < len(root_paths) - 1:  # For all items except the last one
                 ca_path = CAPath(path_, parent=parent)
@@ -138,7 +154,8 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
 
 def get_ca_path(path: str = None) -> Path:
     if path:
-        pl_path = Path(path)
+        # may be related to "seemingly redundant" lines fix above
+        pl_path = Path() / Path(path)
         if pl_path.is_file() and not str(pl_path).endswith(CONFIG_FILE_EXT):
             ca_path = Path(path + CONFIG_FILE_EXT)
         else:
@@ -337,11 +354,12 @@ def clean_none_path(path):
 @app.command()
 def preview(
     path: Optional[str] = typer.Argument(None),
-    nrows: int = 100,
+    nrows: int = 4,
     transpose: bool = False,
 ):
     path = clean_none_path(path)
-    taskflow = get_taskflow(path, force_pandas_target=True, nrows=nrows)
+    # taskflow = get_taskflow(path, force_pandas_target=True, nrows=nrows)
+    taskflow = get_taskflow(path, force_pandas_target=True)
     if taskflow:
         taskflow.execute()
         # print(pandas_end_points)
@@ -349,39 +367,14 @@ def preview(
         logging.error("taskflow not loaded")
     if staged_frames:
 
-        # print("\nNo target specified, sources saved to dataframes.\n\nTable summary:")
-
-        # Initialize a list to hold dictionaries for each DataFrame
-        # frames_info = []
-
-        # for key, value in staged_frames.items():
-        #     # Store the count of unnamed columns in a variable
-        #     unnamed_cols = value.columns.str.contains("^Unnamed").sum()
-        #     # Capture the number of rows and cols
-        #     r, c = value.shape
-        #     # Append the information as a dictionary to the list
-        #     frames_info.append(
-        #         {"Name": key, "Rows": r, "Columns": c, "Unnamed Columns": unnamed_cols}
-        #     )
-
-        # # Convert the list of dictionaries into a DataFrame
-        # info_df = pd.DataFrame(frames_info)
-
         pd.set_option("display.show_dimensions", False)
-        # pd.set_option("display.max_columns", 4)
-        pd.set_option("display.width", 80)
-        # pd.set_option("display.max_colwidth", None)
+        pd.set_option("display.max_columns", 4)
+        pd.set_option("display.width", None)
+        pd.set_option("display.max_colwidth", 18)
+        pd.set_option("display.max_rows", None)
 
-        # Print the new DataFrame
-        # make the Name column the row index
-        # info_df.set_index("Name", inplace=True)
-        # info_df.index.name = "Table Name"
-        # print(info_df)
-
-        print()
+        # print()
         # print("Printing the first five rows of each DataFrame below:\n")
-
-        pd.set_option("display.max_rows", 6)
 
         for name, df in staged_frames.items():
             r, c = df.shape
@@ -390,7 +383,7 @@ def preview(
             if transpose:
                 print(df.T)
             else:
-                print(df)
+                print(df.head(nrows))
             print()
 
         # print(value.dtypes)
