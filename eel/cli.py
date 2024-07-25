@@ -76,7 +76,6 @@ def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath]
     if current_dir not in dirs and (current_dir / target_file).exists():
         dirs.append(current_dir)
         file_found = True
-    # raise Exception()
     if file_found:
         # print(dirs)
         return dirs
@@ -123,7 +122,6 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
     # print(root_paths)
     # raise Exception(root_path.absolute())
     # print(root_paths[0].absolute())
-    # raise Exception()
     parent = None
     # raise Exception(root_path.absolute())
     for index, path_ in enumerate(root_paths):
@@ -144,7 +142,6 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
         # print(ca_path.config.model_dump(exclude_none=True))
         # print(ca_path.config.children)
         # if str(ca_path) != ".":
-        #     raise Exception()
     logging.info("Tree Created")
     root = parent.root if parent else ca_path
     if root.is_leaf and root.is_dir():
@@ -225,7 +222,6 @@ def tree(path: Optional[str] = typer.Argument(None), keep_virtual: bool = False)
     # debug_node = tree.children[0]
     # print(debug_node)
     # print(debug_node.config.model_dump(exclude_none=True))
-    # raise Exception()
     if not keep_virtual:
         tree = remove_virtual_nodes(tree)
     if tree:
@@ -263,7 +259,6 @@ def generate(
     else:
         raise Exception("tree not loaded")
     yml_grouped = organize_yaml_files_for_output(ymls, table_filter)
-    # raise Exception()
     for file_name, yaml_file_content in yml_grouped.items():
         if not (skip_root and file_name.endswith(get_root_config_name())):
             yaml_stream = io.StringIO()
@@ -285,7 +280,6 @@ def organize_yaml_files_for_output(
 ) -> dict[list[dict]]:
     current_path = None
     res = dict()
-    # raise Exception()
     previous_path = ""
     for yml in yamls:
         if "config_path" in yml:

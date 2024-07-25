@@ -63,7 +63,7 @@ def push_sql(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool
         source_df.to_sql(
             target.table,
             sqeng,
-            target.dbschema,
+            schema=target.dbschema,
             index=False,
             if_exists="append",
             **kwargs,
@@ -572,6 +572,8 @@ def pull_frame(
             value_name=transform.melt.value_name,
             var_name=transform.melt.var_name,
         )
+    if transform and transform.astype:
+        df = df.astype(transform.astype.dtype)
     return pd.DataFrame(df)
 
 

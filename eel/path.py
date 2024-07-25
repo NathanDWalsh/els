@@ -86,15 +86,15 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 raise Exception(
                     "should not pass explicit config for directories or config files"
                 )
-            paired_config2 = self.get_paired_config()
+            paired_config = self.get_paired_config()
 
             if self.is_dir():
-                self._config = paired_config2
+                self._config = paired_config
             elif self.is_config_file:
 
                 self._config = {}
                 # print(f"spawning {self}")
-                self.spawn_document_children(paired_config2)
+                self.spawn_document_children(paired_config)
                 # print(f"fininshed spawning {self}")
         elif not config:
             raise Exception("should pass explicit config for urls and tables")
@@ -121,7 +121,6 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         last_url = ""
         for doc in config_docs:
             # print(doc)
-            # raise Exception()
             if "source" in doc:
                 source = doc["source"]
             else:
@@ -137,7 +136,6 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 # raise Exception("not implemented")
 
                 # print(f"url parent, child: {self}, {url_parent}")
-                # raise Exception()
             # print(url_parent.children)
             # print(self.node_type)
             # raise Exception("not implemented")
@@ -165,8 +163,6 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 ContentAwarePath(
                     Path(last_url) / source_table, parent=url_parent, config=doc
                 )
-
-            # raise Exception()
 
         # print(f"tab parent, child: {url_parent}, {last_table}")
 
@@ -255,9 +251,6 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 else:
                     config_line.append(node._config)
 
-        # if str(self) == "world_bank":
-        #     raise Exception()
-
         config_merged = ContentAwarePath.merge_configs(*config_line)
         config_copied = config_merged.model_copy(deep=True)
         if add_config_file_path:
@@ -276,6 +269,10 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         config_evaled = self.eval_dynamic_attributes(config_copied)
         # else:
         #     config_evaled = config_copied
+
+        if not config_evaled.target.if_exists:
+            config_evaled.target.if_exists = ec.TargetIfExistsValue.FAIL
+
         return config_evaled
 
     def get_path_props_find_replace(self) -> dict:
@@ -364,7 +361,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 res.append(ymls[0])
         if self.is_config_file():
             adjacent_file_path = Path(str(self).replace(CONFIG_FILE_EXT, ""))
-            if adjacent_file_path.exists():
+            if adjacent_file_path.is_file():
                 if self.exists():
                     yml = get_yml_docs(self)
                     if "source" in yml[0] and "url" in yml[0]["source"]:
@@ -396,8 +393,6 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             elif self.exists():
                 yml = get_yml_docs(self)
                 res += yml
-        # if str(self) != ".":
-        #     raise Exception()
         return res
 
     def get_paired_config(self) -> dict:
@@ -439,15 +434,30 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             # TODO: this might be useful
             # elif node.node_type == NodeType.DATA_URL:
             #     column1 = f"{pre}{node.config.source.url}"
-            else:
+            elif (
+                node.node_type == NodeType.DATA_URL
+                and not Path(node.config.source.url).exists()
+            ):
                 # column1 = f"{pre}{node.name}"
-                column1 = f"{pre}{node.name}"
+                url_branch = (
+                    str(node.path[-1])
+                    .split("?")[0]
+                    .replace("\\", "/")
+                    .replace(":", ":/")
+                )
+                column1 = f"{pre}{url_branch}"
                 # column2 = f" : {node.node_type.value}"
+            else:
+                column1 = f"{pre}{node.name}"
 
             # column2 = ""
             if node.node_type == NodeType.DATA_TABLE and node.config.target.url:
-                rel_path = os.path.relpath(node.config.target.url)
-                column2 = f" → {rel_path}"
+                if node.config.target.type == ".csv":
+                    target_path = os.path.relpath(node.config.target.url)
+                else:
+                    target_path = f"{node.config.target.url.split('?')[0]}#{node.config.target.table}"
+
+                column2 = f" → {target_path}"
             # elif node.is_leaf and node.config.source.url:
             elif node.is_leaf and node.config.target.type == "pandas":
                 column2 = f" → memory['{node.config.target.table}']"

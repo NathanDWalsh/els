@@ -79,10 +79,15 @@ class Melt(BaseModel, extra="forbid"):
     var_name: str = "variable"
 
 
+class AsType(BaseModel, extra="forbid"):
+    dtype: dict[str, str]
+
+
 class Transform(BaseModel):
 
     melt: Optional[Melt] = None
     stack: Optional[Stack] = None
+    astype: Optional[AsType] = None
 
     model_config = ConfigDict(
         extra="forbid",
@@ -91,13 +96,35 @@ class Transform(BaseModel):
 
 
 class Frame(BaseModel):
-    @property
-    def db_connection_string(self):
-        pass
 
     @property
-    def sqn(self):
-        pass
+    def db_connection_string(self) -> Optional[str]:
+        # Define the connection string based on the database type
+        if self.type == "mssql":
+            res = self.url.replace("mssql://", "mssql+pyodbc://", 1)
+            # res = (
+            #     f"mssql+pyodbc://{self.server}/{self.database}"
+            #     "?driver=ODBC+Driver+17+for+SQL+Server"
+            # )
+        elif self.type == "postgres":
+            res = (
+                "Driver={PostgreSQL};" f"Server={self.server};Database={self.database};"
+            )
+        elif self.type == "duckdb":
+            res = f"Driver={{DuckDB}};Database={self.database};"
+        else:
+            res = None
+        return res
+
+    @property
+    def sqn(self) -> Optional[str]:
+        if self.dbschema and self.table:
+            res = "[" + self.dbschema + "].[" + self.table + "]"
+        elif self.table:
+            res = "[" + self.table + "]"
+        else:
+            res = None
+        return res
 
     # @property
     # def file_path(self):
@@ -153,53 +180,10 @@ class Target(Frame):
     )
 
     consistency: TargetConsistencyValue = TargetConsistencyValue.STRICT
-    if_exists: TargetIfExistsValue = TargetIfExistsValue.FAIL
+    if_exists: Optional[TargetIfExistsValue] = None
     to_sql: Optional[ToSql] = None
     to_csv: Optional[ToCsv] = None
     to_excel: Optional[ToExcel] = None
-
-    # type: Optional[str] = "pandas"
-    # type: Optional[str] = None
-
-    # @model_validator(mode="after")
-    # def set_default_type(self) -> Self:
-    #     if self.type is None or self.type == "pandas":
-    #         if self.url:
-    #             # set type as the extension of file_path
-    #             self.type = os.path.splitext(self.url)[-1]
-    #         else:
-    #             self.type = "pandas"
-    #         # print(self.file_path)
-    #         # print(self.type)
-    #     return self
-
-    @property
-    def db_connection_string(self) -> Optional[str]:
-        # Define the connection string based on the database type
-        if self.type == "mssql":
-            res = (
-                f"mssql+pyodbc://{self.server}/{self.database}"
-                "?driver=ODBC+Driver+17+for+SQL+Server"
-            )
-        elif self.type == "postgres":
-            res = (
-                "Driver={PostgreSQL};" f"Server={self.server};Database={self.database};"
-            )
-        elif self.type == "duckdb":
-            res = f"Driver={{DuckDB}};Database={self.database};"
-        else:
-            res = None
-        return res
-
-    @property
-    def sqn(self) -> Optional[str]:
-        if self.dbschema and self.table:
-            res = "[" + self.dbschema + "].[" + self.table + "]"
-        elif self.table:
-            res = "[" + self.table + "]"
-        else:
-            res = None
-        return res
 
     @property
     def file_exists(self) -> Optional[bool]:
@@ -234,7 +218,9 @@ class Target(Frame):
 
     @property
     def preparation_action(self) -> str:
-        if self.url_scheme == "file" and (
+        if not self.if_exists:
+            res = "fail"
+        elif self.url_scheme == "file" and (
             not self.file_exists
             or self.if_exists == TargetIfExistsValue.REPLACE_FILE.value
         ):
