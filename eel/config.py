@@ -140,8 +140,8 @@ class Frame(BaseModel):
 
     url: Optional[str] = None
     # type: Optional[str] = None
-    server: Optional[str] = None
-    database: Optional[str] = None
+    # server: Optional[str] = None
+    # database: Optional[str] = None
     dbschema: Optional[str] = None
     table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
 
@@ -272,7 +272,7 @@ class Source(Frame, extra="forbid"):
 
 class AddColumns(BaseModel, extra="allow"):
     additionalProperties: Optional[
-        Union[DynamicPathValue, DynamicColumnValue, DynamicCellValue, str, int, float]  # type: ignore
+        Union[DynamicPathValue, DynamicColumnValue, DynamicCellValue, str, int, float]
     ] = None
 
 

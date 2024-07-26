@@ -115,14 +115,16 @@ def push_excel(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bo
     return True
 
 
-def pull_sql(frame: ec.Frame, nrows=None):
+def pull_sql(frame: ec.Frame, nrows=None, **kwargs) -> pd.DataFrame:
+    if "norws" in kwargs:
+        kwargs.pop("norws")
     if not frame.db_connection_string:
         raise Exception("invalid db_connection_string")
     if not frame.sqn:
         raise Exception("invalid sqn")
     with sa.create_engine(frame.db_connection_string).connect() as sqeng:
         stmt = sa.select(sa.text("*")).select_from(sa.text(frame.sqn)).limit(nrows)
-        df = pd.read_sql(stmt, con=sqeng)
+        df = pd.read_sql(stmt, con=sqeng, **kwargs)
     return df
 
 
@@ -474,7 +476,8 @@ def pull_frame(
 ) -> pd.DataFrame:
     # logging.info(f"pulling frame {frame.file_path_dynamic}")
     if frame.type in ("mssql", "postgres", "duckdb"):
-        df = pull_sql(frame)
+        kwargs = get_source_kwargs(None, frame, nrows)
+        df = pull_sql(frame, **kwargs)
     elif frame.type in (".csv", ".tsv"):
         if isinstance(frame, ec.Source):
             clean_last_column = True

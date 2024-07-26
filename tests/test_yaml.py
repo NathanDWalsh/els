@@ -169,6 +169,21 @@ def get_1r1c_tests_excel(atomics: dict):
     return test_frames
 
 
+def get_1r1c_tests_mssql(atomics: dict):
+    test_frames = [
+        Test(
+            f"1r1c{name}",
+            df,
+            {},
+        )
+        for name, df in atomics.items()
+        # single empty field not working
+        # if not (df.size == 1 and pd.isna(df.iloc[0, 0]))
+    ]
+
+    return test_frames
+
+
 def id_func(testcase_vals):
     return "_".join(
         (
@@ -193,25 +208,31 @@ def id_func(testcase_vals):
 #     pandas_end_points[kwargs["sheet_name"]] = df
 
 
-def round_trip_file(test_case: Test, request, extension: str):
+def round_trip_file(test_case: Test, request, test_type: str):
     # Access the fields of the Test named tuple using dot notation
     test_name = request.node.callspec.id
     df = test_case.df
     kwargs = test_case.kwargs
-    test_file = test_name + "." + extension
+
+    if test_type == "xlsx" or test_type == "csv":
+        test_url = test_name + "." + test_type
+    else:
+        test_url = "mssql://localhost/eel" + "?driver=ODBC+Driver+17+for+SQL+Server"
 
     t_config = get_config_default()
     # t_config.source.type = "pandas"
     # t_config.target.file_path = test_name + "." + extension
     # t_config.target.type = "." + extension
-    t_config.target.url = test_file
-    if extension == "xlsx":
+    t_config.target.url = test_url
+    if test_type == "xlsx":
         t_config.target.table = kwargs["sheet_name"]
+    if test_type == "mssql":
+        t_config.target.if_exists = "replace"
     t_config.source.table = test_name
     t_config.source.url = "pandas://"
 
     # t_config.target.table = str(t_config.pipe_id)
-    test_eel_out = test_file + ".out.eel.yml"
+    test_eel_out = test_name + "." + test_type + ".out.eel.yml"
 
     staged_frames[test_name] = df
 
@@ -228,10 +249,13 @@ def round_trip_file(test_case: Test, request, extension: str):
     # to_func(test_file, index=False, **kwargs)
 
     df_config = get_df_config(df)
-    if extension == "xlsx":
+    if test_type == "xlsx":
         df_config["source"]["table"] = kwargs["sheet_name"]
+    if test_type == "mssql":
+        df_config["source"]["table"] = test_name
+        df_config["source"]["url"] = test_url
     # df_config["source"]["url"] = f"*.{extension}"
-    test_eel = test_file + ".eel.yml"
+    test_eel = test_name + "." + test_type + ".eel.yml"
     yaml.dump(
         df_config,
         open(test_eel, "w"),
@@ -241,17 +265,21 @@ def round_trip_file(test_case: Test, request, extension: str):
 
     staged_frames.clear()
 
-    execute(test_file)
+    execute(test_eel)
+    # assert True
+    # return
     logger.info(test_name)
 
     logger.info(df.dtypes)
     logger.info(df)
 
-    if extension == "csv":
+    if test_type == "csv":
         df2 = staged_frames[test_name]
-    elif extension == "xlsx":
+    elif test_type == "xlsx":
         df2 = staged_frames[kwargs["sheet_name"]]
-        logger.info(kwargs["sheet_name"])
+        # logger.info(kwargs["sheet_name"])
+    elif test_type == "mssql":
+        df2 = staged_frames[test_name]
 
     # assert True
 
@@ -264,7 +292,8 @@ def round_trip_file(test_case: Test, request, extension: str):
 
     os.remove(test_eel)
     os.remove(test_eel_out)
-    os.remove(test_file)
+    if test_type == "xlsx" or test_type == "csv":
+        os.remove(test_url)
 
 
 # def round_trip_db(test_case: Test, request, table_name):
@@ -310,6 +339,10 @@ class TestExcel:
     pass
 
 
+class TestMssql:
+    pass
+
+
 test_classes = {
     "TestString": get_atomic_string_frames,
     "TestNumber": get_atomic_number_frames,
@@ -348,6 +381,14 @@ for class_name, get_frames_func in test_classes.items():
         class_name,
         create_test_class_file(
             get_frames_func, class_name, get_1r1c_tests_excel, "xlsx"
+        ),
+    )
+
+    setattr(
+        TestMssql,
+        class_name,
+        create_test_class_file(
+            get_frames_func, class_name, get_1r1c_tests_mssql, "mssql"
         ),
     )
     # setattr(TestMssql, class_name, create_test_class_mssql(func, class_name))
