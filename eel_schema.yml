@@ -13,6 +13,18 @@ $defs:
       title: Additionalproperties
     title: AddColumns
     type: object
+  AsType:
+    additionalProperties: false
+    properties:
+      dtype:
+        additionalProperties:
+          type: string
+        title: Dtype
+        type: object
+    required:
+    - dtype
+    title: AsType
+    type: object
   DynamicCellValue:
     enum:
     - _r0c0
@@ -211,12 +223,6 @@ $defs:
   Source:
     additionalProperties: false
     properties:
-      database:
-        anyOf:
-        - type: string
-        - type: 'null'
-        default: null
-        title: Database
       dbschema:
         anyOf:
         - type: string
@@ -249,12 +255,6 @@ $defs:
         - $ref: '#/$defs/ReadExcel'
         - type: 'null'
         default: null
-      server:
-        anyOf:
-        - type: string
-        - type: 'null'
-        default: null
-        title: Server
       table:
         anyOf:
         - type: string
@@ -294,12 +294,6 @@ $defs:
         allOf:
         - $ref: '#/$defs/TargetConsistencyValue'
         default: strict
-      database:
-        anyOf:
-        - type: string
-        - type: 'null'
-        default: null
-        title: Database
       dbschema:
         anyOf:
         - type: string
@@ -307,15 +301,10 @@ $defs:
         default: null
         title: Dbschema
       if_exists:
-        allOf:
-        - $ref: '#/$defs/TargetIfExistsValue'
-        default: fail
-      server:
         anyOf:
-        - type: string
+        - $ref: '#/$defs/TargetIfExistsValue'
         - type: 'null'
         default: null
-        title: Server
       table:
         anyOf:
         - type: string
@@ -389,6 +378,11 @@ $defs:
     - required:
       - stack
     properties:
+      astype:
+        anyOf:
+        - $ref: '#/$defs/AsType'
+        - type: 'null'
+        default: null
       melt:
         anyOf:
         - $ref: '#/$defs/Melt'
@@ -408,18 +402,22 @@ properties:
     - $ref: '#/$defs/AddColumns'
     default:
       additionalProperties: null
+  config_path:
+    anyOf:
+    - type: string
+    - type: 'null'
+    default: null
+    title: Config Path
   source:
     allOf:
     - $ref: '#/$defs/Source'
     default:
-      database: null
       dbschema: null
       dtype: null
       load_parallel: false
       nrows: null
       read_csv: null
       read_excel: null
-      server: null
       table: _leaf_name
       url: null
   target:
@@ -427,10 +425,8 @@ properties:
     - $ref: '#/$defs/Target'
     default:
       consistency: strict
-      database: null
       dbschema: null
-      if_exists: fail
-      server: null
+      if_exists: null
       table: _leaf_name
       to_csv: null
       to_excel: null
