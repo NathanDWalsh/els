@@ -106,6 +106,8 @@ class Frame(BaseModel):
             #     f"mssql+pyodbc://{self.server}/{self.database}"
             #     "?driver=ODBC+Driver+17+for+SQL+Server"
             # )
+        elif self.type == "sqlite":
+            res = self.url
         elif self.type == "postgres":
             res = (
                 "Driver={PostgreSQL};" f"Server={self.server};Database={self.database};"

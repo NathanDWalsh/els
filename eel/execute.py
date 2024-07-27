@@ -26,7 +26,7 @@ def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
                 res = push_csv(df, target, add_cols)
             if target.type in (".xlsx"):
                 res = push_excel(df, target, add_cols)
-            elif target.type in ("mssql", "postgres", "duckdb"):
+            elif target.type in ("mssql", "postgres", "duckdb", "sqlite"):
                 res = push_sql(df, target, add_cols)
             elif target.type in ("pandas"):
                 # staged_frames[target.table] = df
@@ -53,9 +53,10 @@ def push_sql(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool
         raise Exception("invalid db_connection_string")
     if not target.table:
         raise Exception("invalid to_sql")
-    with sa.create_engine(
-        target.db_connection_string, fast_executemany=True
-    ).connect() as sqeng:
+    kwargs = {}
+    # if target.type in ("mssql"):
+    #     kwargs["fast_executemany"] = True
+    with sa.create_engine(target.db_connection_string, **kwargs).connect() as sqeng:
         if target.to_sql:
             kwargs = target.to_sql.model_dump()
         else:
@@ -232,7 +233,7 @@ def build_excel_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
 
 
 def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
-    if target.type in ("mssql", "postgres", "duckdb"):
+    if target.type in ("mssql", "postgres", "duckdb", "sqlite"):
         res = build_sql(df, target, add_cols)
     elif target.type in (".csv"):
         create_directory_if_not_exists(target.url)
@@ -267,7 +268,7 @@ def create_directory_if_not_exists(file_path: str):
 
 
 def truncate_target(target: ec.Target) -> bool:
-    if target.type in ("mssql", "postgres", "duckdb"):
+    if target.type in ("mssql", "postgres", "duckdb", "sqlite"):
         res = truncate_sql(target)
     elif target.type in (".csv"):
         res = truncate_csv(target)
@@ -475,7 +476,7 @@ def pull_frame(
     # dtype=None,
 ) -> pd.DataFrame:
     # logging.info(f"pulling frame {frame.file_path_dynamic}")
-    if frame.type in ("mssql", "postgres", "duckdb"):
+    if frame.type in ("mssql", "postgres", "duckdb", "sqlite"):
         kwargs = get_source_kwargs(None, frame, nrows)
         df = pull_sql(frame, **kwargs)
     elif frame.type in (".csv", ".tsv"):

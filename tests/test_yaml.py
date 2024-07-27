@@ -169,7 +169,7 @@ def get_1r1c_tests_excel(atomics: dict):
     return test_frames
 
 
-def get_1r1c_tests_mssql(atomics: dict):
+def get_1r1c_tests_sql(atomics: dict):
     test_frames = [
         Test(
             f"1r1c{name}",
@@ -216,8 +216,10 @@ def round_trip_file(test_case: Test, request, test_type: str):
 
     if test_type == "xlsx" or test_type == "csv":
         test_url = test_name + "." + test_type
-    else:
+    elif test_type == "mssql":
         test_url = "mssql://localhost/eel" + "?driver=ODBC+Driver+17+for+SQL+Server"
+    elif test_type == "sqlite":
+        test_url = "sqlite:///test_database.db"
 
     t_config = get_config_default()
     # t_config.source.type = "pandas"
@@ -226,7 +228,7 @@ def round_trip_file(test_case: Test, request, test_type: str):
     t_config.target.url = test_url
     if test_type == "xlsx":
         t_config.target.table = kwargs["sheet_name"]
-    if test_type == "mssql":
+    if test_type in ("mssql", "sqlite"):
         t_config.target.if_exists = "replace"
     t_config.source.table = test_name
     t_config.source.url = "pandas://"
@@ -251,7 +253,7 @@ def round_trip_file(test_case: Test, request, test_type: str):
     df_config = get_df_config(df)
     if test_type == "xlsx":
         df_config["source"]["table"] = kwargs["sheet_name"]
-    if test_type == "mssql":
+    if test_type in ("mssql", "sqlite"):
         df_config["source"]["table"] = test_name
         df_config["source"]["url"] = test_url
     # df_config["source"]["url"] = f"*.{extension}"
@@ -273,13 +275,11 @@ def round_trip_file(test_case: Test, request, test_type: str):
     logger.info(df.dtypes)
     logger.info(df)
 
-    if test_type == "csv":
+    if test_type in ("mssql", "sqlite", "csv"):
         df2 = staged_frames[test_name]
     elif test_type == "xlsx":
         df2 = staged_frames[kwargs["sheet_name"]]
         # logger.info(kwargs["sheet_name"])
-    elif test_type == "mssql":
-        df2 = staged_frames[test_name]
 
     # assert True
 
@@ -339,7 +339,11 @@ class TestExcel:
     pass
 
 
-class TestMssql:
+class TestMSSQL:
+    pass
+
+
+class TestSQLite:
     pass
 
 
@@ -385,10 +389,17 @@ for class_name, get_frames_func in test_classes.items():
     )
 
     setattr(
-        TestMssql,
+        TestMSSQL,
         class_name,
         create_test_class_file(
-            get_frames_func, class_name, get_1r1c_tests_mssql, "mssql"
+            get_frames_func, class_name, get_1r1c_tests_sql, "mssql"
         ),
     )
-    # setattr(TestMssql, class_name, create_test_class_mssql(func, class_name))
+
+    setattr(
+        TestSQLite,
+        class_name,
+        create_test_class_file(
+            get_frames_func, class_name, get_1r1c_tests_sql, "sqlite"
+        ),
+    )
