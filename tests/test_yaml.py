@@ -1,7 +1,6 @@
 import pandas as pd
 import collections
 import pytest
-
 import yaml
 
 # import sqlite3
@@ -15,6 +14,9 @@ from eel.path import get_config_default
 
 import logging
 
+from faker import Faker
+import random
+import datacompy as dc
 
 Test = collections.namedtuple("Test", ["name", "df", "kwargs"])
 
@@ -122,6 +124,62 @@ def get_atomic_number_frames():
         for num_type in [pd.Float64Dtype, pd.Int64Dtype]
         for num_val in [-1, 0, 1, None]
     }
+
+    return res
+
+
+def get_faker_frames():
+
+    # Create a Faker instance
+    fake = Faker()
+
+    # Set the seed for reproducibility
+    fake.seed_instance(1)
+
+    # Function to randomly return a value or None
+    def occasionally_null(value, null_probability=0.1):
+        return value if random.random() > null_probability else None
+
+    number_of_rows = 10000
+
+    # Generate sample data
+    data = {
+        "id": [
+            occasionally_null(fake.unique.random_int(min=1, max=1000000))
+            for _ in range(number_of_rows)
+        ],
+        "name": [occasionally_null(fake.name()) for _ in range(number_of_rows)],
+        "email": [occasionally_null(fake.email()) for _ in range(number_of_rows)],
+        "address": [occasionally_null(fake.address()) for _ in range(number_of_rows)],
+        "hired_at_date": [
+            occasionally_null(fake.date()) for _ in range(number_of_rows)
+        ],
+        "is_active": [fake.boolean() for _ in range(number_of_rows)],
+        "salary": [
+            occasionally_null(
+                fake.pyfloat(
+                    left_digits=6,
+                    right_digits=2,
+                    positive=True,
+                    min_value=60000.0,
+                    max_value=600000.0,
+                )
+            )
+            for _ in range(number_of_rows)
+        ],
+    }
+
+    # Define the desired data types
+    data_types = {
+        "id": pd.Int64Dtype.name,  # Nullable integer type
+        "salary": pd.Float64Dtype.name,  # Nullable float type
+        # "is_active": pd.BooleanDtype.name,  # Nullable boolean type
+    }
+
+    # Create a DataFrame with specified data types
+    df = pd.DataFrame(data).astype(data_types)
+
+    res = {"FakeEmployee10": df}
 
     return res
 
@@ -283,11 +341,12 @@ def round_trip_file(test_case: Test, request, test_type: str):
 
     # assert True
 
-    logger.info(df2.dtypes)
-    logger.info(df2)
-    logger.info(df.dtypes)
-    logger.info(df)
-
+    compare = dc.Compare(df, df2, on_index=True)
+    # logger.info(df2.dtypes)
+    # logger.info(df2)
+    # logger.info(df.dtypes)
+    # logger.info(df)
+    logger.info(compare.report())
     assert df.equals(df2)
 
     os.remove(test_eel)
@@ -350,6 +409,7 @@ class TestSQLite:
 test_classes = {
     "TestString": get_atomic_string_frames,
     "TestNumber": get_atomic_number_frames,
+    "TestFaker": get_faker_frames,
     # bools are rare in datasets + pandas has a bug with them
     # "TestBool": get_atomic_bool_frames,
 }
