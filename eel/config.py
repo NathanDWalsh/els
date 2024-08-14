@@ -253,6 +253,14 @@ class ReadExcel(BaseModel, extra="allow"):
     names: Optional[list] = None
 
 
+class ReadFwf(BaseModel, extra="allow"):
+    names: Optional[list] = None
+
+
+class ReadXml(BaseModel, extra="allow"):
+    pass
+
+
 class Source(Frame, extra="forbid"):
     # _parent: 'Config' = None
 
@@ -270,6 +278,8 @@ class Source(Frame, extra="forbid"):
     dtype: Optional[dict] = None
     read_csv: Optional[ReadCsv] = None
     read_excel: Optional[ReadExcel] = None
+    read_fwf: Optional[ReadFwf] = None
+    read_xml: Optional[ReadXml] = None
 
 
 class AddColumns(BaseModel, extra="allow"):

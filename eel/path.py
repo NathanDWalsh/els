@@ -41,6 +41,8 @@ class FileType(Enum):
     EXCEL = "excel"
     CSV = "csv"
     EEL = "eel"
+    FWF = "fixed width file"
+    XML = "xml"
 
     @classmethod
     def suffix_to_type(cls, extension: str):
@@ -54,6 +56,8 @@ class FileType(Enum):
             # TODO: handle double extension eel.yml
             # for now assumes any yml file is an eel config
             "yml": cls.EEL,
+            "fwf": cls.FWF,
+            "xml": cls.XML,
         }
         return mapping.get(extension.lower().strip("."), None)
 
@@ -105,7 +109,9 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             if self.is_dir():
                 self.spawn_config_children()
 
-        if self.is_dir() and spawn_children and not self.has_leaf_table:
+        if (self.is_dir() and spawn_children and not self.has_leaf_table) or (
+            self in self.siblings
+        ):
             # do not add dirs with no leaf nodes which are tables
             # TODO this could be changed to search for config files instead ...
             # ... making debugging faulty config files easier
@@ -205,6 +211,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                     self.children
                 ):  # a directory or an explicit config file
                     self.__class__(subpath, parent=self, spawn_children=True)
+
             else:
                 logging.warning(f"Invalid path not added to tree: {str(subpath)}")
 
@@ -864,7 +871,7 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
     # raise Exception()
     if source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
         return get_sheet_names(source.url)
-    elif source.type in (".csv", ".tsv"):
+    elif source.type in (".csv", ".tsv", ".fwf", ".xml"):
         # return root file name without path and suffix
         res = [Path(source.url).stem]
         return res

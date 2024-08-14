@@ -426,6 +426,16 @@ def pull_excel(file, **kwargs):
     return df
 
 
+def pull_fwf(file, **kwargs):
+    df = pd.read_fwf(file, **kwargs)
+    return df
+
+
+def pull_xml(file, **kwargs):
+    df = pd.read_xml(file, **kwargs)
+    return df
+
+
 def get_source_kwargs(read_x, frame: ec.Source, nrows: Optional[int] = None):
     kwargs = {}
     if read_x:
@@ -564,7 +574,24 @@ def pull_frame(
                 add_cols[k] = get_excel_sheet_row(file, frame.sheet_name, row)[col]
 
         df = pull_excel(file, **kwargs)
+    elif frame.type == ".fwf":
+        if isinstance(frame, ec.Source):
+            kwargs = get_source_kwargs(frame.read_fwf, frame, nrows)
+        else:
+            kwargs = {}
 
+        df = pull_fwf(frame.url, **kwargs)
+    elif frame.type == ".xml":
+        if isinstance(frame, ec.Source):
+            kwargs = get_source_kwargs(frame.read_xml, frame)
+        else:
+            kwargs = {}
+        if "nrows" in kwargs:
+
+            kwargs.pop("nrows")
+        df = pull_xml(frame.url, **kwargs)
+        if nrows:
+            df = df.head(nrows)
     elif frame.type in ("pandas"):
         if frame.table in staged_frames.keys():
             df = staged_frames[frame.table]
