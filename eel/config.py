@@ -169,7 +169,7 @@ class Frame(BaseModel):
 
     @property
     def sheet_name(self):
-        if self.type in (".xlsx", ".xls"):
+        if self.type in (".xlsx", ".xls", ".xlsb", ".xlsm"):
             return self.table
         else:
             return None

@@ -111,6 +111,26 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             # ... making debugging faulty config files easier
             # pass
             self.parent = None
+
+        # if (
+        #     spawn_children
+        #     and self.is_file()
+        #     and not self.is_config_file()
+        #     and len(self.children) == 0
+        # ):
+        #     # print(self.parent.parent._config.model_dump(exclude_none=True))
+        #     # print(self.parent._config)
+        #     # print(self._config)
+        #     # print(self.config.model_dump(exclude_none=True))
+        #     # raise Exception()
+
+        #     tables = get_content_leaf_names(self.config.source)
+        #     for table in tables:
+        #         ContentAwarePath(
+        #             self / table, parent=self, config={"source": {"table": table}}
+        #         )
+        # raise Exception(self.children)
+
         # else:
         #     self.parent = parent
 
@@ -151,13 +171,14 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             ):
                 source_table = self.parent.config.source.table
             else:
-                source_table = None
+                # raise Exception()
+                source_table = "_leaf_name"
             if source_table:
                 if last_url == "":
                     raise Exception("expected to have a url for child config doc")
                 # print(f"table: {source['table']}")
                 if source_table == "_leaf_name":
-                    source_table = get_content_leaf_names2(url_parent.config.source)[0]
+                    source_table = get_content_leaf_names(url_parent.config.source)[0]
                 # print(f"self / last_url / table: {self} / {last_url} / {table}")
                 # ContentAwarePath(self / last_url / table, parent=url_parent, config=doc)
                 ContentAwarePath(
@@ -371,12 +392,26 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                             raise Exception(
                                 f"adjacent config {self} has url: {yml[0]['source']['url']} different than its adjacent data file: {adjacent_file_path}"
                             )
+                    elif len(yml) == 1:
+                        # raise Exception(yml[0].keys())
+                        if "source" in yml[0].keys():
+                            yml[0]["source"]["url"] = str(adjacent_file_path)
+                            # tables = get_content_leaf_names(
+                            #     ec.Source(url=str(adjacent_file_path))
+                            # )
+                            # if len(tables) == 1:
+                            #     yml[0]["source"]["table"] = tables[0]
+
+                        res += yml
+
                     else:
                         res.append({"source": {"url": str(adjacent_file_path)}})
+
                         res += yml
+                        # raise Exception(self)
                 else:
                     res.append({"source": {"url": str(adjacent_file_path)}})
-                    tables = get_content_leaf_names2(
+                    tables = get_content_leaf_names(
                         ec.Source(url=str(adjacent_file_path))
                     )
                     for table in tables:
@@ -393,6 +428,8 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             elif self.exists():
                 yml = get_yml_docs(self)
                 res += yml
+                # raise Exception()
+
         return res
 
     def get_paired_config(self) -> dict:
@@ -535,21 +572,21 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         if self.config.source.url:
             return [self.config.source.url]
 
-    def get_content_leaf_names(self) -> list[str]:
-        if self.config.source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
-            return get_sheet_names(str(self))
-        # elif self.suffix == ".zip":
-        #     return get_zip_files(str(self))
-        elif (
-            self.is_config_file() and self.config.source.type == "pandas"
-        ):  # and self._config.type =='mssql'
-            # return get_db_tables
-            # pass  # TODO
-            return list(ee.staged_frames)
-        elif self.is_config_file():
-            return []
-        else:
-            return [self.stem]
+    # def get_content_leaf_names(self) -> list[str]:
+    #     if self.config.source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
+    #         return get_sheet_names(str(self))
+    #     # elif self.suffix == ".zip":
+    #     #     return get_zip_files(str(self))
+    #     elif (
+    #         self.is_config_file() and self.config.source.type == "pandas"
+    #     ):  # and self._config.type =='mssql'
+    #         # return get_db_tables
+    #         # pass  # TODO
+    #         return list(ee.staged_frames)
+    #     elif self.is_config_file():
+    #         return []
+    #     else:
+    #         return [self.stem]
 
     def is_hidden(self) -> bool:
         """Check if the given Path object is hidden."""
@@ -625,6 +662,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
             return data
 
+        # raise Exception(self.leaves)
         data = [
             leaf_to_dict(leaf)
             for leaf in self.leaves
@@ -658,6 +696,9 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     def get_ingest_taskflow(self) -> ef.EelFlow:
         df = self.get_leaf_df
         root_flow = ef.EelFlow()
+        # raise Exception(df.columns)
+        if "table" not in df.columns:
+            raise Exception("table column not found in leaf dataframe")
         for table, table_gb in df.groupby("table", dropna=False):
             file_group_wrapper = ef.EelFileGroupWrapper(
                 parent=root_flow, name=str(table), exec_parallel=False
@@ -819,11 +860,14 @@ def config_path_valid(path: ContentAwarePath) -> bool:
     return False
 
 
-def get_content_leaf_names2(source: ec.Source) -> list[str]:
+def get_content_leaf_names(source: ec.Source) -> list[str]:
+    # raise Exception()
     if source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
         return get_sheet_names(source.url)
     elif source.type in (".csv", ".tsv"):
-        return [source.url.removesuffix(source.type)]
+        # return root file name without path and suffix
+        res = [Path(source.url).stem]
+        return res
     # elif self.suffix == ".zip":
     #     return get_zip_files(str(self))
     elif source.type == "pandas":  # and self._config.type =='mssql'

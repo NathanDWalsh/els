@@ -409,7 +409,11 @@ def get_sql_data_type(dtype):
 def pull_csv(file, clean_last_column, **kwargs):
     df = pd.read_csv(file, **kwargs)
     # check if last column is unnamed
-    if clean_last_column and df.columns[-1].startswith("Unnamed"):
+    if (
+        clean_last_column
+        and isinstance(df.columns[-1], str)
+        and df.columns[-1].startswith("Unnamed")
+    ):
         # check if the last column is all null
         if df[df.columns[-1]].isnull().all():
             # drop the last column
@@ -427,6 +431,10 @@ def get_source_kwargs(read_x, frame: ec.Source, nrows: Optional[int] = None):
     if read_x:
         kwargs = read_x.model_dump(exclude_none=True)
 
+    for k, v in kwargs.items():
+        if v == "None":
+            kwargs[k] = None
+
     root_kwargs = (
         "nrows",
         "dtype",
@@ -439,6 +447,7 @@ def get_source_kwargs(read_x, frame: ec.Source, nrows: Optional[int] = None):
     for k in root_kwargs:
         if hasattr(frame, k) and getattr(frame, k):
             kwargs[k] = getattr(frame, k)
+
     if nrows:
         kwargs["nrows"] = nrows
 

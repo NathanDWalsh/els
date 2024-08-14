@@ -128,6 +128,7 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
         # print(root_path.absolute())
         # raise Exception(path_.absolute())
         if config_path_valid(path_):
+            # raise Exception()
             if index < len(root_paths) - 1:  # For all items except the last one
                 ca_path = CAPath(path_, parent=parent)
                 parent = ca_path
@@ -137,6 +138,7 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
             #     )  # Assuming you want to call grow_branches for the last item
             else:
                 ca_path = CAPath(path_, parent=parent, spawn_children=True)
+                # raise Exception(ca_path.children[0].children[0].children)
         else:
             raise Exception("Invalid file in explicit path: " + str(path_))
         # print(ca_path.config.model_dump(exclude_none=True))
