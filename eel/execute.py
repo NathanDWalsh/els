@@ -54,19 +54,32 @@ def push_sql(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool
     if not target.table:
         raise Exception("invalid to_sql")
     kwargs = {}
-    # if target.type in ("mssql"):
-    #     kwargs["fast_executemany"] = True
+    if target.type in ("mssql"):
+        kwargs["fast_executemany"] = True
     with sa.create_engine(target.db_connection_string, **kwargs).connect() as sqeng:
         if target.to_sql:
             kwargs = target.to_sql.model_dump()
         else:
             kwargs = {}
+        # for col in source_df.columns:
+        #     new_df = source_df[col]
+        #     new_df.to_sql(
+        #         target.table,
+        #         sqeng,
+        #         schema=target.dbschema,
+        #         index=False,
+        #         if_exists="append",
+        #         chunksize=1000,
+        #         **kwargs,
+        #     )
+        #     sqeng.connection.commit()
         source_df.to_sql(
             target.table,
             sqeng,
             schema=target.dbschema,
             index=False,
             if_exists="append",
+            chunksize=1000,
             **kwargs,
         )
         sqeng.connection.commit()

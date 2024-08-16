@@ -708,7 +708,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             raise Exception("table column not found in leaf dataframe")
         for table, table_gb in df.groupby("table", dropna=False):
             file_group_wrapper = ef.EelFileGroupWrapper(
-                parent=root_flow, name=str(table), exec_parallel=False
+                parent=root_flow, name=str(table)
             )
             ContentAwarePath.apply_file_wrappers(
                 parent=file_group_wrapper, df=table_gb, execute_fn=ee.ingest

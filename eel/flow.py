@@ -119,10 +119,9 @@ class EelXlsxWrapper(EelFileWrapper):
 
 # groups files together that share a common target frame so that target can be built once
 class EelFileGroupWrapper(FlowNodeMixin, SerialNodeMixin):
-    def __init__(self, parent: FlowNodeMixin, name: str, exec_parallel: bool) -> None:
+    def __init__(self, parent: FlowNodeMixin, name: str) -> None:
         self.parent = parent
         self.name = f"{name} (EelFileGroupWrapper)"
-        self.exec_parallel = exec_parallel
 
     def execute(self):
         flow_child = self.children[0]
