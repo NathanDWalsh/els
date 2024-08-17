@@ -152,7 +152,11 @@ class Frame(BaseModel):
         if not self.url:
             return "pandas"
         elif self.url_scheme == "file":
-            return os.path.splitext(self.url)[-1]
+            ext = os.path.splitext(self.url)[-1]
+            if ext in (".txt"):
+                return ".csv"
+            else:
+                return ext
         else:
             return self.url_scheme
 
