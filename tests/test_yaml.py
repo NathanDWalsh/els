@@ -140,7 +140,7 @@ def get_faker_frames():
     def occasionally_null(value, null_probability=0.1):
         return value if random.random() > null_probability else None
 
-    number_of_rows = 100
+    number_of_rows = 10000
 
     # Generate sample data
     data = {

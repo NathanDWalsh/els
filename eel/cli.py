@@ -128,8 +128,8 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
         # print(root_path.absolute())
         # raise Exception(path_.absolute())
         if config_path_valid(path_):
-            # raise Exception()
-            if index < len(root_paths) - 1:  # For all items except the last one
+            # For all items except the last one
+            if index < len(root_paths) - 1:
                 ca_path = CAPath(path_, parent=parent)
                 parent = ca_path
             # else:  # For the last item
@@ -549,6 +549,11 @@ def new(
 def root():
     root = find_root_paths()
     print(root[-1])
+
+
+@app.command()
+def version():
+    print("0.0.3")
 
 
 def main():

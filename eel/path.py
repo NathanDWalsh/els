@@ -180,6 +180,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 # raise Exception()
                 source_table = "_leaf_name"
             if source_table:
+                # raise Exception()
                 if last_url == "":
                     raise Exception("expected to have a url for child config doc")
                 # print(f"table: {source['table']}")
@@ -195,22 +196,26 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def spawn_config_children(self):
         for subpath in self.glob("*"):
+            # ensure not dir config nor root config
             if subpath.name in (
                 get_folder_config_name(),
                 get_root_config_name(),
             ):
                 pass
             elif config_path_valid(subpath):
+                # raise Exception()
                 if (
                     not subpath.is_dir() and not subpath.is_config_file()
                 ):  # an implicit config
-                    self.__class__(
-                        str(subpath) + CONFIG_FILE_EXT, parent=self, spawn_children=True
+                    ContentAwarePath(
+                        str(subpath) + CONFIG_FILE_EXT,
+                        parent=self,
+                        spawn_children=True,
                     )
                 elif subpath not in (
                     self.children
                 ):  # a directory or an explicit config file
-                    self.__class__(subpath, parent=self, spawn_children=True)
+                    ContentAwarePath(subpath, parent=self, spawn_children=True)
 
             else:
                 logging.warning(f"Invalid path not added to tree: {str(subpath)}")
@@ -391,7 +396,9 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             adjacent_file_path = Path(str(self).replace(CONFIG_FILE_EXT, ""))
             if adjacent_file_path.is_file():
                 if self.exists():
+                    # raise Exception()
                     yml = get_yml_docs(self)
+
                     if "source" in yml[0] and "url" in yml[0]["source"]:
                         if yml[0]["source"]["url"] == str(adjacent_file_path):
                             res += yml
@@ -408,6 +415,8 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                             # )
                             # if len(tables) == 1:
                             #     yml[0]["source"]["table"] = tables[0]
+                        else:
+                            yml[0]["source"] = {"url": str(adjacent_file_path)}
 
                         res += yml
 
@@ -441,6 +450,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def get_paired_config(self) -> dict:
         paired_configs = self.get_paired_configs()
+        # return ContentAwarePath.merge_configs(*paired_configs)
         if self.is_dir():
             if len(paired_configs) > 0:
                 return ContentAwarePath.merge_configs(*paired_configs)
