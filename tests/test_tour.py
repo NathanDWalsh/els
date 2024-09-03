@@ -1,7 +1,7 @@
 import subprocess
 
 
-def test_eel_tree(tmp_path, capsys):
+def test_eel_tree(tmp_path):
     subprocess.run(["pwsh", "D:\\Sync\\repos\\eel\\tests\\docs\\generate_example.ps1"])
 
     result = subprocess.run(
