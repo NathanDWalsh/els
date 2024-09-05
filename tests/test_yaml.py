@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Create a file handler
-handler = logging.FileHandler("d:\\Sync\\repos\\eel\\temp\\running_log.log")
+handler = logging.FileHandler(os.path.join(".", "temp", "running_log.log"))
 handler.setLevel(logging.INFO)
 
 # Create a logging format

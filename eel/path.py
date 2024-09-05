@@ -384,11 +384,11 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         res = []
         if self.is_dir():
             if self.is_root:
-                config_path = self / get_root_config_name()
+                config_path = Path(self) / get_root_config_name()
                 if config_path.exists():
                     ymls = get_yml_docs(config_path, expected=1)
                     res.append(ymls[0])
-            config_path = self / get_folder_config_name()
+            config_path = Path(self) / get_folder_config_name()
             if config_path.exists():
                 ymls = get_yml_docs(config_path, expected=1)
                 res.append(ymls[0])
@@ -542,7 +542,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             NodeMixin.parent.fset(self, value)
 
     @property
-    def root(self):
+    def root_node(self):
         if NodeMixin.root.fget:
             return NodeMixin.root.fget(self)
         else:
