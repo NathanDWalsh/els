@@ -165,6 +165,7 @@ cython_debug/
 
 /temp
 tests/docs/running_example.md
+.DS_Store
 eel/sandbox.ipynb
 eel/test.txt
 eel/test.zip
