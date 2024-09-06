@@ -69,6 +69,22 @@ def get_folder_config_name():
 def get_root_config_name():
     return ROOT_CONFIG_FILE_STEM + CONFIG_FILE_EXT
 
+class CAP2(Path):
+    # pass
+    # # pass
+    # _flavour = type(Path())._flavour  # type: ignore
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    # def __new__(cls, *pathsegments):
+    #     return super().__new__(cls, *pathsegments)
+
+    # def __init__(self,*args,**kwargs):
+    #     super().__init__(self,*args,**kwargs)
+
+    # def with_segments(self, *pathsegments):
+    #     return type(self)(*pathsegments)
 
 class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     _flavour = type(Path())._flavour  # type: ignore
@@ -542,7 +558,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             NodeMixin.parent.fset(self, value)
 
     @property
-    def root(self):
+    def root_node(self):
         if NodeMixin.root.fget:
             return NodeMixin.root.fget(self)
         else:

@@ -145,7 +145,7 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
         # print(ca_path.config.children)
         # if str(ca_path) != ".":
     logging.info("Tree Created")
-    root = parent.root if parent else ca_path
+    root = parent.root_node if parent else ca_path
     if root.is_leaf and root.is_dir():
         logging.error("Root is an empty directory")
     return root
