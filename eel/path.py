@@ -92,15 +92,19 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     def __init__(
         self,
         *args,
-        parent: Optional[Self] = None,
-        spawn_children: Optional[bool] = False,
-        config: dict = None,
+        # parent: Optional[Self] = None,
+        # spawn_children: Optional[bool] = False,
+        # config: dict = None,
         **kwargs,
     ):
-        # if self.is_file() and not self.is_config_file()
+        pass
+        # self.parent = parent
 
-        self.parent = parent
-
+    def process_configs(
+        self,
+        spawn_children: Optional[bool] = False,
+        config: dict = None,
+    ):
         if self.is_dir() or self.is_config_file():
             if config:
                 raise Exception(
@@ -113,9 +117,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             elif self.is_config_file:
 
                 self._config = {}
-                # print(f"spawning {self}")
                 self.spawn_document_children(paired_config)
-                # print(f"fininshed spawning {self}")
         elif not config:
             raise Exception("should pass explicit config for urls and tables")
         else:
@@ -134,31 +136,6 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             # pass
             self.parent = None
 
-        # if (
-        #     spawn_children
-        #     and self.is_file()
-        #     and not self.is_config_file()
-        #     and len(self.children) == 0
-        # ):
-        #     # print(self.parent.parent._config.model_dump(exclude_none=True))
-        #     # print(self.parent._config)
-        #     # print(self._config)
-        #     # print(self.config.model_dump(exclude_none=True))
-        #     # raise Exception()
-
-        #     tables = get_content_leaf_names(self.config.source)
-        #     for table in tables:
-        #         ContentAwarePath(
-        #             self / table, parent=self, config={"source": {"table": table}}
-        #         )
-        # raise Exception(self.children)
-
-        # else:
-        #     self.parent = parent
-
-        # print(self)
-        # print(self.children)
-
     def spawn_document_children(self, config_docs):
         last_url = ""
         for doc in config_docs:
@@ -174,7 +151,9 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 last_url = source["url"]
                 # print(f"data url: {last_url}")
                 # url_parent = ContentAwarePath(self / last_url, parent=self, config=doc)
-                url_parent = ContentAwarePath(Path(last_url), parent=self, config=doc)
+                url_parent = ContentAwarePath(Path(last_url))
+                url_parent.parent = self
+                url_parent.process_configs(config=doc)
                 # raise Exception("not implemented")
 
                 # print(f"url parent, child: {self}, {url_parent}")
@@ -204,9 +183,9 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                     source_table = get_content_leaf_names(url_parent.config.source)[0]
                 # print(f"self / last_url / table: {self} / {last_url} / {table}")
                 # ContentAwarePath(self / last_url / table, parent=url_parent, config=doc)
-                ContentAwarePath(
-                    Path(last_url) / source_table, parent=url_parent, config=doc
-                )
+                ca_path = ContentAwarePath(Path(last_url) / source_table)
+                ca_path.parent = url_parent
+                ca_path.process_configs(config=doc)
 
         # print(f"tab parent, child: {url_parent}, {last_table}")
 
@@ -223,15 +202,15 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 if (
                     not subpath.is_dir() and not subpath.is_config_file()
                 ):  # an implicit config
-                    ContentAwarePath(
-                        str(subpath) + CONFIG_FILE_EXT,
-                        parent=self,
-                        spawn_children=True,
-                    )
+                    ca_path = ContentAwarePath(str(subpath) + CONFIG_FILE_EXT)
+                    ca_path.parent = self
+                    ca_path.process_configs(spawn_children=True)
                 elif subpath not in (
                     self.children
                 ):  # a directory or an explicit config file
-                    ContentAwarePath(subpath, parent=self, spawn_children=True)
+                    ca_path = ContentAwarePath(subpath)
+                    ca_path.parent = self
+                    ca_path.process_configs(spawn_children=True)
 
             else:
                 logging.warning(f"Invalid path not added to tree: {str(subpath)}")
@@ -400,11 +379,11 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         res = []
         if self.is_dir():
             if self.is_root:
-                config_path = self / get_root_config_name()
+                config_path = Path(self) / get_root_config_name()
                 if config_path.exists():
                     ymls = get_yml_docs(config_path, expected=1)
                     res.append(ymls[0])
-            config_path = self / get_folder_config_name()
+            config_path = Path(self) / get_folder_config_name()
             if config_path.exists():
                 ymls = get_yml_docs(config_path, expected=1)
                 res.append(ymls[0])
@@ -554,6 +533,14 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     @parent.setter
     def parent(self, value):
+        # if (self.is_dir and not self.has_leaf_table) or (self in self.siblings):
+        #     # do not add dirs with no leaf nodes which are tables
+        #     # TODO this could be changed to search for config files instead ...
+        #     # ... making debugging faulty config files easier
+        #     # pass
+        #     setval = None
+        # else:
+        #     setval = value
         if NodeMixin.parent.fset:
             NodeMixin.parent.fset(self, value)
 
