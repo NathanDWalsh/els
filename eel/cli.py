@@ -14,7 +14,7 @@ import io
 from pathlib import Path
 from typing import Union, Optional
 
-from eel.path import ContentAwarePath as CAPath
+from eel.path import ContentAwarePath
 from eel.path import get_root_config_name
 from eel.path import get_folder_config_name
 
@@ -37,7 +37,7 @@ def start_logging():
     logging.info("Getting Started")
 
 
-def find_root_paths(path: str = None) -> list[Union[CAPath, None]]:
+def find_root_paths(path: str = None) -> list[Union[Path, None]]:
     if path:
         path_arg = Path(path)
     else:
@@ -58,7 +58,7 @@ def find_root_paths(path: str = None) -> list[Union[CAPath, None]]:
     return paths_to_root
 
 
-def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath], None]:
+def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[Path], None]:
     dirs = []
     current_dir = start_dir.absolute()
     file_found = False
@@ -83,7 +83,7 @@ def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath]
         glob_pattern = "**/*" + target_file
         below = sorted(start_dir.glob(glob_pattern))
         if len(below) > 0:
-            return [CAPath(below[0].parent.absolute())]
+            return [Path(below[0].parent.absolute())]
         else:
             logging.info(f"eel root not found, using {start_dir}")
             if (
@@ -101,7 +101,7 @@ def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[CAPath]
                 return [start_dir]
 
 
-def plant_tree(path: CAPath) -> Optional[CAPath]:
+def plant_tree(path: ContentAwarePath) -> Optional[ContentAwarePath]:
 
     root_paths = list(reversed(find_root_paths(str(path))))
     root_path = Path(root_paths[0])
@@ -130,14 +130,18 @@ def plant_tree(path: CAPath) -> Optional[CAPath]:
         if config_path_valid(path_):
             # For all items except the last one
             if index < len(root_paths) - 1:
-                ca_path = CAPath(path_, parent=parent)
+                ca_path = ContentAwarePath(path_)
+                ca_path.parent = parent
+                ca_path.process_configs()
                 parent = ca_path
             # else:  # For the last item
             #     parent = grow_branches(
             #         path_, parent=parent
             #     )  # Assuming you want to call grow_branches for the last item
             else:
-                ca_path = CAPath(path_, parent=parent, spawn_children=True)
+                ca_path = ContentAwarePath(path_)
+                ca_path.parent = parent
+                ca_path.process_configs(spawn_children=True)
                 # raise Exception(ca_path.children[0].children[0].children)
         else:
             raise Exception("Invalid file in explicit path: " + str(path_))
