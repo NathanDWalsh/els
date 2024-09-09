@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 # import zipfile
@@ -71,22 +72,26 @@ def get_root_config_name():
 
 
 class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
-    _flavour = type(Path())._flavour  # type: ignore
+    if sys.version_info < (3, 12):
+        _flavour = type(Path())._flavour  # type: ignore
 
     def __init__(
         self,
         *args,
-        # parent: Optional[Self] = None,
-        # spawn_children: Optional[bool] = False,
-        # config: dict = None,
         **kwargs,
     ):
-        pass
+        if sys.version_info < (3, 12):
+            pass
+        else:
+            super().__init__(*args, **kwargs)
         # self.parent = parent
 
-    def process_configs(
+    # from outside, configure_node called in plant_tree() to build:
+    # (1) individual inheritance chain nodes without walking
+    # (2) configuration context node with walking
+    def configure_node(
         self,
-        spawn_children: Optional[bool] = False,
+        walk_dir: Optional[bool] = False,
         config: dict = None,
     ):
         if self.is_dir() or self.is_config_file():
@@ -107,18 +112,21 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
         else:
             self._config = config
 
-        if spawn_children:
-            if self.is_dir():
-                self.spawn_config_children()
+        if walk_dir and self.is_dir():
+            self.grow_dir_branches()
+            if not self.has_leaf_table:
+                # do not add dirs with no leaf nodes which are tables
+                # TODO this could be changed to search for config files instead ...
+                # ... making debugging faulty config files easier
+                self.parent = None
 
-        if (self.is_dir() and spawn_children and not self.has_leaf_table) or (
-            self in self.siblings
-        ):
-            # do not add dirs with no leaf nodes which are tables
-            # TODO this could be changed to search for config files instead ...
-            # ... making debugging faulty config files easier
-            # pass
-            self.parent = None
+        # if self.is_dir() and walk_dir and :
+        #     #     or (
+        #     #     self in self.siblings
+        #     # )
+        #     # do not add dirs with no leaf nodes which are tables
+        #     # TODO this could be changed to search for config files instead ...
+        #     # ... making debugging faulty config files easier
 
     def spawn_document_children(self, config_docs):
         last_url = ""
@@ -137,7 +145,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 # url_parent = ContentAwarePath(self / last_url, parent=self, config=doc)
                 url_parent = ContentAwarePath(Path(last_url))
                 url_parent.parent = self
-                url_parent.process_configs(config=doc)
+                url_parent.configure_node(config=doc)
                 # raise Exception("not implemented")
 
                 # print(f"url parent, child: {self}, {url_parent}")
@@ -158,22 +166,24 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             else:
                 # raise Exception()
                 source_table = "_leaf_name"
-            if source_table:
-                # raise Exception()
-                if last_url == "":
-                    raise Exception("expected to have a url for child config doc")
-                # print(f"table: {source['table']}")
-                if source_table == "_leaf_name":
-                    source_table = get_content_leaf_names(url_parent.config.source)[0]
-                # print(f"self / last_url / table: {self} / {last_url} / {table}")
-                # ContentAwarePath(self / last_url / table, parent=url_parent, config=doc)
-                ca_path = ContentAwarePath(Path(last_url) / source_table)
-                ca_path.parent = url_parent
-                ca_path.process_configs(config=doc)
+
+            # raise Exception()
+            if last_url == "":
+                raise Exception("expected to have a url for child config doc")
+            # print(f"table: {source['table']}")
+            if source_table == "_leaf_name":
+                source_table = get_content_leaf_names(url_parent.config.source)[0]
+            # print(f"self / last_url / table: {self} / {last_url} / {table}")
+            # ContentAwarePath(self / last_url / table, parent=url_parent, config=doc)
+            ca_path = ContentAwarePath(Path(last_url) / source_table)
+            ca_path.parent = url_parent
+            # raise Exception(self.children)
+            ca_path.configure_node(config=doc)
+            # raise Exception(self.children[0].children)
 
         # print(f"tab parent, child: {url_parent}, {last_table}")
 
-    def spawn_config_children(self):
+    def grow_dir_branches(self):
         for subpath in self.glob("*"):
             # ensure not dir config nor root config
             if subpath.name in (
@@ -188,13 +198,14 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 ):  # an implicit config
                     ca_path = ContentAwarePath(str(subpath) + CONFIG_FILE_EXT)
                     ca_path.parent = self
-                    ca_path.process_configs(spawn_children=True)
+                    ca_path.configure_node()
                 elif subpath not in (
+                    # ensure paired configs are not double counted
                     self.children
                 ):  # a directory or an explicit config file
                     ca_path = ContentAwarePath(subpath)
                     ca_path.parent = self
-                    ca_path.process_configs(spawn_children=True)
+                    ca_path.configure_node(walk_dir=True)
 
             else:
                 logging.warning(f"Invalid path not added to tree: {str(subpath)}")
@@ -405,10 +416,12 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                         res += yml
                         # raise Exception(self)
                 else:
-                    res.append({"source": {"url": str(adjacent_file_path)}})
+                    # assign source url and table config for each content leaf
+                    # res.append({"source": {"url": str(adjacent_file_path)}})
                     tables = get_content_leaf_names(
                         ec.Source(url=str(adjacent_file_path))
                     )
+                    # raise Exception()
                     for table in tables:
                         if (
                             not self.parent
@@ -417,7 +430,15 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                             or not self.parent.config.source.table
                             or table == self.parent.config.source.table
                         ):
-                            res.append({"source": {"table": table}})
+                            # res.append({"source": {"table": table}})
+                            res.append(
+                                {
+                                    "source": {
+                                        "url": str(adjacent_file_path),
+                                        "table": table,
+                                    }
+                                }
+                            )
                         # raise Exception(self.parent.config)
 
             elif self.exists():

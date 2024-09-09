@@ -1,6 +1,7 @@
 import tempfile
 import os
 import pytest
+import sys
 from eel.cli import tree
 from pathlib import Path
 
@@ -48,7 +49,14 @@ def test_tree(
         else dir_table if dir_config else root_table if root_config else default_table
     )
 
-    with tempfile.TemporaryDirectory() as tmpdirname:
+    kwargs = {}
+    kwargs["dir"] = Path("D:\\Sync\\repos\\eel") / "temp"
+    if sys.version_info < (3, 12):
+        pass
+    else:
+        kwargs["delete"] = False
+
+    with tempfile.TemporaryDirectory(**kwargs) as tmpdirname:
         os.chdir(tmpdirname)
         # create a dummy csv file
         os.mkdir(configdir)

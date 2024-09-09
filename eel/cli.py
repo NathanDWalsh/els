@@ -17,9 +17,6 @@ from typing import Union, Optional
 from eel.path import ContentAwarePath
 from eel.path import get_root_config_name
 from eel.path import get_folder_config_name
-
-# from eel.path import grow_branches
-# from eel.path import get_config_default
 from eel.path import config_path_valid
 from eel.path import CONFIG_FILE_EXT
 
@@ -105,49 +102,32 @@ def plant_tree(path: ContentAwarePath) -> Optional[ContentAwarePath]:
 
     root_paths = list(reversed(find_root_paths(str(path))))
     root_path = Path(root_paths[0])
-    # print(root_paths[0].absolute())
     if root_path.is_dir():
-        # print(root_path.absolute())
         os.chdir(root_path)
+        # TODO: understand this better
         # seemingly redundant lines below fix strange bug when passing a directory as an
         # argument it got duplicated in the path, i.e. /foo/bar/bar when just /foo/bar
         # expected
         root_path = Path()
         root_paths[0] = Path()
-        # print(root_path.absolute())
-        # print(root_paths[0].absolute())
     else:
         os.chdir(root_path.parent)
-        # print(2)
-    # print(root_paths)
-    # raise Exception(root_path.absolute())
-    # print(root_paths[0].absolute())
     parent = None
-    # raise Exception(root_path.absolute())
     for index, path_ in enumerate(root_paths):
-        # print(root_path.absolute())
-        # raise Exception(path_.absolute())
         if config_path_valid(path_):
-            # For all items except the last one
+            ca_path = ContentAwarePath(path_)
+            ca_path.parent = parent
+            # for the nodes in-between context and root, don't walk_dir
             if index < len(root_paths) - 1:
-                ca_path = ContentAwarePath(path_)
-                ca_path.parent = parent
-                ca_path.process_configs()
+                ca_path.configure_node()
                 parent = ca_path
-            # else:  # For the last item
-            #     parent = grow_branches(
-            #         path_, parent=parent
-            #     )  # Assuming you want to call grow_branches for the last item
-            else:
-                ca_path = ContentAwarePath(path_)
-                ca_path.parent = parent
-                ca_path.process_configs(spawn_children=True)
+            else:  # For the last item always process configs
+                # ca_path = ContentAwarePath(path_)
+                # ca_path.parent = parent
+                ca_path.configure_node(walk_dir=True)
                 # raise Exception(ca_path.children[0].children[0].children)
         else:
             raise Exception("Invalid file in explicit path: " + str(path_))
-        # print(ca_path.config.model_dump(exclude_none=True))
-        # print(ca_path.config.children)
-        # if str(ca_path) != ".":
     logging.info("Tree Created")
     root = parent.root_node if parent else ca_path
     if root.is_leaf and root.is_dir():
