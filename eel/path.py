@@ -109,8 +109,11 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                     self.parent = None
 
         elif self.is_config_file:
-            self._config = {}
+            self._config = {"source": {"url": self.adjacent_file_path}}
             self.grow_config_branches()
+
+        else:
+            raise Exception("Unknown node cannot be configured.")
 
     def grow_dir_branches(self):
         for subpath in self.glob("*"):
@@ -140,17 +143,19 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 logging.warning(f"Invalid path not added to tree: {str(subpath)}")
 
     def grow_config_branches(self):
-        last_url = ""
+        previous_url = ""
         for doc in self.paired_config:
             if "source" in doc:
                 source = doc["source"]
             else:
                 source = self.parent.config.source.model_dump(exclude_none=True)
-            if "url" in source and last_url != source["url"]:
-                last_url = source["url"]
-                url_parent = ConfigPath(Path(last_url))
+
+            if "url" in source and previous_url != source["url"]:
+                previous_url = source["url"]
+                url_parent = ConfigPath(Path(previous_url))
                 url_parent.parent = self
                 url_parent._config = doc
+
             if "table" in source:
                 source_table = source["table"]
             elif (
@@ -162,14 +167,15 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 and self.parent.config.source.table
             ):
                 source_table = self.parent.config.source.table
-            else:
+            elif self.node_type == NodeType.CONFIG_ADJACENT:
                 source_table = "_leaf_name"
 
-            if last_url == "":
+            if previous_url == "":
                 raise Exception("expected to have a url for child config doc")
+
             if source_table == "_leaf_name":
                 source_table = get_content_leaf_names(url_parent.config.source)[0]
-            ca_path = ConfigPath(Path(last_url) / source_table)
+            ca_path = ConfigPath(Path(previous_url) / source_table)
             ca_path.parent = url_parent
             ca_path._config = doc
 
@@ -527,22 +533,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     def get_url_leaf_names(self) -> list[str]:
         if self.config.source.url:
             return [self.config.source.url]
-
-    # def get_content_leaf_names(self) -> list[str]:
-    #     if self.config.source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
-    #         return get_sheet_names(str(self))
-    #     # elif self.suffix == ".zip":
-    #     #     return get_zip_files(str(self))
-    #     elif (
-    #         self.is_config_file() and self.config.source.type == "pandas"
-    #     ):  # and self._config.type =='mssql'
-    #         # return get_db_tables
-    #         # pass  # TODO
-    #         return list(ee.staged_frames)
-    #     elif self.is_config_file():
-    #         return []
-    #     else:
-    #         return [self.stem]
 
     def is_hidden(self) -> bool:
         """Check if the given Path object is hidden."""
