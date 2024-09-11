@@ -32,6 +32,7 @@ config_dict_type: TypeAlias = dict[str, dict[str, str]]
 class NodeType(Enum):
     CONFIG_DIRECTORY = "config directory"
     CONFIG_EXPLICIT = "explicit config"
+    CONFIG_ADJACENT = "adjacent config"
     CONFIG_VIRTUAL = "virtual config"
     # CONFIG_DOC = "config_doc"
     DATA_URL = "source url"
@@ -63,7 +64,7 @@ class FileType(Enum):
         return mapping.get(extension.lower().strip("."), None)
 
 
-def get_folder_config_name():
+def get_dir_config_name():
     return FOLDER_CONFIG_FILE_STEM + CONFIG_FILE_EXT
 
 
@@ -71,7 +72,8 @@ def get_root_config_name():
     return ROOT_CONFIG_FILE_STEM + CONFIG_FILE_EXT
 
 
-class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
+class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
+    # subclassing pathlib.Path not supported until Python 3.12
     if sys.version_info < (3, 12):
         _flavour = type(Path())._flavour  # type: ignore
 
@@ -86,108 +88,35 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             super().__init__(*args, **kwargs)
         # self.parent = parent
 
-    # from outside, configure_node called in plant_tree() to build:
-    # (1) individual inheritance chain nodes without walking
-    # (2) configuration context node with walking
+    # called in plant_tree() to build:
+    #  (1) individual inheritance chain nodes without walking
+    #  (2) configuration context node with walking
+    # called in grow_dir_branches() to build
+    #  (1) config file nodes
+    #  (2) config dir nodes
     def configure_node(
         self,
         walk_dir: Optional[bool] = False,
-        config: dict = None,
     ):
-        if self.is_dir() or self.is_config_file():
-            if config:
-                raise Exception(
-                    "should not pass explicit config for directories or config files"
-                )
-            paired_config = self.get_paired_config()
 
-            if self.is_dir():
-                self._config = paired_config
-            elif self.is_config_file:
+        if self.is_dir():
+            self._config = self.paired_config
 
-                self._config = {}
-                self.spawn_document_children(paired_config)
-        elif not config:
-            raise Exception("should pass explicit config for urls and tables")
-        else:
-            self._config = config
+            if walk_dir:
+                self.grow_dir_branches()
+                if not self.has_leaf_table:
+                    # do not add dirs with no leaf nodes which are tables
+                    self.parent = None
 
-        if walk_dir and self.is_dir():
-            self.grow_dir_branches()
-            if not self.has_leaf_table:
-                # do not add dirs with no leaf nodes which are tables
-                # TODO this could be changed to search for config files instead ...
-                # ... making debugging faulty config files easier
-                self.parent = None
-
-        # if self.is_dir() and walk_dir and :
-        #     #     or (
-        #     #     self in self.siblings
-        #     # )
-        #     # do not add dirs with no leaf nodes which are tables
-        #     # TODO this could be changed to search for config files instead ...
-        #     # ... making debugging faulty config files easier
-
-    def spawn_document_children(self, config_docs):
-        last_url = ""
-        for doc in config_docs:
-            # print(doc)
-            if "source" in doc:
-                source = doc["source"]
-            else:
-                source = self.parent.config.source.model_dump(exclude_none=True)
-                # raise Exception(
-                #     f"source not found in one of the documents in config {self}"
-                # )
-            if "url" in source and last_url != source["url"]:
-                last_url = source["url"]
-                # print(f"data url: {last_url}")
-                # url_parent = ContentAwarePath(self / last_url, parent=self, config=doc)
-                url_parent = ContentAwarePath(Path(last_url))
-                url_parent.parent = self
-                url_parent.configure_node(config=doc)
-                # raise Exception("not implemented")
-
-                # print(f"url parent, child: {self}, {url_parent}")
-            # print(url_parent.children)
-            # print(self.node_type)
-            # raise Exception("not implemented")
-            if "table" in source:
-                source_table = source["table"]
-            elif (
-                not self.node_type == NodeType.CONFIG_VIRTUAL
-                and not self.is_config_adjacent
-                and self.parent
-                and self.parent.config
-                and self.parent.config.source
-                and self.parent.config.source.table
-            ):
-                source_table = self.parent.config.source.table
-            else:
-                # raise Exception()
-                source_table = "_leaf_name"
-
-            # raise Exception()
-            if last_url == "":
-                raise Exception("expected to have a url for child config doc")
-            # print(f"table: {source['table']}")
-            if source_table == "_leaf_name":
-                source_table = get_content_leaf_names(url_parent.config.source)[0]
-            # print(f"self / last_url / table: {self} / {last_url} / {table}")
-            # ContentAwarePath(self / last_url / table, parent=url_parent, config=doc)
-            ca_path = ContentAwarePath(Path(last_url) / source_table)
-            ca_path.parent = url_parent
-            # raise Exception(self.children)
-            ca_path.configure_node(config=doc)
-            # raise Exception(self.children[0].children)
-
-        # print(f"tab parent, child: {url_parent}, {last_table}")
+        elif self.is_config_file:
+            self._config = {}
+            self.grow_config_branches()
 
     def grow_dir_branches(self):
         for subpath in self.glob("*"):
-            # ensure not dir config nor root config
+            # if dir config or root config then pass
             if subpath.name in (
-                get_folder_config_name(),
+                get_dir_config_name(),
                 get_root_config_name(),
             ):
                 pass
@@ -195,20 +124,54 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 # raise Exception()
                 if (
                     not subpath.is_dir() and not subpath.is_config_file()
-                ):  # an implicit config
-                    ca_path = ContentAwarePath(str(subpath) + CONFIG_FILE_EXT)
-                    ca_path.parent = self
-                    ca_path.configure_node()
+                ):  # an adjecent config
+                    cpath = ConfigPath(str(subpath) + CONFIG_FILE_EXT)
+                    cpath.parent = self
+                    cpath.configure_node()
+                # ensure paired configs are not double counted
                 elif subpath not in (
-                    # ensure paired configs are not double counted
                     self.children
                 ):  # a directory or an explicit config file
-                    ca_path = ContentAwarePath(subpath)
-                    ca_path.parent = self
-                    ca_path.configure_node(walk_dir=True)
+                    cpath = subpath
+                    cpath.parent = self
+                    cpath.configure_node(walk_dir=True)
 
             else:
                 logging.warning(f"Invalid path not added to tree: {str(subpath)}")
+
+    def grow_config_branches(self):
+        last_url = ""
+        for doc in self.paired_config:
+            if "source" in doc:
+                source = doc["source"]
+            else:
+                source = self.parent.config.source.model_dump(exclude_none=True)
+            if "url" in source and last_url != source["url"]:
+                last_url = source["url"]
+                url_parent = ConfigPath(Path(last_url))
+                url_parent.parent = self
+                url_parent._config = doc
+            if "table" in source:
+                source_table = source["table"]
+            elif (
+                not self.node_type == NodeType.CONFIG_VIRTUAL
+                and not self.node_type == NodeType.CONFIG_ADJACENT
+                and self.parent
+                and self.parent.config
+                and self.parent.config.source
+                and self.parent.config.source.table
+            ):
+                source_table = self.parent.config.source.table
+            else:
+                source_table = "_leaf_name"
+
+            if last_url == "":
+                raise Exception("expected to have a url for child config doc")
+            if source_table == "_leaf_name":
+                source_table = get_content_leaf_names(url_parent.config.source)[0]
+            ca_path = ConfigPath(Path(last_url) / source_table)
+            ca_path.parent = url_parent
+            ca_path._config = doc
 
     @property
     def node_type(self) -> NodeType:
@@ -216,7 +179,10 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             return NodeType.CONFIG_DIRECTORY
         elif self.is_config_file():
             if self.is_file():
-                return NodeType.CONFIG_EXPLICIT
+                if Path(str(self).replace(CONFIG_FILE_EXT, "")).is_file():
+                    return NodeType.CONFIG_ADJACENT
+                else:
+                    return NodeType.CONFIG_EXPLICIT
             else:
                 return NodeType.CONFIG_VIRTUAL
         elif self.is_file():
@@ -225,12 +191,6 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             return NodeType.DATA_URL
         else:
             return NodeType.DATA_TABLE
-
-    @property
-    def is_config_adjacent(self) -> bool:
-        if self.node_type == NodeType.CONFIG_EXPLICIT:
-            return Path(str(self).replace(CONFIG_FILE_EXT, "")).exists()
-        return False
 
     @property
     def get_leaf_tables(self) -> list[Self]:
@@ -251,10 +211,11 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             if self.is_root:
                 return f"{self.abs}\{get_root_config_name()}"
             else:
-                return f"{self.abs}\{get_folder_config_name()}"
+                return f"{self.abs}\{get_dir_config_name()}"
         elif (
             self.node_type == NodeType.CONFIG_EXPLICIT
             or self.node_type == NodeType.CONFIG_VIRTUAL
+            or self.node_type == NodeType.CONFIG_ADJACENT
         ):
             return str(self.abs)
         elif self.node_type == NodeType.DATA_URL:
@@ -274,13 +235,10 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 else:
                     config_line.append(node._config)
 
-        config_merged = ContentAwarePath.merge_configs(*config_line)
+        config_merged = ConfigPath.merge_configs(*config_line)
         config_copied = config_merged.model_copy(deep=True)
         if add_config_file_path:
             config_copied.config_path = self.config_file_path
-        # res = {**{"config_path": self.config_file_path}, **config_copied}
-        # if str(self) == "world_bank":
-        #     raise Exception(config_copied.model_dump(exclude_none=True))
 
         return config_copied
 
@@ -308,7 +266,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     def eval_dynamic_attributes(self, config: ec.Config) -> ec.Config:
         config_dict = config.model_dump(exclude_none=True)
         find_replace = self.get_path_props_find_replace()
-        ContentAwarePath.swap_dict_vals(config_dict, find_replace)
+        ConfigPath.swap_dict_vals(config_dict, find_replace)
         if (
             self.is_leaf
             and config_dict
@@ -328,7 +286,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
     def swap_dict_vals(dictionary: dict, find_replace_dict: dict) -> None:
         for key, value in dictionary.items():
             if isinstance(value, dict):
-                ContentAwarePath.swap_dict_vals(dictionary[key], find_replace_dict)
+                ConfigPath.swap_dict_vals(dictionary[key], find_replace_dict)
             elif isinstance(value, list):
                 pass
             elif value in find_replace_dict:
@@ -350,7 +308,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 dicts.append(config_to_append)
             else:
                 raise Exception("configs should be a list of Configs or dicts")
-        dict_result = ContentAwarePath.merge_dicts_by_top_level_keys(*dicts)
+        dict_result = ConfigPath.merge_dicts_by_top_level_keys(*dicts)
         res = ec.Config(**dict_result)  # type: ignore
         return res
 
@@ -370,108 +328,81 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                     merged_dict[key] = value
         return merged_dict
 
-    def get_paired_configs(self) -> list[dict]:
+    @property
+    def is_root_dir(self):
+        return self.is_dir() and self.is_root
+
+    @property
+    def adjacent_file_path(self):
+        return str(Path(str(self).replace(CONFIG_FILE_EXT, "")))
+
+    @property
+    def paired_config(self):
         res = []
-        if self.is_dir():
-            if self.is_root:
-                config_path = Path(self) / get_root_config_name()
-                if config_path.exists():
-                    ymls = get_yml_docs(config_path, expected=1)
-                    res.append(ymls[0])
-            config_path = Path(self) / get_folder_config_name()
+
+        # a dir can have root config and/or dir config
+        if self.is_root_dir:
+            config_path = Path(self) / get_root_config_name()
             if config_path.exists():
                 ymls = get_yml_docs(config_path, expected=1)
                 res.append(ymls[0])
-        if self.is_config_file():
-            adjacent_file_path = Path(str(self).replace(CONFIG_FILE_EXT, ""))
-            if adjacent_file_path.is_file():
-                if self.exists():
-                    # raise Exception()
-                    yml = get_yml_docs(self)
-
-                    if "source" in yml[0] and "url" in yml[0]["source"]:
-                        if yml[0]["source"]["url"] == str(adjacent_file_path):
-                            res += yml
-                        else:
-                            raise Exception(
-                                f"adjacent config {self} has url: {yml[0]['source']['url']} different than its adjacent data file: {adjacent_file_path}"
-                            )
-                    elif len(yml) == 1:
-                        # raise Exception(yml[0].keys())
-                        if "source" in yml[0].keys():
-                            yml[0]["source"]["url"] = str(adjacent_file_path)
-                            # tables = get_content_leaf_names(
-                            #     ec.Source(url=str(adjacent_file_path))
-                            # )
-                            # if len(tables) == 1:
-                            #     yml[0]["source"]["table"] = tables[0]
-                        else:
-                            yml[0]["source"] = {"url": str(adjacent_file_path)}
-
-                        res += yml
-
-                    else:
-                        res.append({"source": {"url": str(adjacent_file_path)}})
-
-                        res += yml
-                        # raise Exception(self)
-                else:
-                    # assign source url and table config for each content leaf
-                    # res.append({"source": {"url": str(adjacent_file_path)}})
-                    tables = get_content_leaf_names(
-                        ec.Source(url=str(adjacent_file_path))
-                    )
-                    # raise Exception()
-                    for table in tables:
-                        if (
-                            not self.parent
-                            or not self.parent.config
-                            or not self.parent.config.source
-                            or not self.parent.config.source.table
-                            or table == self.parent.config.source.table
-                        ):
-                            # res.append({"source": {"table": table}})
-                            res.append(
-                                {
-                                    "source": {
-                                        "url": str(adjacent_file_path),
-                                        "table": table,
-                                    }
-                                }
-                            )
-                        # raise Exception(self.parent.config)
-
-            elif self.exists():
-                yml = get_yml_docs(self)
-                res += yml
-                # raise Exception()
-
-        return res
-
-    def get_paired_config(self) -> dict:
-        paired_configs = self.get_paired_configs()
-        # return ContentAwarePath.merge_configs(*paired_configs)
         if self.is_dir():
-            if len(paired_configs) > 0:
-                return ContentAwarePath.merge_configs(*paired_configs)
+            config_path = Path(self) / get_dir_config_name()
+            if config_path.exists():
+                ymls = get_yml_docs(config_path, expected=1)
+                res.append(ymls[0])
+            # if both root and dir config found, merge
+            if len(res) > 0:
+                return ConfigPath.merge_configs(*res)
             else:
                 return {}
-        return paired_configs
 
-    def get_paired_config_path(self) -> Optional[Path]:
-        # order matters, file is checked first in case a single data file passed
-        if self.is_config_file():
-            return self
-        # TODO: add scan root option: now assumes a root config present in passed dir
-        elif self.is_root:
-            config_path = self / get_root_config_name()
-        elif self.is_dir():
-            config_path = self / get_folder_config_name()
-        else:
-            return None
-        if config_path.exists():
-            return config_path
-        return None
+        elif self.node_type == NodeType.CONFIG_ADJACENT:
+            yml = get_yml_docs(self)
+
+            if "source" in yml[0] and "url" in yml[0]["source"]:
+                # adjacent can have an explicit url if it matches adjacent
+                if yml[0]["source"]["url"] == self.adjacent_file_path:
+                    res += yml
+                else:
+                    raise Exception(
+                        f"adjacent config {self} has url: {yml[0]['source']['url']} "
+                        "different than its adjacent data file: "
+                        f"{self.adjacent_file_path}"
+                    )
+            elif len(yml) == 1:
+                if "source" in yml[0].keys():
+                    yml[0]["source"]["url"] = self.adjacent_file_path
+                else:
+                    yml[0]["source"] = {"url": self.adjacent_file_path}
+                res += yml
+            else:
+                res.append({"source": {"url": self.adjacent_file_path}})
+                res += yml
+        elif self.node_type == NodeType.CONFIG_VIRTUAL:
+            # assign source url and table config for each content leaf
+            tables = get_content_leaf_names(ec.Source(url=self.adjacent_file_path))
+            for table in tables:
+                if (
+                    not self.parent
+                    or not self.parent.config
+                    or not self.parent.config.source
+                    or not self.parent.config.source.table
+                    or table == self.parent.config.source.table
+                ):
+                    res.append(
+                        {
+                            "source": {
+                                "url": self.adjacent_file_path,
+                                "table": table,
+                            }
+                        }
+                    )
+        elif self.node_type == NodeType.CONFIG_EXPLICIT:
+            yml = get_yml_docs(self)
+            res += yml
+
+        return res
 
     def display_tree(self):
         column1_width = 0
@@ -633,7 +564,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     @property
     def abs(self) -> Self:
-        return ContentAwarePath(self.absolute())
+        return ConfigPath(self.absolute())
 
     @property  # fs = filesystem, can return a File or Dir but not content
     def fs(self) -> Optional[Self]:
@@ -728,7 +659,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
             file_group_wrapper = ef.EelFileGroupWrapper(
                 parent=root_flow, name=str(table)
             )
-            ContentAwarePath.apply_file_wrappers(
+            ConfigPath.apply_file_wrappers(
                 parent=file_group_wrapper, df=table_gb, execute_fn=ee.ingest
             )
 
@@ -736,7 +667,7 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def get_detect_taskflow(self) -> ef.EelFlow:
         df = self.get_leaf_df
-        root_flows = ContentAwarePath.apply_file_wrappers(
+        root_flows = ConfigPath.apply_file_wrappers(
             parent=None, df=df, execute_fn=ee.detect
         )
         res = ef.EelFlow(root_flows, 1)
@@ -793,6 +724,91 @@ class ContentAwarePath(Path, HumanPathPropertiesMixin, NodeMixin):
                 node._config["source"]["nrows"] = None
 
 
+def get_root_inheritance(start_dir: Path) -> Union[list[Path], None]:
+    if start_dir:
+        start_dir = Path(start_dir)
+    else:
+        start_dir = Path()
+
+    dirs = []
+    current_dir = start_dir.absolute()
+    file_found = False
+
+    while (
+        current_dir != current_dir.parent
+    ):  # This condition ensures we haven't reached the root
+        dirs.append(current_dir)
+        if (current_dir / get_root_config_name()).exists():
+            file_found = True
+            break
+        current_dir = current_dir.parent
+
+    # Check and add the root directory if not already added
+    if current_dir not in dirs and (current_dir / get_root_config_name()).exists():
+        dirs.append(current_dir)
+        file_found = True
+    if file_found:
+        # print(dirs)
+        return dirs
+    else:
+        glob_pattern = "**/*" + get_root_config_name()
+        below = sorted(start_dir.glob(glob_pattern))
+        if len(below) > 0:
+            return [Path(below[0].parent.absolute())]
+        else:
+            logging.info(f"eel root not found, using {start_dir}")
+            if (
+                start_dir.is_file()
+                and (start_dir.parent / get_dir_config_name()).exists()
+            ):
+
+                return [start_dir, start_dir.parent]
+            elif (
+                not start_dir.exists()
+                and (start_dir.parent / get_dir_config_name()).exists()
+            ):
+                return [start_dir, start_dir.parent]
+            else:
+                return [start_dir]
+
+
+def plant_tree(path: ConfigPath) -> Optional[ConfigPath]:
+
+    root_paths = list(reversed(get_root_inheritance(str(path))))
+    root_path = Path(root_paths[0])
+    if root_path.is_dir():
+        os.chdir(root_path)
+        # TODO: understand this better
+        # seemingly redundant lines below fix strange bug when passing a directory as an
+        # argument it got duplicated in the path, i.e. /foo/bar/bar when just /foo/bar
+        # expected
+        root_path = Path()
+        root_paths[0] = Path()
+    else:
+        os.chdir(root_path.parent)
+    parent = None
+    for index, path_ in enumerate(root_paths):
+        if config_path_valid(path_):
+            ca_path = ConfigPath(path_)
+            ca_path.parent = parent
+            # for the nodes in-between context and root, don't walk_dir
+            if index < len(root_paths) - 1:
+                ca_path.configure_node()
+                parent = ca_path
+            else:  # For the last item always process configs
+                # ca_path = ContentAwarePath(path_)
+                # ca_path.parent = parent
+                ca_path.configure_node(walk_dir=True)
+                # raise Exception(ca_path.children[0].children[0].children)
+        else:
+            raise Exception("Invalid file in explicit path: " + str(path_))
+    logging.info("Tree Created")
+    root = parent.root_node if parent else ca_path
+    if root.is_leaf and root.is_dir():
+        logging.error("Root is an empty directory")
+    return root
+
+
 def dict_diff(dict1: dict, dict2: dict) -> dict:
     """
     Return elements that are in dict2 but not in dict1.
@@ -842,9 +858,7 @@ def get_sheet_names(
     return worksheet_names
 
 
-def get_yml_docs(
-    path: Union[ContentAwarePath, Path], expected: int = None
-) -> list[dict]:
+def get_yml_docs(path: Union[ConfigPath, Path], expected: int = None) -> list[dict]:
     if path.exists():
         with path.open() as file:
             yaml_text = file.read()
@@ -875,10 +889,10 @@ def get_config_default() -> ec.Config:
     return ec.Config()
 
 
-def config_path_valid(path: ContentAwarePath) -> bool:
+def config_path_valid(path: ConfigPath) -> bool:
     if path.is_dir():
         return True
-    if path.is_file() or ContentAwarePath(path).is_config_file():
+    if path.is_file() or ConfigPath(path).is_config_file():
         file_type = FileType.suffix_to_type(path.suffix)
         if isinstance(file_type, FileType):
             return True

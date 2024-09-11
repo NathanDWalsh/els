@@ -12,12 +12,11 @@ import sys
 import os
 import io
 from pathlib import Path
-from typing import Union, Optional
+from typing import Optional
 
-from eel.path import ContentAwarePath
+from eel.path import plant_tree
 from eel.path import get_root_config_name
-from eel.path import get_folder_config_name
-from eel.path import config_path_valid
+from eel.path import get_root_inheritance
 from eel.path import CONFIG_FILE_EXT
 
 from eel.config import TargetIfExistsValue
@@ -34,107 +33,6 @@ def start_logging():
     logging.info("Getting Started")
 
 
-def find_root_paths(path: str = None) -> list[Union[Path, None]]:
-    if path:
-        path_arg = Path(path)
-    else:
-        path_arg = Path()
-
-    paths_to_root = find_dirs_with_file(path_arg, get_root_config_name())
-    # if paths_to_root:
-    #     root = paths_to_root[-1]
-    # else:
-    #     root = None
-    # if not paths_to_root:
-    #     logging.info("eel root not found, using cwd")
-    #     paths_to_root = [CAPath()]
-    # if paths_to_root == [None]:
-    #     logging.error("unknown error, root not found")
-    #     return [None]
-    # raise Exception("debug")
-    return paths_to_root
-
-
-def find_dirs_with_file(start_dir: Path, target_file: str) -> Union[list[Path], None]:
-    dirs = []
-    current_dir = start_dir.absolute()
-    file_found = False
-
-    while (
-        current_dir != current_dir.parent
-    ):  # This condition ensures we haven't reached the root
-        dirs.append(current_dir)
-        if (current_dir / target_file).exists():
-            file_found = True
-            break
-        current_dir = current_dir.parent
-
-    # Check and add the root directory if not already added
-    if current_dir not in dirs and (current_dir / target_file).exists():
-        dirs.append(current_dir)
-        file_found = True
-    if file_found:
-        # print(dirs)
-        return dirs
-    else:
-        glob_pattern = "**/*" + target_file
-        below = sorted(start_dir.glob(glob_pattern))
-        if len(below) > 0:
-            return [Path(below[0].parent.absolute())]
-        else:
-            logging.info(f"eel root not found, using {start_dir}")
-            if (
-                start_dir.is_file()
-                and (start_dir.parent / get_folder_config_name()).exists()
-            ):
-
-                return [start_dir, start_dir.parent]
-            elif (
-                not start_dir.exists()
-                and (start_dir.parent / get_folder_config_name()).exists()
-            ):
-                return [start_dir, start_dir.parent]
-            else:
-                return [start_dir]
-
-
-def plant_tree(path: ContentAwarePath) -> Optional[ContentAwarePath]:
-
-    root_paths = list(reversed(find_root_paths(str(path))))
-    root_path = Path(root_paths[0])
-    if root_path.is_dir():
-        os.chdir(root_path)
-        # TODO: understand this better
-        # seemingly redundant lines below fix strange bug when passing a directory as an
-        # argument it got duplicated in the path, i.e. /foo/bar/bar when just /foo/bar
-        # expected
-        root_path = Path()
-        root_paths[0] = Path()
-    else:
-        os.chdir(root_path.parent)
-    parent = None
-    for index, path_ in enumerate(root_paths):
-        if config_path_valid(path_):
-            ca_path = ContentAwarePath(path_)
-            ca_path.parent = parent
-            # for the nodes in-between context and root, don't walk_dir
-            if index < len(root_paths) - 1:
-                ca_path.configure_node()
-                parent = ca_path
-            else:  # For the last item always process configs
-                # ca_path = ContentAwarePath(path_)
-                # ca_path.parent = parent
-                ca_path.configure_node(walk_dir=True)
-                # raise Exception(ca_path.children[0].children[0].children)
-        else:
-            raise Exception("Invalid file in explicit path: " + str(path_))
-    logging.info("Tree Created")
-    root = parent.root_node if parent else ca_path
-    if root.is_leaf and root.is_dir():
-        logging.error("Root is an empty directory")
-    return root
-
-
 def get_ca_path(path: str = None) -> Path:
     if path:
         # may be related to "seemingly redundant" lines fix above
@@ -146,18 +44,6 @@ def get_ca_path(path: str = None) -> Path:
     else:
         ca_path = Path()
     return ca_path
-
-
-# def get_ca_path(path: str = None) -> CAPath:
-#     if path:
-#         pl_path = Path(path)
-#         if pl_path.is_file() and not str(pl_path).endswith(CONFIG_FILE_EXT):
-#             ca_path = CAPath(path + CONFIG_FILE_EXT)
-#         else:
-#             ca_path = CAPath(path)
-#     else:
-#         ca_path = CAPath()
-#     return ca_path
 
 
 def get_taskflow(
@@ -185,6 +71,7 @@ def remove_node_and_reassign_children(node):
         node.parent = None  # Detach the node from the tree
 
 
+# Remove implicit config node
 def remove_virtual_nodes(tree):
     if tree.node_type == NodeType.CONFIG_VIRTUAL:
         return tree.children[0]
@@ -202,12 +89,7 @@ def tree(path: Optional[str] = typer.Argument(None), keep_virtual: bool = False)
     path = clean_none_path(path)
     ca_path = get_ca_path(path)
     tree = plant_tree(ca_path)
-    # print(tree)
-    # print(tree.config.model_dump(exclude_none=True))
 
-    # debug_node = tree.children[0]
-    # print(debug_node)
-    # print(debug_node.config.model_dump(exclude_none=True))
     if not keep_virtual:
         tree = remove_virtual_nodes(tree)
     if tree:
@@ -226,9 +108,6 @@ def generate(
     overwrite: bool = True,
     skip_root: bool = True,
 ):
-    # root = find_root()
-    # cwd = Path(os.getcwd())
-    # if root == cwd:
     if tables:
         table_filter = [table.strip().strip('"') for table in tables.split(",")]
     else:
@@ -382,34 +261,6 @@ def execute(path: Optional[str] = typer.Argument(None)):
 
         print("\nNo target specified, sources saved to dataframes.\n\nTable summary:")
 
-        # Initialize a list to hold dictionaries for each DataFrame
-        # frames_info = []
-
-        # for key, value in staged_frames.items():
-        #     # Store the count of unnamed columns in a variable
-        #     unnamed_cols = value.columns.str.contains("^Unnamed").sum()
-        #     # Capture the number of rows and cols
-        #     r, c = value.shape
-        #     # Append the information as a dictionary to the list
-        #     frames_info.append(
-        #         {"Name": key, "Rows": r, "Columns": c, "Unnamed Columns": unnamed_cols}
-        #     )
-
-        # # Convert the list of dictionaries into a DataFrame
-        # info_df = pd.DataFrame(frames_info)
-
-        # # Optionally, set the DataFrame to print without truncation for large DataFrames
-        # pd.set_option("display.max_rows", None)
-        # # pd.set_option("display.max_columns", None)
-        # # pd.set_option("display.width", None)
-        # # pd.set_option("display.max_colwidth", None)
-
-        # # Print the new DataFrame
-        # # make the Name column the row index
-        # info_df.set_index("Name", inplace=True)
-        # info_df.index.name = "Table Name"
-        # print(info_df)
-
         print()
         print("Printing the first five rows of each DataFrame below:\n")
 
@@ -531,7 +382,7 @@ def new(
 
 @app.command()
 def root():
-    root = find_root_paths()
+    root = get_root_inheritance()
     print(root[-1])
 
 
