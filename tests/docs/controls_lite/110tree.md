@@ -4,11 +4,11 @@ $ pwd
 C:\Users\nwals\eel-demo
 $ eel tree
 eel-demo
-├── LabourForce.xls
+├── LabourForce.xlsx
 │   ├── Data                  → memory['Data']
 │   ├── Metadata - Countries  → memory['Metadata - Countries']
 │   └── Metadata - Indicators → memory['Metadata - Indicators']
-└── Population.xls
+└── Population.xlsx
     ├── Data                  → memory['Data']
     ├── Metadata - Countries  → memory['Metadata - Countries']
     └── Metadata - Indicators → memory['Metadata - Indicators']

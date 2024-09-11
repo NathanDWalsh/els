@@ -6,8 +6,8 @@ $ echo "source:"        >  _.eel.yml
 $ echo "  table: Data"  >> _.eel.yml
 $ eel tree
 eel-demo
-├── LabourForce.xls
+├── LabourForce.xlsx
 │   └── Data → memory['Data']
-└── Population.xls
+└── Population.xlsx
     └── Data → memory['Data']
 ```

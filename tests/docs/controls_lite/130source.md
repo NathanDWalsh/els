@@ -4,12 +4,12 @@ $ mkdir config
 C:\Users\nwals\eel-demo\config
 $ mkdir source
 C:\Users\nwals\eel-demo\source
-$ mv *.xls source
+$ mv *.xlsx source
 $ mv *.yml config
 $ ls -s *.*
 C:\Users\nwals\eel-demo\config\_.eel.yml
-C:\Users\nwals\eel-demo\config\LabourForce.xls.eel.yml
-C:\Users\nwals\eel-demo\config\Population.xls.eel.yml
-C:\Users\nwals\eel-demo\source\LabourForce.xls
-C:\Users\nwals\eel-demo\source\Population.xls
+C:\Users\nwals\eel-demo\config\LabourForce.xlsx.eel.yml
+C:\Users\nwals\eel-demo\config\Population.xlsx.eel.yml
+C:\Users\nwals\eel-demo\source\LabourForce.xlsx
+C:\Users\nwals\eel-demo\source\Population.xlsx
 ```

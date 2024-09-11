@@ -2,10 +2,10 @@
 ```{.console #id144root caption="Run `eel tree` on the `world_bank` directory"}
 $ eel tree ./world_bank/
 world_bank
-├── LabourForce.xls.eel.yml
-│   └── ../source/LabourForce.xls
+├── LabourForce.xlsx.eel.yml
+│   └── ../source/LabourForce.xlsx
 │       └── Data → memory['WorldBankLabourForce']
-└── Population.xls.eel.yml
-    └── ../source/Population.xls
+└── Population.xlsx.eel.yml
+    └── ../source/Population.xlsx
         └── Data → memory['WorldBankPopulation']
 ```

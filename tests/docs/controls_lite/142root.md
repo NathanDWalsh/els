@@ -7,10 +7,10 @@ $ echo "  url: ../target/*.csv"  >> _.eel.yml
 $ eel tree
 config
 └── world_bank
-    ├── LabourForce.xls.eel.yml
-    │   └── LabourForce.xls
+    ├── LabourForce.xlsx.eel.yml
+    │   └── LabourForce.xlsx
     │       └── Data → ..\target\WorldBankLabourForce.csv
-    └── Population.xls.eel.yml
-        └── Population.xls
+    └── Population.xlsx.eel.yml
+        └── Population.xlsx
             └── Data → ..\target\WorldBankPopulation.csv
 ```

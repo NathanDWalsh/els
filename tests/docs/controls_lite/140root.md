@@ -5,6 +5,6 @@ C:\Users\nwals\eel-demo\config\world_bank
 $ mv *.* world_bank
 $ ls -s *.*
 C:\Users\nwals\eel-demo\config\world_bank\_.eel.yml
-C:\Users\nwals\eel-demo\config\world_bank\LabourForce.xls.eel.yml
-C:\Users\nwals\eel-demo\config\world_bank\Population.xls.eel.yml
+C:\Users\nwals\eel-demo\config\world_bank\LabourForce.xlsx.eel.yml
+C:\Users\nwals\eel-demo\config\world_bank\Population.xlsx.eel.yml
 ```

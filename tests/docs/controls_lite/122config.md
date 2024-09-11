@@ -1,15 +1,15 @@
 
 ```{.console #id122config caption="Create a source-level config for each source file"}
-$ echo "target:"                        > LabourForce.xls.eel.yml
-$ echo "  table: WorldBankLabourForce" >> LabourForce.xls.eel.yml
-$ echo "target:"                        > Population.xls.eel.yml
-$ echo "  table: WorldBankPopulation"  >> Population.xls.eel.yml
+$ echo "target:"                        > LabourForce.xlsx.eel.yml
+$ echo "  table: WorldBankLabourForce" >> LabourForce.xlsx.eel.yml
+$ echo "target:"                        > Population.xlsx.eel.yml
+$ echo "  table: WorldBankPopulation"  >> Population.xlsx.eel.yml
 $ eel tree
 eel-demo
-├── LabourForce.xls.eel.yml
-│   └── LabourForce.xls
+├── LabourForce.xlsx.eel.yml
+│   └── LabourForce.xlsx
 │       └── Data → memory['WorldBankLabourForce']
-└── Population.xls.eel.yml
-    └── Population.xls
+└── Population.xlsx.eel.yml
+    └── Population.xlsx
         └── Data → memory['WorldBankPopulation']
 ```

@@ -3,16 +3,16 @@
 $ ren _.eel.yml __.eel.yml
 $ ls -s *.*
 C:\Users\nwals\eel-demo\config\world_bank\_.eel.yml
-C:\Users\nwals\eel-demo\config\world_bank\LabourForce.xls.eel.yml
-C:\Users\nwals\eel-demo\config\world_bank\Population.xls.eel.yml
+C:\Users\nwals\eel-demo\config\world_bank\LabourForce.xlsx.eel.yml
+C:\Users\nwals\eel-demo\config\world_bank\Population.xlsx.eel.yml
 C:\Users\nwals\eel-demo\config\__.eel.yml
 $ eel tree ./world_bank/
 config
 └── world_bank
-    ├── LabourForce.xls.eel.yml
-    │   └── LabourForce.xls
+    ├── LabourForce.xlsx.eel.yml
+    │   └── LabourForce.xlsx
     │       └── Data → ..\target\WorldBankLabourForce.csv
-    └── Population.xls.eel.yml
-        └── Population.xls
+    └── Population.xlsx.eel.yml
+        └── Population.xlsx
             └── Data → ..\target\WorldBankPopulation.csv
 ```
