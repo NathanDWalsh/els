@@ -100,7 +100,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     ):
 
         if self.is_dir():
-            self._config = self.paired_config
+            self._config = self.dir_config
 
             if walk_dir:
                 self.grow_dir_branches()
@@ -117,70 +117,66 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def grow_dir_branches(self):
         for subpath in self.glob("*"):
-            # if dir config or root config then pass
+            # ensure node-level configs are not (duble) counted
             if subpath.name in (
                 get_dir_config_name(),
                 get_root_config_name(),
-            ):
+            ) or subpath in (self.children):
                 pass
             elif config_path_valid(subpath):
-                # raise Exception()
-                if (
-                    not subpath.is_dir() and not subpath.is_config_file()
-                ):  # an adjecent config
-                    cpath = ConfigPath(str(subpath) + CONFIG_FILE_EXT)
-                    cpath.parent = self
-                    cpath.configure_node()
-                # ensure paired configs are not double counted
-                elif subpath not in (
-                    self.children
-                ):  # a directory or an explicit config file
+                if subpath.is_dir() or subpath.is_config_file():  # adjecent config
                     cpath = subpath
-                    cpath.parent = self
-                    cpath.configure_node(walk_dir=True)
-
+                else:  # directory or explicit config file
+                    cpath = ConfigPath(str(subpath) + CONFIG_FILE_EXT)
+                cpath.parent = self
+                cpath.configure_node(walk_dir=True)
             else:
                 logging.warning(f"Invalid path not added to tree: {str(subpath)}")
 
     @property
-    def paired_config(self):
-        res = []
+    def dir_config(self):
+        configs = []
 
         # a dir can have root config and/or dir config
         if self.is_root_dir:
             config_path = Path(self) / get_root_config_name()
             if config_path.exists():
                 ymls = get_yml_docs(config_path, expected=1)
-                res.append(ymls[0])
+                configs.append(ymls[0])
 
         if self.is_dir():
             config_path = Path(self) / get_dir_config_name()
             if config_path.exists():
                 ymls = get_yml_docs(config_path, expected=1)
-                res.append(ymls[0])
+                configs.append(ymls[0])
             # if both root and dir config found, merge
-            if len(res) > 0:
-                return ConfigPath.merge_configs(*res)
+            if len(configs) > 0:
+                return ConfigPath.merge_configs(*configs)
             else:
                 return {}
-        elif self.node_type != NodeType.CONFIG_VIRTUAL:
-            yml = get_yml_docs(self)
+        else:
+            raise Exception("dir_config called on a non-directory node.")
+
+    @property
+    def paired_config(self):
+        if self.node_type != NodeType.CONFIG_VIRTUAL:
+            docs = get_yml_docs(self)
 
             # adjacent can have an explicit url if it matches adjacent
             # (TODO test all documents instead of just the first)
             if (
                 self.node_type == NodeType.CONFIG_ADJACENT
-                and "source" in yml[0]
-                and "url" in yml[0]["source"]
-                and yml[0]["source"]["url"] != self.adjacent_file_path
+                and "source" in docs[0]
+                and "url" in docs[0]["source"]
+                and docs[0]["source"]["url"] != self.adjacent_file_path
             ):
                 raise Exception(
-                    f"adjacent config {self} has url: {yml[0]['source']['url']} "
+                    f"adjacent config {self} has url: {docs[0]['source']['url']} "
                     "different than its adjacent data file: "
                     f"{self.adjacent_file_path}"
                 )
 
-            return yml
+            return docs
         else:  # NodeType.CONFIG_VIRTUAL has no explicit config
             return [dict()]
 
