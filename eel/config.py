@@ -145,7 +145,8 @@ class Frame(BaseModel):
     # server: Optional[str] = None
     # database: Optional[str] = None
     dbschema: Optional[str] = None
-    table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
+    # table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
+    table: Optional[str] = None
 
     @property
     def type(self):

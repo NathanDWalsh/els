@@ -62,11 +62,13 @@ def get_taskflow(
         return None
 
 
-# Function to remove a node and reassign its children to its parent
+# remove a node and reassign its children to its parent
 def remove_node_and_reassign_children(node):
     parent = node.parent
     if parent is not None:
         for child in node.children:
+            # retain existing config chain
+            child._config = child.config
             child.parent = parent
         node.parent = None  # Detach the node from the tree
 

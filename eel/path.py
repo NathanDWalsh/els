@@ -142,39 +142,81 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             else:
                 logging.warning(f"Invalid path not added to tree: {str(subpath)}")
 
+    @property
+    def paired_config(self):
+        res = []
+
+        # a dir can have root config and/or dir config
+        if self.is_root_dir:
+            config_path = Path(self) / get_root_config_name()
+            if config_path.exists():
+                ymls = get_yml_docs(config_path, expected=1)
+                res.append(ymls[0])
+
+        if self.is_dir():
+            config_path = Path(self) / get_dir_config_name()
+            if config_path.exists():
+                ymls = get_yml_docs(config_path, expected=1)
+                res.append(ymls[0])
+            # if both root and dir config found, merge
+            if len(res) > 0:
+                return ConfigPath.merge_configs(*res)
+            else:
+                return {}
+        elif self.node_type != NodeType.CONFIG_VIRTUAL:
+            yml = get_yml_docs(self)
+
+            # adjacent can have an explicit url if it matches adjacent
+            # (TODO test all documents instead of just the first)
+            if (
+                self.node_type == NodeType.CONFIG_ADJACENT
+                and "source" in yml[0]
+                and "url" in yml[0]["source"]
+                and yml[0]["source"]["url"] != self.adjacent_file_path
+            ):
+                raise Exception(
+                    f"adjacent config {self} has url: {yml[0]['source']['url']} "
+                    "different than its adjacent data file: "
+                    f"{self.adjacent_file_path}"
+                )
+
+            return yml
+        else:
+            # assign source url and table config for each content leaf
+            tables = get_content_leaf_names(ec.Source(url=self.adjacent_file_path))
+            for table in tables:
+                if (
+                    not self.parent
+                    or not self.parent.config
+                    or not self.parent.config.source
+                    or not self.parent.config.source.table
+                    or table == self.parent.config.source.table
+                ):
+                    res.append({"source": {"table": table}})
+
+        return res
+
     def grow_config_branches(self):
         previous_url = ""
         for doc in self.paired_config:
-            if "source" in doc:
-                source = doc["source"]
-            else:
-                source = self.parent.config.source.model_dump(exclude_none=True)
 
-            if "url" in source and previous_url != source["url"]:
-                previous_url = source["url"]
+            merged_doc = ConfigPath.merge_configs(self.config, doc)
+            source = merged_doc.source
+
+            if source.url and source.url != previous_url:
+                previous_url = source.url
                 url_parent = ConfigPath(Path(previous_url))
                 url_parent.parent = self
                 url_parent._config = doc
 
-            if "table" in source:
-                source_table = source["table"]
-            elif (
-                not self.node_type == NodeType.CONFIG_VIRTUAL
-                and not self.node_type == NodeType.CONFIG_ADJACENT
-                and self.parent
-                and self.parent.config
-                and self.parent.config.source
-                and self.parent.config.source.table
-            ):
-                source_table = self.parent.config.source.table
-            elif self.node_type == NodeType.CONFIG_ADJACENT:
-                source_table = "_leaf_name"
-
             if previous_url == "":
                 raise Exception("expected to have a url for child config doc")
 
-            if source_table == "_leaf_name":
+            if source.table:
+                source_table = source.table
+            elif self.node_type == NodeType.CONFIG_ADJACENT:
                 source_table = get_content_leaf_names(url_parent.config.source)[0]
+
             ca_path = ConfigPath(Path(previous_url) / source_table)
             ca_path.parent = url_parent
             ca_path._config = doc
@@ -257,8 +299,12 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         # else:
         #     config_evaled = config_copied
 
-        if not config_evaled.target.if_exists:
-            config_evaled.target.if_exists = ec.TargetIfExistsValue.FAIL
+        if self.node_type == NodeType.DATA_TABLE:
+            if not config_evaled.target.if_exists:
+                config_evaled.target.if_exists = ec.TargetIfExistsValue.FAIL
+
+            if not config_evaled.target.table:
+                config_evaled.target.table = self.name
 
         return config_evaled
 
@@ -341,74 +387,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     @property
     def adjacent_file_path(self):
         return str(Path(str(self).replace(CONFIG_FILE_EXT, "")))
-
-    @property
-    def paired_config(self):
-        res = []
-
-        # a dir can have root config and/or dir config
-        if self.is_root_dir:
-            config_path = Path(self) / get_root_config_name()
-            if config_path.exists():
-                ymls = get_yml_docs(config_path, expected=1)
-                res.append(ymls[0])
-        if self.is_dir():
-            config_path = Path(self) / get_dir_config_name()
-            if config_path.exists():
-                ymls = get_yml_docs(config_path, expected=1)
-                res.append(ymls[0])
-            # if both root and dir config found, merge
-            if len(res) > 0:
-                return ConfigPath.merge_configs(*res)
-            else:
-                return {}
-
-        elif self.node_type == NodeType.CONFIG_ADJACENT:
-            yml = get_yml_docs(self)
-
-            if "source" in yml[0] and "url" in yml[0]["source"]:
-                # adjacent can have an explicit url if it matches adjacent
-                if yml[0]["source"]["url"] == self.adjacent_file_path:
-                    res += yml
-                else:
-                    raise Exception(
-                        f"adjacent config {self} has url: {yml[0]['source']['url']} "
-                        "different than its adjacent data file: "
-                        f"{self.adjacent_file_path}"
-                    )
-            elif len(yml) == 1:
-                if "source" in yml[0].keys():
-                    yml[0]["source"]["url"] = self.adjacent_file_path
-                else:
-                    yml[0]["source"] = {"url": self.adjacent_file_path}
-                res += yml
-            else:
-                res.append({"source": {"url": self.adjacent_file_path}})
-                res += yml
-        elif self.node_type == NodeType.CONFIG_VIRTUAL:
-            # assign source url and table config for each content leaf
-            tables = get_content_leaf_names(ec.Source(url=self.adjacent_file_path))
-            for table in tables:
-                if (
-                    not self.parent
-                    or not self.parent.config
-                    or not self.parent.config.source
-                    or not self.parent.config.source.table
-                    or table == self.parent.config.source.table
-                ):
-                    res.append(
-                        {
-                            "source": {
-                                "url": self.adjacent_file_path,
-                                "table": table,
-                            }
-                        }
-                    )
-        elif self.node_type == NodeType.CONFIG_EXPLICIT:
-            yml = get_yml_docs(self)
-            res += yml
-
-        return res
 
     def display_tree(self):
         column1_width = 0
