@@ -181,20 +181,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 )
 
             return yml
-        else:
-            # assign source url and table config for each content leaf
-            tables = get_content_leaf_names(ec.Source(url=self.adjacent_file_path))
-            for table in tables:
-                if (
-                    not self.parent
-                    or not self.parent.config
-                    or not self.parent.config.source
-                    or not self.parent.config.source.table
-                    or table == self.parent.config.source.table
-                ):
-                    res.append({"source": {"table": table}})
-
-        return res
+        else:  # NodeType.CONFIG_VIRTUAL has no explicit config
+            return [dict()]
 
     def grow_config_branches(self):
         previous_url = ""
@@ -212,14 +200,22 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             if previous_url == "":
                 raise Exception("expected to have a url for child config doc")
 
-            if source.table:
-                source_table = source.table
-            elif self.node_type == NodeType.CONFIG_ADJACENT:
-                source_table = get_content_leaf_names(url_parent.config.source)[0]
+            table_docs = dict()
 
-            ca_path = ConfigPath(Path(previous_url) / source_table)
-            ca_path.parent = url_parent
-            ca_path._config = doc
+            if source.table:
+                table_docs[source.table] = doc
+            elif self.node_type in (NodeType.CONFIG_ADJACENT, NodeType.CONFIG_VIRTUAL):
+                for content_table in get_content_leaf_names(url_parent.config.source):
+                    if not source.table or source.table == content_table:
+                        doc = ConfigPath.merge_configs(
+                            doc, {"source": {"table": content_table}}
+                        )
+                        table_docs[content_table] = doc
+
+            for tab, doc in table_docs.items():
+                ca_path = ConfigPath(Path(previous_url) / tab)
+                ca_path.parent = url_parent
+                ca_path._config = doc
 
     @property
     def node_type(self) -> NodeType:
