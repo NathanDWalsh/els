@@ -117,7 +117,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def grow_dir_branches(self):
         for subpath in self.glob("*"):
-            # ensure node-level configs are not (duble) counted
+            # ensure node-level configs are not (double) counted
             if subpath.name in (
                 get_dir_config_name(),
                 get_root_config_name(),
