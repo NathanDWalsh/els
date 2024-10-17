@@ -1,13 +1,13 @@
-# eel
+# ELS
 
-eel enables flow of data between multiple sources.
+ELS is a command line tool and yaml schema for extracting and loading data between multiple sources.
 
-## Dependencies
+## Install
 
-eel is python based and relies on the pandas library.
+ELS is python based and can be installed with pip.
 
 ```bash
-pip install pandas
+pip install els
 ```
 
 ## Basic usage: no yml
