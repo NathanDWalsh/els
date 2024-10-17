@@ -1,16 +1,16 @@
 
 ```{.console #id132source caption="Add a source url to the config files"}
 $ cd config
-$ echo "source:"                          >> LabourForce.xls.eel.yml
-$ echo "  url: ../source/LabourForce.xls" >> LabourForce.xls.eel.yml
-$ echo "source:"                          >> Population.xls.eel.yml
-$ echo "  url: ../source/Population.xls"  >> Population.xls.eel.yml
-$ eel tree
+$ echo "source:"                          >> LabourForce.xls.els.yml
+$ echo "  url: ../source/LabourForce.xls" >> LabourForce.xls.els.yml
+$ echo "source:"                          >> Population.xls.els.yml
+$ echo "  url: ../source/Population.xls"  >> Population.xls.els.yml
+$ els tree
 config
-├── LabourForce.xls.eel.yml
+├── LabourForce.xls.els.yml
 │   └── LabourForce.xls
 │       └── Data → memory['WorldBankLabourForce']
-└── Population.xls.eel.yml
+└── Population.xls.els.yml
     └── Population.xls
         └── Data → memory['WorldBankPopulation']
 ```

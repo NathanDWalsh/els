@@ -1,9 +1,9 @@
 
-```{.console #id110tree caption="Run the `eel tree` command again, without passing an explicit path"}
+```{.console #id110tree caption="Run the `els tree` command again, without passing an explicit path"}
 $ pwd
-C:\Users\nwals\eel-demo
-$ eel tree
-eel-demo
+C:\Users\nwals\els-demo
+$ els tree
+els-demo
 ├── LabourForce.xlsx
 │   ├── Data                  → memory['Data']
 │   ├── Metadata - Countries  → memory['Metadata - Countries']

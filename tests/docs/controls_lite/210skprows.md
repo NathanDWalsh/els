@@ -1,15 +1,15 @@
 
 ```{.console #id210skprows caption="Set the `source.read_excel.skiprows` attribute"}
-$ echo "  read_excel:"    >> Population.xlsx.eel.yml
-$ echo "    skiprows: 3"  >> Population.xlsx.eel.yml
-$ cat Population.xlsx.eel.yml
+$ echo "  read_excel:"    >> Population.xlsx.els.yml
+$ echo "    skiprows: 3"  >> Population.xlsx.els.yml
+$ cat Population.xlsx.els.yml
 target:
   table: WorldBankPopulation
 source:
   url: ../source/Population.xlsx
   read_excel:
     skiprows: 3
-$ eel preview Population.xlsx.eel.yml
+$ els preview Population.xlsx.els.yml
 WorldBankPopulation [4 rows x 68 columns]:
         Country Name Country Code  ...       2022       2023
 0              Aruba          ABW  ...     106445     106277

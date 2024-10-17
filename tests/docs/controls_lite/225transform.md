@@ -1,9 +1,9 @@
 
 ```{.console #id225transform caption="Add `transform.astype` to config file"}
-$ echo "  astype:"                    >> Population.xlsx.eel.yml
-$ echo "    dtype:"                   >> Population.xlsx.eel.yml
-$ echo "      Population: Int64"      >> Population.xlsx.eel.yml
-$ eel preview Population.xlsx.eel.yml
+$ echo "  astype:"                    >> Population.xlsx.els.yml
+$ echo "    dtype:"                   >> Population.xlsx.els.yml
+$ echo "      Population: Int64"      >> Population.xlsx.els.yml
+$ els preview Population.xlsx.els.yml
 WorldBankPopulation [256 rows x 6 columns]:
         Country Name Country Code  ...  Year Population
 0              Aruba          ABW  ...  1960      54608

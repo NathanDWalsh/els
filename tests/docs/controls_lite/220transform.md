@@ -1,15 +1,15 @@
 
 ```{.console #id220transform caption="Add `transform.melt` to config file"}
-$ echo "transform:"                   >> Population.xlsx.eel.yml
-$ echo "  melt:"                      >> Population.xlsx.eel.yml
-$ echo "    id_vars:"                 >> Population.xlsx.eel.yml
-$ echo "      - Country Name"         >> Population.xlsx.eel.yml
-$ echo "      - Country Code"         >> Population.xlsx.eel.yml
-$ echo "      - Indicator Name"       >> Population.xlsx.eel.yml
-$ echo "      - Indicator Code"       >> Population.xlsx.eel.yml
-$ echo "    value_name: Population"   >> Population.xlsx.eel.yml
-$ echo "    var_name: Year"           >> Population.xlsx.eel.yml
-$ eel preview Population.xlsx.eel.yml
+$ echo "transform:"                   >> Population.xlsx.els.yml
+$ echo "  melt:"                      >> Population.xlsx.els.yml
+$ echo "    id_vars:"                 >> Population.xlsx.els.yml
+$ echo "      - Country Name"         >> Population.xlsx.els.yml
+$ echo "      - Country Code"         >> Population.xlsx.els.yml
+$ echo "      - Indicator Name"       >> Population.xlsx.els.yml
+$ echo "      - Indicator Code"       >> Population.xlsx.els.yml
+$ echo "    value_name: Population"   >> Population.xlsx.els.yml
+$ echo "    var_name: Year"           >> Population.xlsx.els.yml
+$ els preview Population.xlsx.els.yml
 WorldBankPopulation [256 rows x 6 columns]:
         Country Name Country Code  ...  Year Population
 0              Aruba          ABW  ...  1960      54608

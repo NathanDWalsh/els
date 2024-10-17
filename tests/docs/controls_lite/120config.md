@@ -1,11 +1,11 @@
 
-```{.console #id120config caption="Create a configuration file for the `eel-demo` directory, limiting source tables to `Data`"}
+```{.console #id120config caption="Create a configuration file for the `els-demo` directory, limiting source tables to `Data`"}
 $ pwd
-C:\Users\nwals\eel-demo
-$ echo "source:"        >  _.eel.yml
-$ echo "  table: Data"  >> _.eel.yml
-$ eel tree
-eel-demo
+C:\Users\nwals\els-demo
+$ echo "source:"        >  _.els.yml
+$ echo "  table: Data"  >> _.els.yml
+$ els tree
+els-demo
 ├── LabourForce.xlsx
 │   └── Data → memory['Data']
 └── Population.xlsx

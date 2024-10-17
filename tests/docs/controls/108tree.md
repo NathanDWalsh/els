@@ -1,6 +1,6 @@
 
-```{.console #id108tree caption="Call the `eel tree` command passing in the `Population.xls` file"}
-$ eel tree Population.xls
+```{.console #id108tree caption="Call the `els tree` command passing in the `Population.xls` file"}
+$ els tree Population.xls
 Population.xls
 ├── Data                  → memory['Data']
 ├── Metadata - Countries  → memory['Metadata - Countries']
