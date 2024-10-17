@@ -3,8 +3,8 @@ import pandas as pd
 from anytree import NodeMixin, RenderTree
 from typing import Callable, Optional
 
-import eel.config as ec
-import eel.execute as ee
+import els.config as ec
+import els.execute as ee
 
 from joblib import Parallel, delayed
 from joblib.externals.loky import get_reusable_executor
@@ -22,7 +22,7 @@ class SerialNodeMixin:
         return 1
 
 
-class EelExecute(FlowNodeMixin):
+class ElsExecute(FlowNodeMixin):
     def __init__(
         self,
         parent: FlowNodeMixin,
@@ -44,7 +44,7 @@ class EelExecute(FlowNodeMixin):
             logging.info("EXECUTE FAILED: " + self.name)
 
 
-class EelFlow(FlowNodeMixin):
+class ElsFlow(FlowNodeMixin):
     def __init__(self, parent: Optional[FlowNodeMixin] = None, n_jobs: int = 1) -> None:
         self.parent = parent
         self.n_jobs = n_jobs
@@ -74,7 +74,7 @@ class BuildWrapperMixin(FlowNodeMixin):
         return res
 
 
-class EelFileWrapper(BuildWrapperMixin, SerialNodeMixin):
+class ElsFileWrapper(BuildWrapperMixin, SerialNodeMixin):
     def __init__(self, parent: FlowNodeMixin, file_path: str) -> None:
         self.parent = parent
         self.file_path = file_path
@@ -95,7 +95,7 @@ class EelFileWrapper(BuildWrapperMixin, SerialNodeMixin):
         return f"{self.file_path} ({type(self).__name__})"
 
 
-class EelXlsxWrapper(EelFileWrapper):
+class ElsXlsxWrapper(ElsFileWrapper):
     def __init__(self, parent: FlowNodeMixin, file_path: str) -> None:
         super().__init__(parent, file_path)
 
@@ -118,10 +118,10 @@ class EelXlsxWrapper(EelFileWrapper):
 
 
 # groups files together that share a common target frame so that target can be built once
-class EelFileGroupWrapper(FlowNodeMixin, SerialNodeMixin):
+class ElsFileGroupWrapper(FlowNodeMixin, SerialNodeMixin):
     def __init__(self, parent: FlowNodeMixin, name: str) -> None:
         self.parent = parent
-        self.name = f"{name} (EelFileGroupWrapper)"
+        self.name = f"{name} (ElsFileGroupWrapper)"
 
     def execute(self):
         flow_child = self.children[0]

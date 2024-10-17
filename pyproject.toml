@@ -3,8 +3,11 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "eel"
+name = "els"
 version = "0.0.3"
 
 [project.scripts]
-eel = "eel.cli:main"
+els = "els.cli:main"
+
+[tool.setuptools.packages.find]
+exclude = ['temp','graveyard']

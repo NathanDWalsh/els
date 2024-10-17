@@ -1,9 +1,9 @@
 $env:PYTHONIOENCODING = "UTF-8"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-$CommandsFile = "D:\Sync\repos\eel\tests\docs\running_example_lite.ps1"
-$exampleMarkdownFile = "D:\Sync\repos\eel\tests\docs\running_example_lite.md"
-$controlsDir = "D:\Sync\repos\eel\tests\docs\controls_lite\"
+$CommandsFile = "D:\Sync\repos\els\tests\docs\running_example_lite.ps1"
+$exampleMarkdownFile = "D:\Sync\repos\els\tests\docs\running_example_lite.md"
+$controlsDir = "D:\Sync\repos\els\tests\docs\controls_lite\"
 $CurrentMarkdownFile = ""
 
 # Ensure the example markdown file is empty at the start
@@ -75,5 +75,5 @@ Get-Content $CommandsFile | ForEach-Object {
 CloseAndWriteMarkdown -markdownContent $markdownContent -MarkdownFile $CurrentMarkdownFile
 
 # revert back to cwd
-# Set-Location '~\eel-demo\'
-# Set-Location 'D:\Sync\repos\eel-Dis\_md'
+# Set-Location '~\els-demo\'
+# Set-Location 'D:\Sync\repos\els-Dis\_md'

@@ -2,7 +2,7 @@ import tempfile
 import os
 import pytest
 import sys
-from eel.cli import tree
+from els.cli import tree
 from pathlib import Path
 
 
@@ -50,7 +50,7 @@ def test_tree(
     )
 
     kwargs = {}
-    kwargs["dir"] = Path("D:\\Sync\\repos\\eel") / "temp"
+    kwargs["dir"] = Path("D:\\Sync\\repos\\els") / "temp"
     if sys.version_info < (3, 12):
         pass
     else:
@@ -65,13 +65,13 @@ def test_tree(
             file.write("a,b,c\n1,2,3\n4,5,6\n")
 
         if root_config:
-            with open("__.eel.yml", "w") as file:
+            with open("__.els.yml", "w") as file:
                 file.write(f"target:\n  table: {root_table}")
         if dir_config:
-            with open("_.eel.yml", "w") as file:
+            with open("_.els.yml", "w") as file:
                 file.write(f"target:\n  table: {dir_table}")
         if source_config:
-            with open(f"{dummyfile}.eel.yml", "w") as file:
+            with open(f"{dummyfile}.els.yml", "w") as file:
                 file.write(f"target:\n  table: {source_table}")
 
         # run the tree command and capture the output
@@ -90,7 +90,7 @@ def test_tree(
             and not dir_config
         ):
             if source_config or keep_virtual:
-                expected = f"""{dummyfile}.eel.yml
+                expected = f"""{dummyfile}.els.yml
 └── {dummyfile}
     └── {dummyroot} → memory['{target_table}']
 """
@@ -101,7 +101,7 @@ def test_tree(
         else:
             if source_config or keep_virtual:
                 expected = f"""{configdir}
-└── {dummyfile}.eel.yml
+└── {dummyfile}.els.yml
     └── {dummyfile}
         └── {dummyroot} → memory['{target_table}']
 """

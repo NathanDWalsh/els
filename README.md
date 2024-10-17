@@ -15,16 +15,16 @@ pip install els
 When working with data files the command line will work. Pass a path and the contents of the file/folder will be output to the console.
 
 ```bash
-eel.py test.xlsx       #output all worksheets in test.xlsx to screen
-eel.py ./datdir/       #output all data files in ./datdir/ to screen
+els.py test.xlsx       #output all worksheets in test.xlsx to screen
+els.py ./datdir/       #output all data files in ./datdir/ to screen
 ```
 
 Passing more than one arguments explicitly defines the target (first arg) and the sources (next arguments):
 
 ```bash
-eel.py ./output/ test.xlsx       #load all test.xlsx worksheets to ./output/*.csv
-eel.py ./output/ ./datdir/       #load all ./datdir/ data files to ./output/*.csv
-eel.py .janfeb.csv jan.csv feb.csv       #load jan.csv and feb.csv to janfeb.csv
+els.py ./output/ test.xlsx       #load all test.xlsx worksheets to ./output/*.csv
+els.py ./output/ ./datdir/       #load all ./datdir/ data files to ./output/*.csv
+els.py .janfeb.csv jan.csv feb.csv       #load jan.csv and feb.csv to janfeb.csv
 ```
 
 ## One target : many source convention
@@ -36,11 +36,11 @@ Define a target (container or frame) and then one or more sources (container or 
 
 ## Advanced usage
 
-When using databases and remote files, the .eel.yml files will have to be used.
+When using databases and remote files, the .els.yml files will have to be used.
 
-## eel object model
+## els object model
 
-eel works with frames and containers as outlined in the below diagram:
+els works with frames and containers as outlined in the below diagram:
 
 ```mermaid
 ---
@@ -65,8 +65,8 @@ erDiagram
 - schema
 - workbook
 - directory with files
-- .eel.yml file
-- .eel.yml document
+- .els.yml file
+- .els.yml document
 
 Below are two examples of how containers and frames relate to files and databases:
 
@@ -94,7 +94,7 @@ Containers can be
 
 ```mermaid
 ---
-title: Example eel dataflow
+title: Example els dataflow
 ---
 graph LR
 subgraph ./data sources/
@@ -152,9 +152,9 @@ In the above dataflow diagram:
 - sql db (top-right) is a frameless container
 - all other containers are heterogeneous
 
-Another way to think about the eel object model is that they form a tree with branches and leafs:
+Another way to think about the els object model is that they form a tree with branches and leafs:
 
-| eel object              | tree analog |
+| els object              | tree analog |
 | :---------------------- | :---------- |
 | frame                   | leaf        |
 | container-homogeneous   | leaf        |
@@ -167,17 +167,17 @@ The following are supported as both sources and targets.
 
 ### Directory
 
-by default, eel considers a folder as a container:
+by default, els considers a folder as a container:
 
-|                    | Type                  | eel object |
+|                    | Type                  | els object |
 | ------------------ | --------------------- | ---------- |
 | :white_check_mark: | file folder/directory | Container  |
 
 ### Data files
 
-eel recognizes certain file extensions as valid data files:
+els recognizes certain file extensions as valid data files:
 
-|                      | Type    | Extension  | eel object |
+|                      | Type    | Extension  | els object |
 | -------------------- | ------- | ---------- | ---------- |
 | :white_check_mark:   | Excel   | xls[x,b,m] | Container  |
 | :white_check_mark:   | text    | csv,tsv    | Frame      |
@@ -186,9 +186,9 @@ eel recognizes certain file extensions as valid data files:
 
 ### Databases
 
-Database connections can be configured in an .eel.yml file and the following are supported for mvp1:
+Database connections can be configured in an .els.yml file and the following are supported for mvp1:
 
-|                      | Type     | eel object |
+|                      | Type     | els object |
 | -------------------- | -------- | ---------- |
 | :white_check_mark:   | mssql    | Container  |
 | :white_check_mark:   | duckdb   | Container  |
@@ -207,30 +207,30 @@ yourdata.csv
 yourdata.xlsx
 ```
 
-### Recognized data files can optionally be accompanied by a .eel.yml configuration file
+### Recognized data files can optionally be accompanied by a .els.yml configuration file
 
 ```bash
 yourdata.csv
-yourdata.csv.eel.yml
+yourdata.csv.els.yml
 yourdata.xlsx
-yourdata.xlsx.eel.yml
+yourdata.xlsx.els.yml
 ```
 
-### Other stores such as databases or remote files can be defined in a .eel.yml configuration file
+### Other stores such as databases or remote files can be defined in a .els.yml configuration file
 
 ```bash
-yourconn.eel.yml
+yourconn.els.yml
 ```
 
 ### Folders can have a global configuration file which by default propagates to all containing files and subfolders
 
 ```bash
-_.eel.yml
+_.els.yml
 ```
 
 ## Sources and Targets
 
-An eel flow involves a single data source and target. Sources have some similarities and differences outlines below:
+An els flow involves a single data source and target. Sources have some similarities and differences outlines below:
 
 ## Sources (the extract bit)
 
@@ -239,11 +239,11 @@ Here are some scenarios for defining a source frame or container:
 |           |                                      | file               | dir                | db                 |
 | :-------- | :----------------------------------- | :----------------- | :----------------- | :----------------- |
 | lone data | data file (.csv, .xlsx)              | :white_check_mark: |                    |                    |
-| eel pair  | data file with accompanying .eel.yml | :white_check_mark: |                    |                    |
-| lone eel  | .eel.yml with source defined         | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| els pair  | data file with accompanying .els.yml | :white_check_mark: |                    |                    |
+| lone els  | .els.yml with source defined         | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 
-- lone data and eel pair sources can be either a frame or a container
-- lone eel sources can be either be a database connection and point to a table or schema or a remote file
+- lone data and els pair sources can be either a frame or a container
+- lone els sources can be either be a database connection and point to a table or schema or a remote file
 
 ## Targets (the load bit)
 
@@ -263,44 +263,44 @@ Supported source to target types.
 | homogeneous container   | :white_check_mark: |                    |
 | heterogeneous container |                    | :white_check_mark: |
 
-- eel.yml
+- els.yml
 - second argument in the cli call
 
 Defining a target may involve having to define a container and frame separately, here is a typical scenario where multiple source files are loaded to different tables (frames) in a single database (container).
 
-- target database (container) is defined in a glabal .eel.yml file in the source folder
+- target database (container) is defined in a glabal .els.yml file in the source folder
 - target frames (tables) are by default the names of the files and/or worksheets
 - in the case of a heterogeneous container, the name of the container is the default target frame
-- any defaults defined above can be overridden in a global or paired .eel.yml file
+- any defaults defined above can be overridden in a global or paired .els.yml file
 
-An example use case would have a folder containing all source files and a single .eel.yaml file defining a target database container.
+An example use case would have a folder containing all source files and a single .els.yaml file defining a target database container.
 
 ```bash
 └───data_sources                    # folder
-        .eel.yml                    # defines target container for folder
+        .els.yml                    # defines target container for folder
         customers.xlsx              # implicit target frames = names of worksheets
         products.csv                # implicit target frame = file base (products)
         transactions.xlsx           # explicit target frame defined in
-        transactions.xlsx.eel.yml   #  transactions.xlsx.eel.yml
+        transactions.xlsx.els.yml   #  transactions.xlsx.els.yml
 ```
 
 ### usage
 
 ```bash
-eel.py ./data sources/  #recursively iterate all folders and files (recognized
-                        #data files + *.eel.yml configs) and load to defined target(s)
+els.py ./data sources/  #recursively iterate all folders and files (recognized
+                        #data files + *.els.yml configs) and load to defined target(s)
 ```
 
-## config / \*.eel.yaml
+## config / \*.els.yaml
 
-One or more .eel.yaml files may define:
+One or more .els.yaml files may define:
 
 - frame/container source
   - in file content
-  - in file name (eel pair)
+  - in file name (els pair)
 - frame/container target
   - in file content
-  - inherit from global eel.yaml
+  - inherit from global els.yaml
 - column names and types
 - source type: frame or container
 - target type: frame or container
@@ -320,4 +320,4 @@ Some intra-frame transformations are supported:
 - unpivot / melt data
 - include file details
 - include frame specific properties from homogeneous containers
-- include custom columns defined in eel.yaml
+- include custom columns defined in els.yaml

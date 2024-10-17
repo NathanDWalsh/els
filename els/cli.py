@@ -14,15 +14,15 @@ import io
 from pathlib import Path
 from typing import Optional
 
-from eel.path import plant_tree
-from eel.path import get_root_config_name
-from eel.path import get_root_inheritance
-from eel.path import CONFIG_FILE_EXT
+from els.path import plant_tree
+from els.path import get_root_config_name
+from els.path import get_root_inheritance
+from els.path import CONFIG_FILE_EXT
 
-from eel.config import TargetIfExistsValue
-from eel.path import NodeType
+from els.config import TargetIfExistsValue
+from els.path import NodeType
 
-from eel.execute import staged_frames
+from els.execute import staged_frames
 
 app = typer.Typer()
 
@@ -120,9 +120,9 @@ def generate(
     tree = plant_tree(ca_path)
 
     if tree and verbose:
-        ymls = tree.get_eel_yml_preview(diff=False)
+        ymls = tree.get_els_yml_preview(diff=False)
     elif tree:
-        ymls = tree.get_eel_yml_preview(diff=True)
+        ymls = tree.get_els_yml_preview(diff=True)
     else:
         raise Exception("tree not loaded")
     yml_grouped = organize_yaml_files_for_output(ymls, table_filter)
@@ -139,7 +139,7 @@ def generate(
                 # yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
                 write_yaml_str(yaml_str)
     # else:
-    #     print("current path different than eel root")
+    #     print("current path different than els root")
 
 
 def organize_yaml_files_for_output(
@@ -359,7 +359,7 @@ def new(
     config_folder_path = project_path / "config"
     if config_folder_path.exists():
 
-        # Define the file path for __.eel.yml
+        # Define the file path for __.els.yml
         config_file_path = config_folder_path / get_root_config_name()
 
         yml = yaml.YAML()
@@ -401,14 +401,14 @@ def main():
 if __name__ == "__main__":
     start_logging()
     # if os.path.exists(
-    #     "D:\\Sync\\test_data\\eel-wb-population\\targets\\excel_container.xlsx"
+    #     "D:\\Sync\\test_data\\els-wb-population\\targets\\excel_container.xlsx"
     # ):
     #     os.remove(
-    #         "D:\\Sync\\test_data\\eel-wb-population\\targets\\excel_container.xlsx"
+    #         "D:\\Sync\\test_data\\els-wb-population\\targets\\excel_container.xlsx"
     #     )
-    os.chdir("C:\\Users\\nwals\\eel-demo\\config")
-    # os.chdir("D:\\Sync\\repos\\eel\\temp")
-    # os.chdir("D:\\Sync\\test_data\\eel-wb-population\\excel_lite")
-    # os.chdir("C:\\Users\\nwals\\eel-demo\\config\\excel")
+    os.chdir("C:\\Users\\nwals\\els-demo\\config")
+    # os.chdir("D:\\Sync\\repos\\els\\temp")
+    # os.chdir("D:\\Sync\\test_data\\els-wb-population\\excel_lite")
+    # os.chdir("C:\\Users\\nwals\\els-demo\\config\\excel")
     tree()
     # print(list(staged_frames.values())[0].dtypes)

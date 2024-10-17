@@ -8,9 +8,9 @@ import yaml
 import os
 import glob
 
-from eel.cli import execute
-from eel.execute import staged_frames
-from eel.path import get_config_default
+from els.cli import execute
+from els.execute import staged_frames
+from els.path import get_config_default
 
 import logging
 
@@ -54,7 +54,7 @@ def setup():
 
 
 def test_cwd():
-    assert "d:\\Sync\\repos\\eel\\temp" == os.getcwd()
+    assert "d:\\Sync\\repos\\els\\temp" == os.getcwd()
 
 
 # Get the ec.Config dictionary for a given DataFrame
@@ -275,7 +275,7 @@ def round_trip_file(test_case: Test, request, test_type: str):
     if test_type == "xlsx" or test_type == "csv":
         test_url = test_name + "." + test_type
     elif test_type == "mssql":
-        test_url = "mssql://localhost/eel" + "?driver=ODBC+Driver+17+for+SQL+Server"
+        test_url = "mssql://localhost/els" + "?driver=ODBC+Driver+17+for+SQL+Server"
     elif test_type == "sqlite":
         test_url = "sqlite:///test_database.db"
 
@@ -292,18 +292,18 @@ def round_trip_file(test_case: Test, request, test_type: str):
     t_config.source.url = "pandas://"
 
     # t_config.target.table = str(t_config.pipe_id)
-    test_eel_out = test_name + "." + test_type + ".out.eel.yml"
+    test_els_out = test_name + "." + test_type + ".out.els.yml"
 
     staged_frames[test_name] = df
 
     yaml.dump(
         t_config.model_dump(exclude_none=True),
-        open(test_eel_out, "w"),
+        open(test_els_out, "w"),
         sort_keys=False,
         allow_unicode=True,
     )
 
-    execute(test_eel_out)
+    execute(test_els_out)
 
     # to_func = getattr(df, to_func_name)
     # to_func(test_file, index=False, **kwargs)
@@ -315,17 +315,17 @@ def round_trip_file(test_case: Test, request, test_type: str):
         df_config["source"]["table"] = test_name
         df_config["source"]["url"] = test_url
     # df_config["source"]["url"] = f"*.{extension}"
-    test_eel = test_name + "." + test_type + ".eel.yml"
+    test_els = test_name + "." + test_type + ".els.yml"
     yaml.dump(
         df_config,
-        open(test_eel, "w"),
+        open(test_els, "w"),
         sort_keys=False,
         allow_unicode=True,
     )
 
     staged_frames.clear()
 
-    execute(test_eel)
+    execute(test_els)
     # assert True
     # return
     logger.info(test_name)
@@ -349,8 +349,8 @@ def round_trip_file(test_case: Test, request, test_type: str):
     logger.info(compare.report())
     assert df.equals(df2)
 
-    os.remove(test_eel)
-    os.remove(test_eel_out)
+    os.remove(test_els)
+    os.remove(test_els_out)
     if test_type == "xlsx" or test_type == "csv":
         os.remove(test_url)
 

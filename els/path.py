@@ -17,12 +17,12 @@ import yaml
 import logging
 import typer
 
-import eel.config as ec
-import eel.flow as ef
-import eel.execute as ee
-from eel.pathprops import HumanPathPropertiesMixin
+import els.config as ec
+import els.flow as ef
+import els.execute as ee
+from els.pathprops import HumanPathPropertiesMixin
 
-CONFIG_FILE_EXT = ".eel.yml"
+CONFIG_FILE_EXT = ".els.yml"
 FOLDER_CONFIG_FILE_STEM = "_"
 ROOT_CONFIG_FILE_STEM = "__"
 
@@ -42,7 +42,7 @@ class NodeType(Enum):
 class FileType(Enum):
     EXCEL = "excel"
     CSV = "csv"
-    EEL = "eel"
+    ELS = "els"
     FWF = "fixed width file"
     XML = "xml"
 
@@ -55,9 +55,9 @@ class FileType(Enum):
             "xlsb": cls.EXCEL,
             "csv": cls.CSV,
             "tsv": cls.CSV,
-            # TODO: handle double extension eel.yml
-            # for now assumes any yml file is an eel config
-            "yml": cls.EEL,
+            # TODO: handle double extension els.yml
+            # for now assumes any yml file is an els config
+            "yml": cls.ELS,
             "fwf": cls.FWF,
             "xml": cls.XML,
         }
@@ -265,7 +265,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def config_raw(self, add_config_file_path=False) -> ec.Config:
         config_line = []
-        # if root eel config is mandatory, this "default dump line" is not required
+        # if root els config is mandatory, this "default dump line" is not required
         config_line.append(ec.Config().model_dump(exclude_none=True))
 
         for node in self.ancestors + (self,):
@@ -594,29 +594,29 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         df: pd.DataFrame,
         execute_fn: Callable[[ec.Config], bool],
     ) -> None:
-        ingest_files = ef.EelFlow(parent=parent, n_jobs=1)
+        ingest_files = ef.ElsFlow(parent=parent, n_jobs=1)
         for file, file_gb in df.groupby(["file_path", "type"]):
             if file[1] in (".xlsx", ".xls", ".xlsm", ".xlsb"):
-                file_wrapper = ef.EelXlsxWrapper(parent=ingest_files, file_path=file[0])
+                file_wrapper = ef.ElsXlsxWrapper(parent=ingest_files, file_path=file[0])
             else:
-                file_wrapper = ef.EelFileWrapper(parent=ingest_files, file_path=file[0])
-            exe_flow = ef.EelFlow(parent=file_wrapper, n_jobs=1)
+                file_wrapper = ef.ElsFileWrapper(parent=ingest_files, file_path=file[0])
+            exe_flow = ef.ElsFlow(parent=file_wrapper, n_jobs=1)
             for task_row in file_gb[["name", "config"]].itertuples():
-                ef.EelExecute(
+                ef.ElsExecute(
                     parent=exe_flow,
                     name=task_row.name,
                     config=task_row.config,
                     execute_fn=execute_fn,
                 )
 
-    def get_ingest_taskflow(self) -> ef.EelFlow:
+    def get_ingest_taskflow(self) -> ef.ElsFlow:
         df = self.get_leaf_df
-        root_flow = ef.EelFlow()
+        root_flow = ef.ElsFlow()
         # raise Exception(df.columns)
         if "table" not in df.columns:
             raise Exception("table column not found in leaf dataframe")
         for table, table_gb in df.groupby("table", dropna=False):
-            file_group_wrapper = ef.EelFileGroupWrapper(
+            file_group_wrapper = ef.ElsFileGroupWrapper(
                 parent=root_flow, name=str(table)
             )
             ConfigPath.apply_file_wrappers(
@@ -625,15 +625,15 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
         return root_flow
 
-    def get_detect_taskflow(self) -> ef.EelFlow:
+    def get_detect_taskflow(self) -> ef.ElsFlow:
         df = self.get_leaf_df
         root_flows = ConfigPath.apply_file_wrappers(
             parent=None, df=df, execute_fn=ee.detect
         )
-        res = ef.EelFlow(root_flows, 1)
+        res = ef.ElsFlow(root_flows, 1)
         return res
 
-    def get_eel_yml_preview(self, diff: bool = True) -> list[dict]:
+    def get_els_yml_preview(self, diff: bool = True) -> list[dict]:
         ymls = []
         # for path, node in self.index.items():
         for node in [node for node in PreOrderIter(self)]:
@@ -716,7 +716,7 @@ def get_root_inheritance(start_dir: Path) -> Union[list[Path], None]:
         if len(below) > 0:
             return [Path(below[0].parent.absolute())]
         else:
-            logging.info(f"eel root not found, using {start_dir}")
+            logging.info(f"els root not found, using {start_dir}")
             if (
                 start_dir.is_file()
                 and (start_dir.parent / get_dir_config_name()).exists()

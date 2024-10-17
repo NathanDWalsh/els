@@ -2,7 +2,7 @@ import pandas as pd
 import sqlalchemy as sa
 import logging
 from typing import Union, Optional
-import eel.config as ec
+import els.config as ec
 import os
 import csv
 from python_calamine import CalamineWorkbook

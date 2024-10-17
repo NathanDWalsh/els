@@ -7,7 +7,7 @@ import re
 from enum import Enum
 from urllib.parse import urlparse
 
-from eel.pathprops import HumanPathPropertiesMixin
+from els.pathprops import HumanPathPropertiesMixin
 
 import yaml
 from copy import deepcopy
@@ -344,7 +344,7 @@ def main():
 
     config_yml = yaml.dump(config_json, default_flow_style=False)
 
-    with open("eel_schema.yml", "w") as file:
+    with open("els_schema.yml", "w") as file:
         file.write(config_yml)
 
 
