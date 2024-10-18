@@ -220,7 +220,7 @@ $defs:
         title: Sheet Name
     title: ReadExcel
     type: object
-  ReadFWF:
+  ReadFwf:
     additionalProperties: true
     properties:
       names:
@@ -230,12 +230,12 @@ $defs:
         - type: 'null'
         default: null
         title: Names
-    title: ReadFWF
+    title: ReadFwf
     type: object
-  ReadXML:
+  ReadXml:
     additionalProperties: true
     properties: {}
-    title: ReadXML
+    title: ReadXml
     type: object
   Source:
     additionalProperties: false
@@ -274,19 +274,19 @@ $defs:
         default: null
       read_fwf:
         anyOf:
-        - $ref: '#/$defs/ReadFWF'
+        - $ref: '#/$defs/ReadFwf'
         - type: 'null'
         default: null
       read_xml:
         anyOf:
-        - $ref: '#/$defs/ReadXML'
+        - $ref: '#/$defs/ReadXml'
         - type: 'null'
         default: null
       table:
         anyOf:
         - type: string
         - type: 'null'
-        default: _leaf_name
+        default: null
         title: Table
       url:
         anyOf:
@@ -336,7 +336,7 @@ $defs:
         anyOf:
         - type: string
         - type: 'null'
-        default: _leaf_name
+        default: null
         title: Table
       to_csv:
         anyOf:
@@ -447,7 +447,7 @@ properties:
       read_excel: null
       read_fwf: null
       read_xml: null
-      table: _leaf_name
+      table: null
       url: null
   target:
     allOf:
@@ -456,7 +456,7 @@ properties:
       consistency: strict
       dbschema: null
       if_exists: null
-      table: _leaf_name
+      table: null
       to_csv: null
       to_excel: null
       to_sql: null

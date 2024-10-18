@@ -5,9 +5,10 @@ import pandas as pd
 from anytree import PreOrderIter
 from enum import Enum
 from typing import Type
-from pygments import highlight
-from pygments.lexers import YamlLexer
-from pygments.formatters import TerminalFormatter
+
+# from pygments import highlight
+# from pygments.lexers import YamlLexer
+# from pygments.formatters import TerminalFormatter
 import sys
 import os
 import io
@@ -281,11 +282,11 @@ def execute(path: Optional[str] = typer.Argument(None)):
 
 def write_yaml_str(yaml_str):
     # TODO, check the colors issues with pwsh
-    if sys.stdout.isatty() and 1 == 2:
-        colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
-        sys.stdout.write(colored_yaml)
-    else:
-        sys.stdout.write(yaml_str)
+    # if sys.stdout.isatty() and 1 == 2:
+    #     colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
+    #     sys.stdout.write(colored_yaml)
+    # else:
+    sys.stdout.write(yaml_str)
 
 
 def concat_enum_values(enum_class: Type[Enum]) -> str:
@@ -407,7 +408,6 @@ if __name__ == "__main__":
     #         "D:\\Sync\\test_data\\els-wb-population\\targets\\excel_container.xlsx"
     #     )
     os.chdir("C:\\Users\\nwals\\els-demo\\config")
-    # os.chdir("D:\\Sync\\repos\\els\\temp")
     # os.chdir("D:\\Sync\\test_data\\els-wb-population\\excel_lite")
     # os.chdir("C:\\Users\\nwals\\els-demo\\config\\excel")
     tree()

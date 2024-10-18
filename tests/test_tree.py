@@ -50,7 +50,7 @@ def test_tree(
     )
 
     kwargs = {}
-    kwargs["dir"] = Path("D:\\Sync\\repos\\els") / "temp"
+    kwargs["dir"] = Path("D:\\Sync\\repos") / "temp"
     if sys.version_info < (3, 12):
         pass
     else:

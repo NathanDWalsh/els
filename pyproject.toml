@@ -5,9 +5,21 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "els"
 version = "0.0.3"
+authors = [
+    { name="Nathan Walsh", email="nwalsh82@gmail.com" },
+]
+description = "A declarative data ingestion system"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 2 - Pre-Alpha",
+]
 
 [project.scripts]
 els = "els.cli:main"
 
-[tool.setuptools.packages.find]
-exclude = ['temp','graveyard']
+[project.urls]
+Homepage = "https://github.com/NathanDWalsh/els"
