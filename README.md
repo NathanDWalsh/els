@@ -10,33 +10,37 @@ ELS is python based and can be installed with pip.
 pip install els
 ```
 
+## Documentation
+
+Documentation is sparse, so far I have just copied/pasted some chapters from my dissertation that explains core concepts and functionality.
+
 ## Configuration Components \_ config-path-design
 
 Pipeline configurations define the dataflow between sources and targets,
 including any transformations. These configurations must be defined in a
 structured manner: it is the design of this configuration structure via
-eel's _configuration components_ that is covered in this chapter. The
-human-readable design is covered in [@sec:eel-config-design], explaining
+els's _configuration components_ that is covered in this chapter. The
+human-readable design is covered in [@sec:els-config-design], explaining
 a shallow YAML document schema for setting ingestion pipeline
 configurations.
 
 | Node component     | Node-level config.   | Configures...                               |
 | ------------------ | -------------------- | ------------------------------------------- |
 | Configuration file |                      |                                             |
-| `*.eel.yml`        |                      | one or more ingestion units.                |
+| `*.els.yml`        |                      | one or more ingestion units.                |
 | ----------         | ---------------      | --------------------------------            |
 | Source file        |                      |                                             |
 | `*.csv`            |                      | source file with default configuration.     |
 | `*.xlsx`           |                      |                                             |
 |                    | Source-level config. |                                             |
-| `*.csv`            | `*.csv.eel.yml`      | source file with explicit configuration.    |
-| `*.xlsx`           | `*.xlsx.eel.yml`     |                                             |
+| `*.csv`            | `*.csv.els.yml`      | source file with explicit configuration.    |
+| `*.xlsx`           | `*.xlsx.els.yml`     |                                             |
 | ----------         | ---------------      | --------------------------------            |
 | Directory          |                      | directory with default configuration.       |
 |                    | Dir.-level config.   |                                             |
-|                    | `_.eel.yml`          | directory with explicit configuration.      |
+|                    | `_.els.yml`          | directory with explicit configuration.      |
 |                    | Root-level config.   |                                             |
-|                    | `__.eel.yml`         | root directory with explicit configuration. |
+|                    | `__.els.yml`         | root directory with explicit configuration. |
 
 : Configuration component overview: the first column lists three node
 components; the second column lists three node-level components which
@@ -64,19 +68,19 @@ are chosen to configure an ingestion project. One example is a single
 file configuration scheme where all sources, targets and transformations
 are defined. Another example is a multiple-level configuration scheme
 with multiple files and directories relying on configuration
-inheritance. Eel does not favour nor enforce any particular
+inheritance. els does not favour nor enforce any particular
 configuration scheme, instead it is up to the user to decide how to use
 the components available.
 
 With the aid of a series of examples, each component is explained in the
 sections below. The components are not introduced in any logical order,
 instead favouring an order that fits with the examples. The examples are
-used to demonstrate the flexible design of the eel system and are not
+used to demonstrate the flexible design of the els system and are not
 demonstrating recommended uses.
 
 ### Source File Node
 
-Data files (csv, Excel) are interpreted by eel as source file nodes,
+Data files (csv, Excel) are interpreted by els as source file nodes,
 allowing for the addition and removal of data files to a pipeline's
 sources with simple file operations (copy, delete). This can be useful
 for small projects with local datasets, or prototyping larger projects
@@ -88,29 +92,29 @@ other configuration component can be employed.
 into it downloads two data files from the World Bank's public API.
 
 ```console
-$ mkdir eel-demo
-C:\Users\nwals\eel-demo
-$ cd eel-demo
+$ mkdir els-demo
+C:\Users\nwals\els-demo
+$ cd els-demo
 $ $wb_api = "https://api.worldbank.org/v2/indicator/"
 $ $wb_qry = "?downloadformat=excel"
 $ curl -o ./Population.xls ($wb_api + "SP.POP.TOTL" + $wb_qry) -s
 $ curl -o ./LabourForce.xls ($wb_api + "SL.TLF.TOTL.IN" + $wb_qry) -s
 $ ls
-C:\Users\nwals\eel-demo\LabourForce.xls
-C:\Users\nwals\eel-demo\Population.xls
+C:\Users\nwals\els-demo\LabourForce.xls
+C:\Users\nwals\els-demo\Population.xls
 ```
 
-The last two lines of [@lst:id100new] show two data files that eel will
+The last two lines of [@lst:id100new] show two data files that els will
 recognise as _source file nodes_: `LabourForce.xls` and
-`Population.xls`. [@lst:id108tree] introduces the `eel tree` command,
-which displays how eel interprets a given configuration node and its
-children. Passing a path as an argument to an eel command sets the
+`Population.xls`. [@lst:id108tree] introduces the `els tree` command,
+which displays how els interprets a given configuration node and its
+children. Passing a path as an argument to an els command sets the
 _configuration context_, indicating where it should begin parsing
-configuration components. In [@lst:id108tree] `eel tree` is called,
+configuration components. In [@lst:id108tree] `els tree` is called,
 setting the configuration context to the `Population.xls` file.
 
 ```console
-$ eel tree Population.xls
+$ els tree Population.xls
 Population.xls
 ├── Data                  → memory['Data']
 ├── Metadata - Countries  → memory['Metadata - Countries']
@@ -118,7 +122,7 @@ Population.xls
 
 ```
 
-The results of an `eel tree` command always have: (1) a configuration
+The results of an `els tree` command always have: (1) a configuration
 node as the root; (2) _source url nodes_ as penultimate nodes; and (3)
 _dataflow nodes_ as leafs. The source url and dataflow nodes provide an
 overview of the pipeline units defined in the configuration. Testing the
@@ -143,16 +147,16 @@ explicit configuration.[^2] A configuration scheme using directory nodes
 can be employed to organise configuration components by project teams or
 data providers.
 
-[@lst:id110tree] calls the `eel tree` command again, this time without
+[@lst:id110tree] calls the `els tree` command again, this time without
 passing a path to set the context as done in [@lst:id108tree]. When
-running eel commands without passing an explicit path, the current
+running els commands without passing an explicit path, the current
 working directory is used for the configuration context.
 
 ```console
 $ pwd
-C:\Users\nwals\eel-demo
-$ eel tree
-eel-demo
+C:\Users\nwals\els-demo
+$ els tree
+els-demo
 ├── LabourForce.xls
 │   ├── Data                  → memory['Data']
 │   ├── Metadata - Countries  → memory['Metadata - Countries']
@@ -163,7 +167,7 @@ eel-demo
     └── Metadata - Indicators → memory['Metadata - Indicators']
 ```
 
-The `eel tree` result in [@lst:id110tree] shows: the `eel-demo`
+The `els tree` result in [@lst:id110tree] shows: the `els-demo`
 directory node as the root; its children (`Population.xls` and
 `LabourForce.xls`) as both source file nodes _and_ source url nodes; and
 their children, the leafs, as dataflow nodes. The resulting dataflow
@@ -183,19 +187,19 @@ passed to its child directories and files. To add configuration to a
 directory node, a directory-level configuration file must be added. For
 a directory-level configuration to be valid, it must: (1) be stored in
 the same directory in which it configures; and (2) must be named
-`_.eel.yml`.[^4] Configurations set in a directory node are passed to
+`_.els.yml`.[^4] Configurations set in a directory node are passed to
 its child nodes via configuration inheritance.
 
-[@lst:id120config] configures the `eel-demo` directory node by creating
+[@lst:id120config] configures the `els-demo` directory node by creating
 a directory-level configuration file[^5].
 
 ```console
 $ pwd
-C:\Users\nwals\eel-demo
-$ echo "source:"        >  _.eel.yml
-$ echo "  table: Data"  >> \_.eel.yml
-$ eel tree
-eel-demo
+C:\Users\nwals\els-demo
+$ echo "source:"        >  _.els.yml
+$ echo "  table: Data"  >> \_.els.yml
+$ els tree
+els-demo
 ├── LabourForce.xls
 │   └── Data → memory['Data']
 └── Population.xls
@@ -203,8 +207,8 @@ eel-demo
 
 ```
 
-The `eel tree` results in [@lst:id120config] shows only the `Data` table
-for both source files. This is because the `eel-demo` directory node
+The `els tree` results in [@lst:id120config] shows only the `Data` table
+for both source files. This is because the `els-demo` directory node
 passes the `source.table: Data` configuration to its child data files. A
 directory-level configuration can be used is in configuration schemes
 where different teams (geographic or departmental) are responsible for
@@ -223,30 +227,30 @@ When working directly with source file nodes covered in
 configurations for source data files. For a source-level configuration
 to be valid, it must: (1) be in the same directory as the source data
 file it configures; and (2) have the same base name as the source file
-it configures, with a `.eel.yml` extension added[^6].
+it configures, with a `.els.yml` extension added[^6].
 
-Recall in the `eel tree` dataflow results in [@lst:id120config] that the
+Recall in the `els tree` dataflow results in [@lst:id120config] that the
 `Data` sheets from both source files point to the same target `Data`
 table in memory. [@lst:id122config] creates a source-level configuration
 file for both source files, directing `Data` sheets each to a distinct
 target table.
 
 ```console
-$ echo "target:"                        > LabourForce.xls.eel.yml
-$ echo "  table: WorldBankLabourForce" >> LabourForce.xls.eel.yml
-$ echo "target:"                        > Population.xls.eel.yml
-$ echo "  table: WorldBankPopulation"  >> Population.xls.eel.yml
-$ eel tree
-eel-demo
-├── LabourForce.xls.eel.yml
+$ echo "target:"                        > LabourForce.xls.els.yml
+$ echo "  table: WorldBankLabourForce" >> LabourForce.xls.els.yml
+$ echo "target:"                        > Population.xls.els.yml
+$ echo "  table: WorldBankPopulation"  >> Population.xls.els.yml
+$ els tree
+els-demo
+├── LabourForce.xls.els.yml
 │   └── LabourForce.xls
 │       └── Data → memory['WorldBankLabourForce']
-└── Population.xls.eel.yml
+└── Population.xls.els.yml
     └── Population.xls
         └── Data → memory['WorldBankPopulation']
 ```
 
-The `eel tree` results in [@lst:id122config] show two dataflow nodes
+The `els tree` results in [@lst:id122config] show two dataflow nodes
 each with a distinct target table. Source-level configurations are
 useful to quickly iterate configurations on a single source file. When a
 desirable configuration is achieved, the configuration can be redirected
@@ -264,17 +268,17 @@ directory and the configuration files created in [@lst:id120config] and
 
 ```console
 $ mkdir config
-C:\Users\nwals\eel-demo\config
+C:\Users\nwals\els-demo\config
 $ mkdir source
-C:\Users\nwals\eel-demo\source
+C:\Users\nwals\els-demo\source
 $ mv *.xls source
 $ mv *.yml config
 $ ls -s *.*
-C:\Users\nwals\eel-demo\config\_.eel.yml
-C:\Users\nwals\eel-demo\config\LabourForce.xls.eel.yml
-C:\Users\nwals\eel-demo\config\Population.xls.eel.yml
-C:\Users\nwals\eel-demo\source\LabourForce.xls
-C:\Users\nwals\eel-demo\source\Population.xls
+C:\Users\nwals\els-demo\config\_.els.yml
+C:\Users\nwals\els-demo\config\LabourForce.xls.els.yml
+C:\Users\nwals\els-demo\config\Population.xls.els.yml
+C:\Users\nwals\els-demo\source\LabourForce.xls
+C:\Users\nwals\els-demo\source\Population.xls
 ```
 
 ### Configuration File Node
@@ -288,28 +292,28 @@ inherit a source url from one of its ancestor nodes.
 
 Since separating the configuration files and source data files in
 [@lst:id130source], the source-level configuration files created in
-[@lst:id122config] are now considered by eel as configuration file
+[@lst:id122config] are now considered by els as configuration file
 nodes. However, they are invalid as configuration file nodes because
 they do not have a source url defined. [@lst:id132source] resolves this
 issue by adding a `source.url` property.
 
 ```console
 $ cd config
-$ echo "source:"                          >> LabourForce.xls.eel.yml
-$ echo "  url: ../source/LabourForce.xls" >> LabourForce.xls.eel.yml
-$ echo "source:"                          >> Population.xls.eel.yml
-$ echo "  url: ../source/Population.xls"  >> Population.xls.eel.yml
-$ eel tree
+$ echo "source:"                          >> LabourForce.xls.els.yml
+$ echo "  url: ../source/LabourForce.xls" >> LabourForce.xls.els.yml
+$ echo "source:"                          >> Population.xls.els.yml
+$ echo "  url: ../source/Population.xls"  >> Population.xls.els.yml
+$ els tree
 config
-├── LabourForce.xls.eel.yml
+├── LabourForce.xls.els.yml
 │   └── LabourForce.xls
 │       └── Data → memory['WorldBankLabourForce']
-└── Population.xls.eel.yml
+└── Population.xls.els.yml
     └── Population.xls
         └── Data → memory['WorldBankPopulation']
 ```
 
-In [@lst:id132source] the results of the `eel tree` command gives
+In [@lst:id132source] the results of the `els tree` command gives
 similar results to [@lst:id122config] with two notable differences: (1)
 the root node is now the newly created `config` directory node; and (2)
 the second-level nodes are both configuration file nodes.
@@ -333,12 +337,12 @@ a directory for the World Bank configuration files and moves them there.
 
 ```console
 $ mkdir world_bank
-C:\Users\nwals\eel-demo\config\world_bank
+C:\Users\nwals\els-demo\config\world_bank
 $ mv *._ world_bank
 $ ls -s _.\_
-C:\Users\nwals\eel-demo\config\world_bank\_.eel.yml
-C:\Users\nwals\eel-demo\config\world_bank\LabourForce.xls.eel.yml
-C:\Users\nwals\eel-demo\config\world_bank\Population.xls.eel.yml
+C:\Users\nwals\els-demo\config\world_bank\_.els.yml
+C:\Users\nwals\els-demo\config\world_bank\LabourForce.xls.els.yml
+C:\Users\nwals\els-demo\config\world_bank\Population.xls.els.yml
 
 ```
 
@@ -351,46 +355,46 @@ observed up to now.
 
 ```{#id142root .console caption="Explicitly set a target for the pipeline, using a directory-level config"}
 $ pwd
-C:\Users\nwals\eel-demo\config
-$ echo "target:"                 >  _.eel.yml
-$ echo "  url: ../target/*.csv"  >> _.eel.yml
-$ eel tree
+C:\Users\nwals\els-demo\config
+$ echo "target:"                 >  _.els.yml
+$ echo "  url: ../target/*.csv"  >> _.els.yml
+$ els tree
 config
 └── world_bank
-    ├── LabourForce.xls.eel.yml
+    ├── LabourForce.xls.els.yml
     │   └── LabourForce.xls
     │       └── Data → ..\target\WorldBankLabourForce.csv
-    └── Population.xls.eel.yml
+    └── Population.xls.els.yml
         └── Population.xls
             └── Data → ..\target\WorldBankPopulation.csv
 ```
 
-In [@lst:id142root], the results of `eel tree`, executed in the context
+In [@lst:id142root], the results of `els tree`, executed in the context
 of the `config` directory, show the targets as csv files, consistent
-with the configuration set above. [@lst:id144root] runs `eel tree`
+with the configuration set above. [@lst:id144root] runs `els tree`
 again, but this time in context of the `world_bank` directory.
 
 ```console
-$ eel tree ./world_bank/
+$ els tree ./world_bank/
 world_bank
-├── LabourForce.xls.eel.yml
+├── LabourForce.xls.els.yml
 │   └── ../source/LabourForce.xls
 │       └── Data → memory['WorldBankLabourForce']
-└── Population.xls.eel.yml
+└── Population.xls.els.yml
     └── ../source/Population.xls
         └── Data → memory['WorldBankPopulation']
 
 ```
 
 The results of [@lst:id144root] show the targets defaulted back to
-`memory`. Since `eel tree` was run in the context of the `world_bank`
+`memory`. Since `els tree` was run in the context of the `world_bank`
 directory, it uses this as the root node from which to grow the tree.
 
 When project-wide settings are desirable, a root-level configuration
 should be created in the desired root directory. Configuration root
-directories are searched for in ancestor directories when eel commands
-are run. If found, eel ensures the configuration chain is maintained
-between the root-level node and configuration context of the eel
+directories are searched for in ancestor directories when els commands
+are run. If found, els ensures the configuration chain is maintained
+between the root-level node and configuration context of the els
 command. This is a convenient way for components of a pipeline to be
 executed in isolation while maintaining project-wide configurations that
 are set in the root.
@@ -398,75 +402,75 @@ are set in the root.
 Recall in [@lst:id142root] that a _directory_-level configuration was
 created--not a _root_-level configuration. For a root-level
 configuration to be valid, it must: (1) be stored in the same directory
-destined to be the root node; and (2) must be named `__.eel.yml`. To
+destined to be the root node; and (2) must be named `__.els.yml`. To
 make the `config` directory a root configuration directory, the
 directory-level configuration file created in [@lst:id142root] is
 renamed to a root-level configuration file in [@lst:id146root].
 
 ```console
-$ ren _.eel.yml \_\_.eel.yml
+$ ren _.els.yml \_\_.els.yml
 $ ls -s _._
-C:\Users\nwals\eel-demo\config\world_bank\_.eel.yml
-C:\Users\nwals\eel-demo\config\world_bank\LabourForce.xls.eel.yml
-C:\Users\nwals\eel-demo\config\world_bank\Population.xls.eel.yml
-C:\Users\nwals\eel-demo\config\_\_.eel.yml
-$ eel tree ./world_bank/
+C:\Users\nwals\els-demo\config\world_bank\_.els.yml
+C:\Users\nwals\els-demo\config\world_bank\LabourForce.xls.els.yml
+C:\Users\nwals\els-demo\config\world_bank\Population.xls.els.yml
+C:\Users\nwals\els-demo\config\_\_.els.yml
+$ els tree ./world_bank/
 config
 └── world_bank
-    ├── LabourForce.xls.eel.yml
+    ├── LabourForce.xls.els.yml
     │   └── LabourForce.xls
     │       └── Data → ..\target\WorldBankLabourForce.csv
-    └── Population.xls.eel.yml
+    └── Population.xls.els.yml
         └── Population.xls
             └── Data → ..\target\WorldBankPopulation.csv
 
 ```
 
-The results of the `eel tree` command in [@lst:id146root] reflects the
-target set in the `./config/__.eel.yml` ([@lst:id142root]) even though
-`eel tree` was executed in the context of the `./config/world_bank/`
-node. This is because eel searches in ancestor directories of the
+The results of the `els tree` command in [@lst:id146root] reflects the
+target set in the `./config/__.els.yml` ([@lst:id142root]) even though
+`els tree` was executed in the context of the `./config/world_bank/`
+node. This is because els searches in ancestor directories of the
 execution context until it identifies a root-level configuration. When
 found, it ensures the configuration chain between the found root node
-and the configuration context is intact. Eel is only interested in
+and the configuration context is intact. els is only interested in
 maintaining the configuration nodes _between_ the found configuration
 root and the execution context, ignoring other sub-directories in
 between. From the configuration context, descendant nodes are traversed
 as usual.
 
-Having reviewed the six different configuration components in the eel
+Having reviewed the six different configuration components in the els
 toolbox, this chapter will be concluded with a section on
 multiple-documents before closing with a summary.
 
 ### Multiple-document Configuration Files
 
 YAML files can have more than one YAML document separated by a `---`
-line; likewise eel configuration files can have more then one document.
+line; likewise els configuration files can have more then one document.
 To demonstrate a multiple-document configuration file, a configuration
 file node is created to replace the three configuration files from the
 `world_bank` directory node.
 
-[@lst:id148multi] creates a `world_bank.eel.yml` configuration node
+[@lst:id148multi] creates a `world_bank.els.yml` configuration node
 which can replace the `world_bank` directory node from
 [@lst:id146root].[^9]
 
 ```console
 $ pwd
-C:\Users\nwals\eel-demo\config
-$ echo "target:"                          >  world_bank.eel.yml
-$ echo "  table: WorldBankLabourForce"    >> world_bank.eel.yml
-$ echo "source:"                          >> world_bank.eel.yml
-$ echo "  url: ../source/LabourForce.xls" >> world_bank.eel.yml
-$ echo "  table: Data"                    >> world_bank.eel.yml
-$ echo "---"                              >> world_bank.eel.yml
-$ echo "target:"                          >> world_bank.eel.yml
-$ echo "  table: WorldBankPopulation"     >> world_bank.eel.yml
-$ echo "source:"                          >> world_bank.eel.yml
-$ echo "  url: ../source/Population.xls"  >> world_bank.eel.yml
-$ echo "  table: Data"                    >> world_bank.eel.yml
-$ eel tree world_bank.eel.yml
+C:\Users\nwals\els-demo\config
+$ echo "target:"                          >  world_bank.els.yml
+$ echo "  table: WorldBankLabourForce"    >> world_bank.els.yml
+$ echo "source:"                          >> world_bank.els.yml
+$ echo "  url: ../source/LabourForce.xls" >> world_bank.els.yml
+$ echo "  table: Data"                    >> world_bank.els.yml
+$ echo "---"                              >> world_bank.els.yml
+$ echo "target:"                          >> world_bank.els.yml
+$ echo "  table: WorldBankPopulation"     >> world_bank.els.yml
+$ echo "source:"                          >> world_bank.els.yml
+$ echo "  url: ../source/Population.xls"  >> world_bank.els.yml
+$ echo "  table: Data"                    >> world_bank.els.yml
+$ els tree world_bank.els.yml
 config
-└── world_bank.eel.yml
+└── world_bank.els.yml
     ├── LabourForce.xls
     │   └── Data → ..\target\WorldBankLabourForce.csv
     └── Population.xls
@@ -474,7 +478,7 @@ config
 
 ```
 
-The results of the `eel tree` command in [@lst:id148multi] shows the
+The results of the `els tree` command in [@lst:id148multi] shows the
 same effective dataflow configuration from [@lst:id146root]. One
 difference is that it has two less mid-level configuration file nodes,
 reflecting the change in configuration scheme. The configuration scheme
@@ -484,15 +488,15 @@ to a _single configuration file scheme_, removing the need for a
 root-level configuration and keeping all configuration in a single
 configuration node.
 
-## Configuration Schema \_ eel-config-design
+## Configuration Schema \_ els-config-design
 
 A YAML schema is a file that defines the property structure of YAML
-files. Likewise, eel comes with a _configuration file schema_ that
+files. Likewise, els comes with a _configuration file schema_ that
 defines the configuration files reviewed in [@sec:config-path-design].
 
-Eel configuration files are YAML files with a `.eel.yml` extension,
+els configuration files are YAML files with a `.els.yml` extension,
 which define properties of an ingestion pipeline such as data sources,
-targets and transformations. When eel reads a configuration file, it
+targets and transformations. When els reads a configuration file, it
 first validates it against the configuration file schema. This
 validation may also be performed by other applications such as vs.code.
 Using such a code editor as vs.code, the user benefits from real-time
@@ -500,22 +504,22 @@ validation _and_ autocompletion. Code editors can stand-in as a user
 interface for authoring configuration files, allowing a user to create,
 modify and validate configuration files rapidly.
 
-Returning to the running example, the `eel preview` command is
-introduced in [@lst:id200preview]. `eel preview` displays a sample of
+Returning to the running example, the `els preview` command is
+introduced in [@lst:id200preview]. `els preview` displays a sample of
 rows and columns for each _target table_ defined in the pipeline. Like
-the `eel tree` command reviewed in [@sec:config-path-design],
-`eel preview` requires a valid configuration context, using the current
+the `els tree` command reviewed in [@sec:config-path-design],
+`els preview` requires a valid configuration context, using the current
 working directory as a default. To keep the listings as brief as
 possible by previewing a single source file, the listings in the
 following examples will continue working from the `world_bank` directory
 node from [@lst:id146root].
 
-[@lst:id200preview] calls the `eel preview` command passing the
-`Population.xls.eel.yml` configuration node.
+[@lst:id200preview] calls the `els preview` command passing the
+`Population.xls.els.yml` configuration node.
 
 ```console
 $ cd world_bank
-$ eel preview Population.xls.eel.yml
+$ els preview Population.xls.els.yml
 WorldBankPopulation [269 rows x 68 columns]:
          Data Source World Development Indicators  ... Unnamed: 66 Unnamed: 67
 0  Last Updated Date  2024-06-28 00:...            ...         NaN         NaN
@@ -532,24 +536,24 @@ configuration, the first row is assumed the be for column names. The
 result in [@lst:id200preview] has many unnamed columns because the
 header row should be set to the fourth row.
 
-Eel uses pandas reader functions (`read_sql`, `read_csv`, `read_excel`)
+els uses pandas reader functions (`read_sql`, `read_csv`, `read_excel`)
 to read source data. Configuration properties under `source.read_*` are
-passed to the respective pandas functions as arguments, enabling eel to
+passed to the respective pandas functions as arguments, enabling els to
 benefit from the features of the pandas reader functions.
 [@lst:id210skprows] sets the `source.read_excel.skiprows` property in
 the configuration.
 
 ```console
-$ echo "  read_excel:"    >> Population.xls.eel.yml
-$ echo "    skiprows: 3"  >> Population.xls.eel.yml
-$ cat Population.xls.eel.yml
+$ echo "  read_excel:"    >> Population.xls.els.yml
+$ echo "    skiprows: 3"  >> Population.xls.els.yml
+$ cat Population.xls.els.yml
 target:
   table: WorldBankPopulation
 source:
   url: ../source/Population.xls
   read_excel:
     skiprows: 3
-$ eel preview Population.xls.eel.yml
+$ els preview Population.xls.els.yml
 WorldBankPopulation [266 rows x 68 columns]:
         Country Name Country Code  ...         2022         2023
 0              Aruba          ABW  ...     106445.0     106277.0
@@ -559,7 +563,7 @@ WorldBankPopulation [266 rows x 68 columns]:
 
 ```
 
-The results of `eel preview` in [@lst:id210skprows] show the header set
+The results of `els preview` in [@lst:id210skprows] show the header set
 correctly. However the last two columns in [@lst:id210skprows] show
 years 2022 and 2023 as column names, with the population figure as
 values under each year column. A solution to this is applied in the next
@@ -569,7 +573,7 @@ section.
 
 The year columns can be reshaped to rows, or normalised, using the
 pandas `melt` function. Some pandas transformations like `melt` and
-`stack` are available as transformations in eel. These transformations
+`stack` are available as transformations in els. These transformations
 are defined under the root `transform` property in a configuration file.
 Like the `read_*` functions, sub-properties set under a `transform.*`
 property are passed as arguments to the respective pandas function.
@@ -578,16 +582,16 @@ In [@lst:id220transform], `transform.melt` is added with sub-properties
 to pass to the pandas `melt` function.
 
 ```console
-$ echo "transform:"                   >> Population.xls.eel.yml
-$ echo "  melt:"                      >> Population.xls.eel.yml
-$ echo "    id_vars:"                 >> Population.xls.eel.yml
-$ echo "      - Country Name"         >> Population.xls.eel.yml
-$ echo "      - Country Code"         >> Population.xls.eel.yml
-$ echo "      - Indicator Name"       >> Population.xls.eel.yml
-$ echo "      - Indicator Code"       >> Population.xls.eel.yml
-$ echo "    value_name: Population"   >> Population.xls.eel.yml
-$ echo "    var_name: Year"           >> Population.xls.eel.yml
-$ eel preview Population.xls.eel.yml
+$ echo "transform:"                   >> Population.xls.els.yml
+$ echo "  melt:"                      >> Population.xls.els.yml
+$ echo "    id_vars:"                 >> Population.xls.els.yml
+$ echo "      - Country Name"         >> Population.xls.els.yml
+$ echo "      - Country Code"         >> Population.xls.els.yml
+$ echo "      - Indicator Name"       >> Population.xls.els.yml
+$ echo "      - Indicator Code"       >> Population.xls.els.yml
+$ echo "    value_name: Population"   >> Population.xls.els.yml
+$ echo "    var_name: Year"           >> Population.xls.els.yml
+$ els preview Population.xls.els.yml
 WorldBankPopulation [17024 rows x 6 columns]:
         Country Name Country Code  ...  Year   Population
 0              Aruba          ABW  ...  1960      54608.0
@@ -597,7 +601,7 @@ WorldBankPopulation [17024 rows x 6 columns]:
 
 ```
 
-The results of the `eel preview` command in [@lst:id220transform] show
+The results of the `els preview` command in [@lst:id220transform] show
 the year columns have been reshaped to rows.
 
 However note that the figures in the `Population` column each have a
@@ -606,10 +610,10 @@ However note that the figures in the `Population` column each have a
 data type `Int64`[^10] by setting the `transform.astype.dtype` property.
 
 ```console
-$ echo "  astype:"                    >> Population.xls.eel.yml
-$ echo "    dtype:"                   >> Population.xls.eel.yml
-$ echo "      Population: Int64"      >> Population.xls.eel.yml
-$ eel preview Population.xls.eel.yml
+$ echo "  astype:"                    >> Population.xls.els.yml
+$ echo "    dtype:"                   >> Population.xls.els.yml
+$ echo "      Population: Int64"      >> Population.xls.els.yml
+$ els preview Population.xls.els.yml
 WorldBankPopulation [17024 rows x 6 columns]:
         Country Name Country Code  ...  Year Population
 0              Aruba          ABW  ...  1960      54608
@@ -619,7 +623,7 @@ WorldBankPopulation [17024 rows x 6 columns]:
 
 ```
 
-The `eel preview` results in [@lst:id225transform] show the `Population`
+The `els preview` results in [@lst:id225transform] show the `Population`
 column as integers. Having reviewed some transformations, the next
 section demonstrates adding columns.
 
@@ -632,7 +636,7 @@ _dictionary value_ is the value of the column.
 
 A related feature is the ability to add columns with _dynamic enum_
 values which are calculated at runtime. Dynamic enums are enums in the
-configuration schema, and evaluated by eel during pipeline
+configuration schema, and evaluated by els during pipeline
 execution.[^11] Most of these dynamic enums currently available relate
 to file metadata such as file name, parent directory, etc.
 
@@ -641,10 +645,10 @@ with fixed scaler value `2024-07-16`; and (2) `Source File` with the
 dynamic enum `_file_name_full`.
 
 ```{#id235addcols .console caption="Add new columns."}
-$ echo "add_cols:"                       >> Population.xls.eel.yml
-$ echo "  Date Downloaded: 2024-07-16"   >> Population.xls.eel.yml
-$ echo "  Source File: _file_name_full"  >> Population.xls.eel.yml
-$ eel preview Population.xls.eel.yml
+$ echo "add_cols:"                       >> Population.xls.els.yml
+$ echo "  Date Downloaded: 2024-07-16"   >> Population.xls.els.yml
+$ echo "  Source File: _file_name_full"  >> Population.xls.els.yml
+$ els preview Population.xls.els.yml
 WorldBankPopulation [17024 rows x 8 columns]:
         Country Name Country Code  ... Date Downloaded     Source File
 0              Aruba          ABW  ...      2024-07-16  Population.xls
@@ -653,15 +657,15 @@ WorldBankPopulation [17024 rows x 8 columns]:
 3  Africa Western...          AFW  ...      2024-07-16  Population.xls
 ```
 
-The results of `eel preview` in [@lst:id235addcols] reflect the two new
+The results of `els preview` in [@lst:id235addcols] reflect the two new
 columns defined above. Having reviewed the properties of the
 configuration schema, next the configuration class that implements the
 configuration schema is reviewed.
 
 [^1]:
-    This is useful for data science projects where an eel
+    This is useful for data science projects where an els
     configuration can be used to define data sources only. This use case
-    requires using the eel library directly in a Python script and is
+    requires using the els library directly in a Python script and is
     beyond the scope of this paper.
 
 [^2]:
@@ -672,13 +676,13 @@ configuration schema is reviewed.
 [^3]: pandas dataframes.
 [^4]:
     A detailed explanation of the YAML configuration files and its
-    schema is provided in [@sec:eel-config-design].
+    schema is provided in [@sec:els-config-design].
 
 [^5]:
     The listings in this paper use redirection operators `>` to
     create a configuration file, and `>>` to append to a configuration
     file. However it can be more convenient to use a code editor as
-    suggested in [@sec:eel-config-design].
+    suggested in [@sec:els-config-design].
 
 [^6]:
     Column two in the source file section of [@tbl:configtypes]

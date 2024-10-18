@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "els"
+name = "elspec"
 version = "0.0.3"
 authors = [
     { name="Nathan Walsh", email="nwalsh82@gmail.com" },
