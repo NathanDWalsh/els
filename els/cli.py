@@ -388,7 +388,7 @@ def root():
 
 @app.command()
 def version():
-    print("0.0.3")
+    print("0.0.4")
 
 
 def main():
