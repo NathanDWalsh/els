@@ -1,13 +1,13 @@
 import logging
+from typing import Callable, Optional
+
 import pandas as pd
 from anytree import NodeMixin, RenderTree
-from typing import Callable, Optional
+from joblib import Parallel, delayed
+from joblib.externals.loky import get_reusable_executor
 
 import els.config as ec
 import els.execute as ee
-
-from joblib import Parallel, delayed
-from joblib.externals.loky import get_reusable_executor
 
 
 class FlowNodeMixin(NodeMixin):

@@ -1,29 +1,30 @@
-import typer
+import io
 import logging
-import ruamel.yaml as yaml
-import pandas as pd
-from anytree import PreOrderIter
+import os
+import sys
 from enum import Enum
-from typing import Type
+from pathlib import Path
+from typing import Optional, Type
+
+import pandas as pd
+import ruamel.yaml as yaml
+import typer
+from anytree import PreOrderIter
+
+from els.config import TargetIfExistsValue
+from els.execute import staged_frames
+from els.path import (
+    CONFIG_FILE_EXT,
+    NodeType,
+    get_root_config_name,
+    get_root_inheritance,
+    plant_tree,
+)
 
 # from pygments import highlight
 # from pygments.lexers import YamlLexer
 # from pygments.formatters import TerminalFormatter
-import sys
-import os
-import io
-from pathlib import Path
-from typing import Optional
 
-from els.path import plant_tree
-from els.path import get_root_config_name
-from els.path import get_root_inheritance
-from els.path import CONFIG_FILE_EXT
-
-from els.config import TargetIfExistsValue
-from els.path import NodeType
-
-from els.execute import staged_frames
 
 app = typer.Typer()
 
@@ -228,7 +229,6 @@ def preview(
     else:
         logging.error("taskflow not loaded")
     if staged_frames:
-
         pd.set_option("display.show_dimensions", False)
         pd.set_option("display.max_columns", 4)
         pd.set_option("display.width", None)
@@ -261,7 +261,6 @@ def execute(path: Optional[str] = typer.Argument(None)):
     else:
         logging.error("taskflow not loaded")
     if staged_frames:
-
         print("\nNo target specified, sources saved to dataframes.\n\nTable summary:")
 
         print()
@@ -328,7 +327,6 @@ def new(
     name: Optional[str] = typer.Argument(None),
     yes: bool = typer.Option(False, "--yes", "-y"),
 ):
-
     # Verify project creation in the current directory
     if not yes and not typer.confirm(
         "Verify project to be created in the current directory?"
@@ -359,7 +357,6 @@ def new(
     # Ensure the config folder exists
     config_folder_path = project_path / "config"
     if config_folder_path.exists():
-
         # Define the file path for __.els.yml
         config_file_path = config_folder_path / get_root_config_name()
 

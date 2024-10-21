@@ -1,16 +1,16 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, Union
-import sqlalchemy as sa
 import os
-import pandas as pd
 import re
+from copy import deepcopy
 from enum import Enum
+from typing import Optional, Union
 from urllib.parse import urlparse
 
-from els.pathprops import HumanPathPropertiesMixin
-
+import pandas as pd
+import sqlalchemy as sa
 import yaml
-from copy import deepcopy
+from pydantic import BaseModel, ConfigDict
+
+from els.pathprops import HumanPathPropertiesMixin
 
 
 # generate an enum in the format _rxcx for a 10 * 10 grid
@@ -84,7 +84,6 @@ class AsType(BaseModel, extra="forbid"):
 
 
 class Transform(BaseModel):
-
     melt: Optional[Melt] = None
     stack: Optional[Stack] = None
     astype: Optional[AsType] = None
@@ -96,7 +95,6 @@ class Transform(BaseModel):
 
 
 class Frame(BaseModel):
-
     @property
     def db_connection_string(self) -> Optional[str]:
         # Define the connection string based on the database type
@@ -181,7 +179,6 @@ class Frame(BaseModel):
 
 
 class Target(Frame):
-
     model_config = ConfigDict(
         extra="forbid", use_enum_values=True, validate_default=True
     )

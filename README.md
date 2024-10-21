@@ -7,7 +7,7 @@ ELS (Extract-Load-Spec) is a command line tool and yaml schema for ingesting tab
 ELS is python based and can be installed with pip.
 
 ```bash
-pip install els
+pip install elspec
 ```
 
 ## Documentation
@@ -28,14 +28,12 @@ configurations.
 | ------------------ | -------------------- | ------------------------------------------- |
 | Configuration file |                      |                                             |
 | `*.els.yml`        |                      | one or more ingestion units.                |
-| ----------         | ---------------      | --------------------------------            |
 | Source file        |                      |                                             |
 | `*.csv`            |                      | source file with default configuration.     |
 | `*.xlsx`           |                      |                                             |
 |                    | Source-level config. |                                             |
 | `*.csv`            | `*.csv.els.yml`      | source file with explicit configuration.    |
 | `*.xlsx`           | `*.xlsx.els.yml`     |                                             |
-| ----------         | ---------------      | --------------------------------            |
 | Directory          |                      | directory with default configuration.       |
 |                    | Dir.-level config.   |                                             |
 |                    | `_.els.yml`          | directory with explicit configuration.      |

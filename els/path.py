@@ -1,25 +1,26 @@
-import sys
-from pathlib import Path
-
-# import zipfile
-from anytree import NodeMixin, RenderTree, PreOrderIter
-import pandas as pd
+import logging
 import os
-from stat import FILE_ATTRIBUTE_HIDDEN
-from typing import Union, Callable, Optional, TypeAlias, Self
+import sys
 
 # from collections.abc import Generator
 from enum import Enum
+from pathlib import Path
+from stat import FILE_ATTRIBUTE_HIDDEN
+from typing import Callable, Optional, Self, TypeAlias, Union
+
+import pandas as pd
+import typer
+import yaml
+
+# import zipfile
+from anytree import NodeMixin, PreOrderIter, RenderTree
 
 # from openpyxl import load_workbook
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
-import yaml
-import logging
-import typer
 
 import els.config as ec
-import els.flow as ef
 import els.execute as ee
+import els.flow as ef
 from els.pathprops import HumanPathPropertiesMixin
 
 CONFIG_FILE_EXT = ".els.yml"
@@ -98,7 +99,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         self,
         walk_dir: Optional[bool] = False,
     ):
-
         if self.is_dir():
             self._config = self.dir_config
 
@@ -183,7 +183,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     def grow_config_branches(self):
         previous_url = ""
         for doc in self.paired_config:
-
             merged_doc = ConfigPath.merge_configs(self.config, doc)
             source = merged_doc.source
 
@@ -364,7 +363,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 if (
                     key in merged_dict
                     and isinstance(value, dict)
-                    and (not merged_dict[key] is None)
+                    and (merged_dict[key] is not None)
                 ):
                     merged_dict[key].update(value)
                 elif value is not None:
@@ -721,7 +720,6 @@ def get_root_inheritance(start_dir: Path) -> Union[list[Path], None]:
                 start_dir.is_file()
                 and (start_dir.parent / get_dir_config_name()).exists()
             ):
-
                 return [start_dir, start_dir.parent]
             elif (
                 not start_dir.exists()
@@ -733,7 +731,6 @@ def get_root_inheritance(start_dir: Path) -> Union[list[Path], None]:
 
 
 def plant_tree(path: ConfigPath) -> Optional[ConfigPath]:
-
     root_paths = list(reversed(get_root_inheritance(str(path))))
     root_path = Path(root_paths[0])
     if root_path.is_dir():

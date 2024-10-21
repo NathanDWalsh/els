@@ -1,13 +1,14 @@
+import csv
+import logging
+import os
+from typing import Optional, Union
+
 import pandas as pd
 import sqlalchemy as sa
-import logging
-from typing import Union, Optional
-import els.config as ec
-import os
-import csv
-from python_calamine import CalamineWorkbook
 from openpyxl import load_workbook
+from python_calamine import CalamineWorkbook
 
+import els.config as ec
 
 open_files = {}
 staged_frames = {}
@@ -529,7 +530,6 @@ def pull_frame(
 
         # read first 10 rows of csv file with python csv reader into a list of rows
         with open(frame.url, "r", encoding="utf-8-sig") as f:
-
             row_scan_max = 10
             # get row count and update line_number for each line read
             row_scan = sum(
@@ -600,7 +600,6 @@ def pull_frame(
         else:
             kwargs = {}
         if "nrows" in kwargs:
-
             kwargs.pop("nrows")
         df = pull_xml(frame.url, **kwargs)
         if nrows:
