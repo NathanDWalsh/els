@@ -1,22 +1,19 @@
-import pandas as pd
 import collections
-import pytest
-import yaml
+import logging
 
 # import sqlite3
-
 import os
-import glob
+import random
+
+import datacompy as dc
+import pandas as pd
+import pytest
+import yaml
+from faker import Faker
 
 from els.cli import execute
 from els.execute import staged_frames
 from els.path import get_config_default
-
-import logging
-
-from faker import Faker
-import random
-import datacompy as dc
 
 Test = collections.namedtuple("Test", ["name", "df", "kwargs"])
 
@@ -26,30 +23,29 @@ Test = collections.namedtuple("Test", ["name", "df", "kwargs"])
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# Create a file handler
-handler = logging.FileHandler(os.path.join("..", "temp", "running_log.log"))
-handler.setLevel(logging.INFO)
+# # Create a file handler
+# handler = logging.FileHandler(os.path.join("..", "temp", "running_log.log"))
+# handler.setLevel(logging.INFO)
 
-# Create a logging format
-formatter = logging.Formatter(
-    "\t\t\t\t\t\t\t\t\t%(asctime)s - %(name)s - %(levelname)s:\n%(message)s"
-)
-handler.setFormatter(formatter)
+# # Create a logging format
+# formatter = logging.Formatter(
+#     "\t\t\t\t\t\t\t\t\t%(asctime)s - %(name)s - %(levelname)s:\n%(message)s"
+# )
+# handler.setFormatter(formatter)
 
-# Add the handler to the logger
-logger.addHandler(handler)
+# # Add the handler to the logger
+# logger.addHandler(handler)
 
 
 @pytest.fixture(autouse=True, scope="session")
 def setup():
-    os.chdir(os.path.join("..", "temp"))
     logger.info("Getting Started")
 
     # remove files in the temp directory
-    temp_files = glob.glob("*.*")
-    for file in temp_files:
-        if not file.endswith(".log"):
-            os.remove(file)
+    # temp_files = glob.glob("*.*")
+    # for file in temp_files:
+    #     if not file.endswith(".log"):
+    #         os.remove(file)
     yield
 
 
@@ -129,7 +125,6 @@ def get_atomic_number_frames():
 
 
 def get_faker_frames():
-
     # Create a Faker instance
     fake = Faker()
 
@@ -383,7 +378,13 @@ def create_test_class_file(get_frames_func, test_name, get_tests_func, extension
 
     class IoTemplate:
         @pytest.mark.parametrize("test_case", get_tests(), ids=id_func)
-        def test_round_trip(self, test_case: Test, request):
+        def test_round_trip(
+            self,
+            test_case: Test,
+            request,
+            tmp_path,
+        ):
+            os.chdir(tmp_path)
             round_trip_file(test_case, request, extension)
 
     IoTemplate.__name__ = test_name

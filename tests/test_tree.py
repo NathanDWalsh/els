@@ -1,10 +1,11 @@
-import tempfile
 import os
-import pytest
 import sys
-from els.cli import tree
+import tempfile
 from pathlib import Path
 
+import pytest
+
+from els.cli import tree
 
 # @pytest.mark.parametrize(
 #     "py_val, dtype",
@@ -32,8 +33,8 @@ def test_tree(
     source_config,
     keep_virtual,
     capsys,
+    tmp_path,
 ):
-
     configdir = "config"
     dummyfile = "dummy.csv"
     dummyroot = dummyfile.split(".")[0]
@@ -46,11 +47,16 @@ def test_tree(
     target_table = (
         source_table
         if source_config
-        else dir_table if dir_config else root_table if root_config else default_table
+        else dir_table
+        if dir_config
+        else root_table
+        if root_config
+        else default_table
     )
 
     kwargs = {}
-    kwargs["dir"] = Path("D:\\Sync\\repos") / "temp"
+    # kwargs["dir"] = Path("D:\\Sync\\repos") / "temp"
+    kwargs["dir"] = tmp_path
     if sys.version_info < (3, 12):
         pass
     else:
