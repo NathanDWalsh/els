@@ -1,0 +1,2 @@
+Faker==26.0.0
+datacompy==0.13.2
