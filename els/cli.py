@@ -1,3 +1,4 @@
+import importlib.metadata
 import io
 import logging
 import os
@@ -388,7 +389,7 @@ def root():
 
 @app.command()
 def version():
-    print("0.0.4")
+    print(importlib.metadata.version("els"))
 
 
 def main():
