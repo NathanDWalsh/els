@@ -248,9 +248,9 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     def config_file_path(self) -> Optional[str]:
         if self.node_type == NodeType.CONFIG_DIRECTORY:
             if self.is_root:
-                return f"{self.abs}\{get_root_config_name()}"
+                return f"{self.abs}\\{get_root_config_name()}"
             else:
-                return f"{self.abs}\{get_dir_config_name()}"
+                return f"{self.abs}\\{get_dir_config_name()}"
         elif (
             self.node_type == NodeType.CONFIG_EXPLICIT
             or self.node_type == NodeType.CONFIG_VIRTUAL
