@@ -33,7 +33,13 @@ class ElsExecute(FlowNodeMixin):
         if not isinstance(config, ec.Config):
             logging.error("INGEST without config")
         self.parent = parent
-        self.name = f"{name} ({execute_fn.__name__}) {config.source.table if execute_fn.__name__ == 'ingest' else ''} → {config.target.table + '(' + config.target.type + ')' if execute_fn.__name__ == 'ingest' else ''}"
+        source_name = config.source.table if execute_fn.__name__ == "ingest" else ""
+        target_name = (
+            config.target.table + "(" + config.target.type + ")"
+            if execute_fn.__name__ == "ingest"
+            else ""
+        )
+        self.name = f"{name} ({execute_fn.__name__}) {source_name} → {target_name}"
         self.config = config
         self.execute_fn = execute_fn
 

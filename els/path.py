@@ -118,10 +118,15 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     def grow_dir_branches(self):
         for subpath in self.glob("*"):
             # ensure node-level configs are not (double) counted
-            if subpath.name in (
-                get_dir_config_name(),
-                get_root_config_name(),
-            ) or subpath in (self.children):
+            if (
+                subpath.name
+                in (
+                    get_dir_config_name(),
+                    get_root_config_name(),
+                )
+                or subpath in self.children
+                or ConfigPath(str(subpath) + CONFIG_FILE_EXT) in self.children
+            ):
                 pass
             elif config_path_valid(subpath):
                 if subpath.is_dir() or subpath.is_config_file():  # adjecent config

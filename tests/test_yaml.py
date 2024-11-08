@@ -5,7 +5,6 @@ import logging
 import os
 import random
 
-import datacompy as dc
 import pandas as pd
 import pytest
 import yaml
@@ -240,7 +239,7 @@ def get_1r1c_tests_sql(atomics: dict):
 def id_func(testcase_vals):
     return "_".join(
         (
-            f"{name if not (name == 'name' or isinstance(value,dict) ) else ''}"
+            f"{name if not (name == 'name' or isinstance(value, dict)) else ''}"
             f"{value if not isinstance(value,dict) else '_'.join( (f'{k}{v}') for k,v in value.items())}"  # noqa
         )
         for name, value in testcase_vals._asdict().items()
@@ -326,10 +325,10 @@ def round_trip_file(test_case: Test, request, test_type: str):
     execute(test_els)
     # assert True
     # return
-    logger.info(test_name)
+    # logger.info(test_name)
 
-    logger.info(df.dtypes)
-    logger.info(df)
+    # logger.info(df.dtypes)
+    # logger.info(df)
 
     if test_type in ("mssql", "sqlite", "csv"):
         df2 = staged_frames[test_name]
@@ -339,18 +338,18 @@ def round_trip_file(test_case: Test, request, test_type: str):
 
     # assert True
 
-    compare = dc.Compare(df, df2, on_index=True)
-    # logger.info(df2.dtypes)
-    # logger.info(df2)
-    # logger.info(df.dtypes)
-    # logger.info(df)
-    logger.info(compare.report())
+    # compare = dc.Compare(df, df2, on_index=True)
+    # # logger.info(df2.dtypes)
+    # # logger.info(df2)
+    # # logger.info(df.dtypes)
+    # # logger.info(df)
+    # logger.info(compare.report())
     assert df.equals(df2)
 
-    os.remove(test_els)
-    os.remove(test_els_out)
-    if test_type == "xlsx" or test_type == "csv":
-        os.remove(test_url)
+    # os.remove(test_els)
+    # os.remove(test_els_out)
+    # if test_type == "xlsx" or test_type == "csv":
+    #     os.remove(test_url)
 
 
 # def round_trip_db(test_case: Test, request, table_name):
