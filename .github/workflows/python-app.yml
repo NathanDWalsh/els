@@ -32,7 +32,7 @@ jobs:
     strategy:
       max-parallel: 1
       matrix:
-        python-version: ["3.13"]
+        python-version: ["3.11"]
     steps:
     - name: Install a SQL Server suite of tools
       if: ${{ !env.ACT }}
