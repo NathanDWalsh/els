@@ -27,13 +27,15 @@ jobs:
  
   build:
     needs: sql-env
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest
+    runs-on: windows-latest
     strategy:
       max-parallel: 1
       matrix:
-        python-version: ["3.11","3.12"]
+        python-version: ["3.13"]
     steps:
     - name: Install a SQL Server suite of tools
+      if: ${{ !env.ACT }}
       uses: NathanDWalsh/mssqlsuite@main
       #uses: potatoqualitee/mssqlsuite@v1.7
       with:
