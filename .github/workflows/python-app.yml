@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest   
     steps:
     - name: Install a SQL Server suite of tools
+      if: ${{ env.ACT }}
       uses: NathanDWalsh/mssqlsuite@main
       #uses: potatoqualitee/mssqlsuite@v1.7
       with:
@@ -36,7 +37,7 @@ jobs:
       uses: NathanDWalsh/mssqlsuite@main
       #uses: potatoqualitee/mssqlsuite@v1.7
       with:
-        install: sqlclient
+        install: sqlengine, sqlclient
     - name: Run sqlclient
       run: |
         sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
