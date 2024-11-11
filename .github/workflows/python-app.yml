@@ -22,7 +22,7 @@ jobs:
       uses: NathanDWalsh/mssqlsuite@main
       #uses: potatoqualitee/mssqlsuite@v1.7
       with:
-        install: sqlengine, sqlclient
+        install: sqlengine
  
   build:
     needs: sql-env
@@ -32,6 +32,11 @@ jobs:
       matrix:
         python-version: ["3.11","3.12"]
     steps:
+    - name: Install a SQL Server suite of tools
+      uses: NathanDWalsh/mssqlsuite@main
+      #uses: potatoqualitee/mssqlsuite@v1.7
+      with:
+        install: sqlclient
     - name: Run sqlclient
       run: |
         sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
