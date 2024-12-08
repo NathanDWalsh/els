@@ -168,9 +168,12 @@ class Frame(BaseModel):
                 )
                 query = lcase_query_keys(url_parsed.query)
                 query["driver"] = list(supported_available_odbc_drivers())[0]
+                if query["driver"] == "odbc driver 18 for sql server":
+                    query["TrustServerCertificate"] = "yes"
                 res = url_parsed._replace(query=urlencode(query)).geturl()
             else:
-                res = None
+                logging.info("No ODBC drivers for pyodbc, using pymssql")
+                res = urlparse(self.url)._replace(scheme="mssql+pymssql").geturl()
         elif self.type == "sqlite":
             res = self.url
         elif self.type == "postgres":

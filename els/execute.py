@@ -55,7 +55,7 @@ def push_sql(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool
     if not target.table:
         raise Exception("invalid to_sql")
     kwargs = {}
-    if target.type in ("mssql"):
+    if target.type in ("mssql") and len(ec.supported_available_odbc_drivers()):
         kwargs["fast_executemany"] = True
     with sa.create_engine(target.db_connection_string, **kwargs).connect() as sqeng:
         if target.to_sql:
