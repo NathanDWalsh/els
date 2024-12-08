@@ -271,8 +271,7 @@ def round_trip_file(test_case: _Test, request, test_type: str):
     elif test_type == "mssql":
         test_url = (
             "mssql://sa:dbatools.I0@localhost/els"
-            # + "?driver=ODBC+Driver+17+for+SQL+Server"
-            + "?driver=odbc+driver+17+for+sql+server"
+            + "?driver=odbc+driver+17+for+sql serveR"
         )
     elif test_type == "sqlite":
         test_url = "sqlite:///test_database.db"

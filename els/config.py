@@ -1,11 +1,13 @@
+import logging
 import os
 import re
 from copy import deepcopy
 from enum import Enum
 from typing import Optional, Union
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import pandas as pd
+import pyodbc
 import sqlalchemy as sa
 import yaml
 from pydantic import BaseModel, ConfigDict
@@ -94,35 +96,81 @@ class Transform(BaseModel):
     )
 
 
+def supported_mssql_odbc_drivers():
+    return {
+        "sql server native client 11.0",
+        "odbc driver 17 for sql server",
+        "odbc driver 18 for sql server",
+    }
+
+
+def available_odbc_drivers():
+    available = pyodbc.drivers()
+    lcased = {v.lower() for v in available}
+    return lcased
+
+
+def supported_available_odbc_drivers():
+    supported = supported_mssql_odbc_drivers()
+    available = available_odbc_drivers()
+    return supported.intersection(available)
+
+
+def lcase_dict_keys(_dict):
+    return {k.lower(): v for k, v in _dict.items()}
+
+
+def lcase_query_keys(query):
+    query_parsed = parse_qs(query)
+    return lcase_dict_keys(query_parsed)
+
+
+# def db_driver_supported(self):
+
+
 class Frame(BaseModel):
     @property
     def db_url_driver(self):
         url_parsed = urlparse(self.url)
         query = parse_qs(url_parsed.query)
-        query_lcased = {k.lower(): v.lower() for k, v in query.items()}
+        query_lcased = {k.lower(): v[0].lower() for k, v in query.items()}
         if "driver" in query_lcased.keys():
             return query_lcased["driver"]
         else:
             return False
-    
+
     @property
     def choose_db_driver(self):
-        
         explicit_driver = self.db_url_driver
-        if explicit_driver:
+        if explicit_driver and explicit_driver in supported_mssql_odbc_drivers():
             return explicit_driver
         else:
+            return None
 
+    @property
+    def odbc_driver_supported_available(self):
+        explicit_odbc = self.db_url_driver
+        if explicit_odbc and explicit_odbc in supported_available_odbc_drivers():
+            return True
+        else:
+            return False
 
     @property
     def db_connection_string(self) -> Optional[str]:
         # Define the connection string based on the database type
         if self.type == "mssql":
-            res = self.url.replace("mssql://", "mssql+pyodbc://", 1)
-            # res = (
-            #     f"mssql+pyodbc://{self.server}/{self.database}"
-            #     "?driver=ODBC+Driver+17+for+SQL+Server"
-            # )
+            url_parsed = urlparse(self.url)._replace(scheme="mssql+pyodbc")
+            if self.odbc_driver_supported_available:
+                res = url_parsed.geturl()
+            elif len(supported_available_odbc_drivers()):
+                logging.info(
+                    "No valid ODBC driver defined in connection string, choosing one."
+                )
+                query = lcase_query_keys(url_parsed.query)
+                query["driver"] = list(supported_available_odbc_drivers())[0]
+                res = url_parsed._replace(query=urlencode(query)).geturl()
+            else:
+                res = None
         elif self.type == "sqlite":
             res = self.url
         elif self.type == "postgres":
