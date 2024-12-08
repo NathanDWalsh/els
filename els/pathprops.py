@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Self
+from typing import Optional
 
 
 class HumanPathPropertiesMixin(ABC):
@@ -9,17 +9,17 @@ class HumanPathPropertiesMixin(ABC):
 
     @property  # type: ignore
     @abstractmethod
-    def file(self) -> Self:
+    def file(self):
         pass
 
     @property  # type: ignore
     @abstractmethod
-    def dir(self) -> Self:
+    def dir(self):
         pass
 
     @property  # type: ignore
     @abstractmethod
-    def parent(self) -> Self:
+    def parent(self):
         pass
 
     @property  # type: ignore

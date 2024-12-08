@@ -14,7 +14,7 @@ from els.cli import execute
 from els.execute import staged_frames
 from els.path import get_config_default
 
-Test = collections.namedtuple("Test", ["name", "df", "kwargs"])
+_Test = collections.namedtuple("_Test", ["name", "df", "kwargs"])
 
 
 # def start_logging():
@@ -192,7 +192,7 @@ def get_atomic_bool_frames():
 
 def get_1r1c_tests_csv(atomics: dict):
     test_frames = [
-        Test(
+        _Test(
             f"1r1c{name}",
             df,
             {"quoting": quoting},
@@ -208,7 +208,7 @@ def get_1r1c_tests_csv(atomics: dict):
 
 def get_1r1c_tests_excel(atomics: dict):
     test_frames = [
-        Test(
+        _Test(
             f"1r1c{name}",
             df,
             {"sheet_name": name},
@@ -223,7 +223,7 @@ def get_1r1c_tests_excel(atomics: dict):
 
 def get_1r1c_tests_sql(atomics: dict):
     test_frames = [
-        Test(
+        _Test(
             f"1r1c{name}",
             df,
             {},
@@ -260,7 +260,7 @@ def id_func(testcase_vals):
 #     pandas_end_points[kwargs["sheet_name"]] = df
 
 
-def round_trip_file(test_case: Test, request, test_type: str):
+def round_trip_file(test_case: _Test, request, test_type: str):
     # Access the fields of the Test named tuple using dot notation
     test_name = request.node.callspec.id
     df = test_case.df
@@ -271,7 +271,8 @@ def round_trip_file(test_case: Test, request, test_type: str):
     elif test_type == "mssql":
         test_url = (
             "mssql://sa:dbatools.I0@localhost/els"
-            + "?driver=ODBC+Driver+17+for+SQL+Server"
+            # + "?driver=ODBC+Driver+17+for+SQL+Server"
+            + "?driver=odbc+driver+17+for+sql+server"
         )
     elif test_type == "sqlite":
         test_url = "sqlite:///test_database.db"
@@ -382,7 +383,7 @@ def create_test_class_file(get_frames_func, test_name, get_tests_func, extension
         @pytest.mark.parametrize("test_case", get_tests(), ids=id_func)
         def test_round_trip(
             self,
-            test_case: Test,
+            test_case: _Test,
             request,
             tmp_path,
         ):

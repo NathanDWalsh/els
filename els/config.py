@@ -3,7 +3,7 @@ import re
 from copy import deepcopy
 from enum import Enum
 from typing import Optional, Union
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 import sqlalchemy as sa
@@ -96,6 +96,25 @@ class Transform(BaseModel):
 
 class Frame(BaseModel):
     @property
+    def db_url_driver(self):
+        url_parsed = urlparse(self.url)
+        query = parse_qs(url_parsed.query)
+        query_lcased = {k.lower(): v.lower() for k, v in query.items()}
+        if "driver" in query_lcased.keys():
+            return query_lcased["driver"]
+        else:
+            return False
+    
+    @property
+    def choose_db_driver(self):
+        
+        explicit_driver = self.db_url_driver
+        if explicit_driver:
+            return explicit_driver
+        else:
+
+
+    @property
     def db_connection_string(self) -> Optional[str]:
         # Define the connection string based on the database type
         if self.type == "mssql":
@@ -107,9 +126,7 @@ class Frame(BaseModel):
         elif self.type == "sqlite":
             res = self.url
         elif self.type == "postgres":
-            res = (
-                "Driver={PostgreSQL};" f"Server={self.server};Database={self.database};"
-            )
+            res = "Driver={{PostgreSQL}};Server={self.server};Database={self.database};"
         elif self.type == "duckdb":
             res = f"Driver={{DuckDB}};Database={self.database};"
         else:

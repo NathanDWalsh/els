@@ -6,7 +6,7 @@ import sys
 from enum import Enum
 from pathlib import Path
 from stat import FILE_ATTRIBUTE_HIDDEN
-from typing import Callable, Optional, Self, TypeAlias, Union
+from typing import Callable, Optional, TypeAlias, Union
 
 import pandas as pd
 import typer
@@ -237,7 +237,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             return NodeType.DATA_TABLE
 
     @property
-    def get_leaf_tables(self) -> list[Self]:
+    # def get_leaf_tables(self) -> list[Self]:
+    def get_leaf_tables(self):
         leaf_tables = []
         for leaf in self.leaves:
             if leaf.node_type == NodeType.DATA_TABLE:
@@ -527,11 +528,13 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return False
 
     @property
-    def abs(self) -> Self:
+    # def abs(self) -> Self:
+    def abs(self):
         return ConfigPath(self.absolute())
 
     @property  # fs = filesystem, can return a File or Dir but not content
-    def fs(self) -> Optional[Self]:
+    # def fs(self) -> Optional[Self]:
+    def fs(self):
         if self.is_data_table():
             res = self.parent
         else:
@@ -539,7 +542,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @property
-    def dir(self) -> Optional[Self]:
+    # def dir(self) -> Optional[Self]:
+    def dir(self):
         if self.is_data_table() and self.parent:
             res = self.parent.dir
         elif self.is_file():
@@ -552,7 +556,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @property
-    def file(self) -> Optional[Self]:
+    # def file(self) -> Optional[Self]:
+    def file(self):
         if self.is_data_table():
             res = self.parent
         elif self.is_file():
