@@ -3,6 +3,7 @@ import os
 import re
 from copy import deepcopy
 from enum import Enum
+from functools import cached_property
 from typing import Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
@@ -129,7 +130,7 @@ def lcase_query_keys(query):
 
 
 class Frame(BaseModel):
-    @property
+    @cached_property
     def db_url_driver(self):
         url_parsed = urlparse(self.url)
         query = parse_qs(url_parsed.query)
@@ -139,7 +140,7 @@ class Frame(BaseModel):
         else:
             return False
 
-    @property
+    @cached_property
     def choose_db_driver(self):
         explicit_driver = self.db_url_driver
         if explicit_driver and explicit_driver in supported_mssql_odbc_drivers():
@@ -147,7 +148,7 @@ class Frame(BaseModel):
         else:
             return None
 
-    @property
+    @cached_property
     def odbc_driver_supported_available(self):
         explicit_odbc = self.db_url_driver
         if explicit_odbc and explicit_odbc in supported_available_odbc_drivers():
@@ -155,20 +156,26 @@ class Frame(BaseModel):
         else:
             return False
 
-    @property
+    @cached_property
     def db_connection_string(self) -> Optional[str]:
         # Define the connection string based on the database type
         if self.type == "mssql":
             url_parsed = urlparse(self.url)._replace(scheme="mssql+pyodbc")
             if self.odbc_driver_supported_available:
-                res = url_parsed.geturl()
+                query = lcase_query_keys(url_parsed.query)
+                query["driver"] = query["driver"][0]
+                if query["driver"].lower() == "odbc driver 18 for sql server":
+                    query["TrustServerCertificate"] = "yes"
+                res = url_parsed._replace(query=urlencode(query)).geturl()
+                # res = url_parsed.geturl()
             elif len(supported_available_odbc_drivers()):
                 logging.info(
                     "No valid ODBC driver defined in connection string, choosing one."
                 )
                 query = lcase_query_keys(url_parsed.query)
                 query["driver"] = list(supported_available_odbc_drivers())[0]
-                if query["driver"] == "odbc driver 18 for sql server":
+                logging.info(query["driver"].lower())
+                if query["driver"].lower() == "odbc driver 18 for sql server":
                     query["TrustServerCertificate"] = "yes"
                 res = url_parsed._replace(query=urlencode(query)).geturl()
             else:
@@ -184,7 +191,7 @@ class Frame(BaseModel):
             res = None
         return res
 
-    @property
+    @cached_property
     def sqn(self) -> Optional[str]:
         if self.dbschema and self.table:
             res = "[" + self.dbschema + "].[" + self.table + "]"
@@ -194,7 +201,7 @@ class Frame(BaseModel):
             res = None
         return res
 
-    # @property
+    # @cached_property
     # def file_path(self):
     #     if self.type in (
     #         ".csv",
@@ -214,7 +221,7 @@ class Frame(BaseModel):
     # table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
     table: Optional[str] = None
 
-    @property
+    @cached_property
     def type(self):
         if not self.url:
             return "pandas"
@@ -227,7 +234,7 @@ class Frame(BaseModel):
         else:
             return self.url_scheme
 
-    @property
+    @cached_property
     def url_scheme(self):
         if self.url:
             url_parse_scheme = urlparse(self.url, scheme="file").scheme
@@ -238,7 +245,7 @@ class Frame(BaseModel):
         else:
             return None
 
-    @property
+    @cached_property
     def sheet_name(self):
         if self.type in (".xlsx", ".xls", ".xlsb", ".xlsm"):
             return self.table
@@ -257,7 +264,7 @@ class Target(Frame):
     to_csv: Optional[ToCsv] = None
     to_excel: Optional[ToExcel] = None
 
-    @property
+    @cached_property
     def file_exists(self) -> Optional[bool]:
         if self.url and self.type in (".csv", ".tsv", ".xlsx"):
             # check file exists
@@ -266,7 +273,7 @@ class Target(Frame):
             res = None
         return res
 
-    @property
+    @cached_property
     def table_exists(self) -> Optional[bool]:
         if self.db_connection_string and self.table and self.dbschema:
             with sa.create_engine(self.db_connection_string).connect() as sqeng:
@@ -288,7 +295,7 @@ class Target(Frame):
             res = None
         return res
 
-    @property
+    @cached_property
     def preparation_action(self) -> str:
         if not self.if_exists:
             res = "fail"
@@ -334,7 +341,7 @@ class ReadXml(BaseModel, extra="allow"):
 class Source(Frame, extra="forbid"):
     # _parent: 'Config' = None
 
-    # @property
+    # @cached_property
     # def parent(self) -> 'Config':
     #     return self._parent
 
@@ -372,7 +379,7 @@ class Config(BaseModel):
 
     model_config = ConfigDict(extra="forbid", json_schema_extra=schema_pop_children)
 
-    @property
+    @cached_property
     def nrows(self) -> Optional[int]:
         if self.target:
             res = self.source.nrows
@@ -380,7 +387,7 @@ class Config(BaseModel):
             res = 100
         return res
 
-    @property
+    @cached_property
     def pipe_id(self) -> Optional[str]:
         if self.source and self.source.address and self.target and self.target.address:
             res = (self.source.address, self.target.address)
@@ -392,7 +399,7 @@ class Config(BaseModel):
             res = None
         return res
 
-    # @property
+    # @cached_property
     # def dtype(self):
     #     return self.source.dtype
 
