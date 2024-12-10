@@ -413,7 +413,7 @@ test_classes = {
     "TestString": get_atomic_string_frames,
     "TestNumber": get_atomic_number_frames,
     "TestFaker": get_faker_frames,
-    # bools are rare in datasets + pandas has a bug with them
+    # bools are rare in datasets + pandas has a bug with Bool64
     # "TestBool": get_atomic_bool_frames,
 }
 
@@ -435,34 +435,47 @@ test_classes = {
 # class TestSQLite:
 #     pass
 
+for testset in (
+    (TestCSV, get_1r1c_tests_csv, "csv"),
+    (TestExcel, get_1r1c_tests_excel, "xlsx"),
+    (TestMSSQL, get_1r1c_tests_sql, "mssql"),
+    (TestSQLite, get_1r1c_tests_sql, "sqlite"),
+):
+    for class_name, get_frames_func in test_classes.items():
+        setattr(
+            testset[0],
+            class_name,
+            create_test_class_file(get_frames_func, class_name, testset[1], testset[2]),
+        )
 
-for class_name, get_frames_func in test_classes.items():
-    setattr(
-        TestCSV,
-        class_name,
-        create_test_class_file(get_frames_func, class_name, get_1r1c_tests_csv, "csv"),
-    )
 
-    setattr(
-        TestExcel,
-        class_name,
-        create_test_class_file(
-            get_frames_func, class_name, get_1r1c_tests_excel, "xlsx"
-        ),
-    )
+# for class_name, get_frames_func in test_classes.items():
+#     setattr(
+#         TestCSV,
+#         class_name,
+#         create_test_class_file(get_frames_func, class_name, get_1r1c_tests_csv, "csv"),
+#     )
 
-    setattr(
-        TestMSSQL,
-        class_name,
-        create_test_class_file(
-            get_frames_func, class_name, get_1r1c_tests_sql, "mssql"
-        ),
-    )
+#     setattr(
+#         TestExcel,
+#         class_name,
+#         create_test_class_file(
+#             get_frames_func, class_name, get_1r1c_tests_excel, "xlsx"
+#         ),
+#     )
 
-    setattr(
-        TestSQLite,
-        class_name,
-        create_test_class_file(
-            get_frames_func, class_name, get_1r1c_tests_sql, "sqlite"
-        ),
-    )
+#     setattr(
+#         TestMSSQL,
+#         class_name,
+#         create_test_class_file(
+#             get_frames_func, class_name, get_1r1c_tests_sql, "mssql"
+#         ),
+#     )
+
+#     setattr(
+#         TestSQLite,
+#         class_name,
+#         create_test_class_file(
+#             get_frames_func, class_name, get_1r1c_tests_sql, "sqlite"
+#         ),
+#     )
