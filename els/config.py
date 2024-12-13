@@ -97,12 +97,11 @@ class Transform(BaseModel):
     )
 
 
-def supported_mssql_odbc_drivers():
-    return {
-        "sql server native client 11.0",
-        "odbc driver 17 for sql server",
-        "odbc driver 18 for sql server",
-    }
+supported_mssql_odbc_drivers = {
+    "sql server native client 11.0",
+    "odbc driver 17 for sql server",
+    "odbc driver 18 for sql server",
+}
 
 
 def available_odbc_drivers():
@@ -112,7 +111,7 @@ def available_odbc_drivers():
 
 
 def supported_available_odbc_drivers():
-    supported = supported_mssql_odbc_drivers()
+    supported = supported_mssql_odbc_drivers
     available = available_odbc_drivers()
     return supported.intersection(available)
 
@@ -124,9 +123,6 @@ def lcase_dict_keys(_dict):
 def lcase_query_keys(query):
     query_parsed = parse_qs(query)
     return lcase_dict_keys(query_parsed)
-
-
-# def db_driver_supported(self):
 
 
 class Frame(BaseModel):
@@ -143,7 +139,7 @@ class Frame(BaseModel):
     @cached_property
     def choose_db_driver(self):
         explicit_driver = self.db_url_driver
-        if explicit_driver and explicit_driver in supported_mssql_odbc_drivers():
+        if explicit_driver and explicit_driver in supported_mssql_odbc_drivers:
             return explicit_driver
         else:
             return None
@@ -159,7 +155,14 @@ class Frame(BaseModel):
     @cached_property
     def db_connection_string(self) -> Optional[str]:
         # Define the connection string based on the database type
-        if self.type == "mssql":
+        if self.type in (
+            "mssql+pymssql",
+            "mssql+pyodbc",
+        ):  # assumes advanced usage and url must be correct
+            return self.url
+        elif (
+            self.type == "mssql"
+        ):  # try to automatically detect odbc drivers and falls back on tds/pymssql
             url_parsed = urlparse(self.url)._replace(scheme="mssql+pyodbc")
             if self.odbc_driver_supported_available:
                 query = lcase_query_keys(url_parsed.query)
@@ -233,6 +236,19 @@ class Frame(BaseModel):
                 return ext
         else:
             return self.url_scheme
+
+    @cached_property
+    def type_is_db(self):
+        if self.type in (
+            "mssql",
+            "mssql+pymssql",
+            "mssql+pyodbc",
+            "postgres",
+            "duckdb",
+            "sqlite",
+        ):
+            return True
+        return False
 
     @cached_property
     def url_scheme(self):

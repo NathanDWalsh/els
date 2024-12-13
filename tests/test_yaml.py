@@ -17,7 +17,6 @@ from els.path import get_config_default
 _Test = collections.namedtuple("_Test", ["name", "df", "kwargs"])
 
 
-# def start_logging():
 # Create a logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -39,25 +38,14 @@ logger.setLevel(logging.INFO)
 @pytest.fixture(autouse=True, scope="session")
 def setup():
     logger.info("Getting Started")
-
-    # remove files in the temp directory
-    # temp_files = glob.glob("*.*")
-    # for file in temp_files:
-    #     if not file.endswith(".log"):
-    #         os.remove(file)
     yield
 
 
-# def test_cwd():
-#     assert "d:\\Sync\\repos\\els\\temp" == os.getcwd()
-
-
 # Get the ec.Config dictionary for a given DataFrame
-def get_df_config(df: pd.DataFrame) -> dict:
+def get_df_config(df: pd.DataFrame):
     config_df = get_config_default()
     config_df.source.dtype = df.dtypes.apply(lambda x: x.name).to_dict()
-    config_dict = config_df.model_dump(exclude_none=True)
-    return config_dict
+    return config_df
 
 
 def test_enum_conversion():
@@ -78,7 +66,7 @@ def test_enum_conversion():
 )
 def test_pd_type_equality(py_val, dtype):
     # pandas type should be the same as the python type
-    assert type(pd.array([py_val]).dtype) == dtype
+    assert type(pd.array([py_val]).dtype) is dtype
 
 
 def get_atomic_strings():
@@ -247,20 +235,7 @@ def id_func(testcase_vals):
     )
 
 
-# def get_target_config():
-#     target = ec.Target()
-
-
-# def add_pandas_end_point(type, direction, df, **kwargs):
-#     pandas_end_points[(type, direction)] = df
-
-# if extension == "csv":
-#     pandas_end_points[test_name] = df
-# elif extension == "xlsx":
-#     pandas_end_points[kwargs["sheet_name"]] = df
-
-
-def round_trip_file(test_case: _Test, request, test_type: str):
+def round_trip_file(test_case: _Test, request, test_type: str, query: str = None):
     # Access the fields of the Test named tuple using dot notation
     test_name = request.node.callspec.id
     df = test_case.df
@@ -268,26 +243,23 @@ def round_trip_file(test_case: _Test, request, test_type: str):
 
     if test_type == "xlsx" or test_type == "csv":
         test_url = test_name + "." + test_type
-    elif test_type == "mssql":
-        # print(os.environ)
+    elif test_type in ("mssql", "mssql+pymssql", "mssql+pyodbc"):
         db_host = os.getenv("TEST_ELS_MSSQL_HOST", "localhost")
-        test_url = f"mssql://sa:dbatools.I0@{db_host}/els"
+        test_url = f"{test_type}://sa:dbatools.I0@{db_host}/els"
+        if query:
+            test_url += f"?{query}"
     elif test_type == "sqlite":
         test_url = "sqlite:///test_database.db"
 
     t_config = get_config_default()
-    # t_config.source.type = "pandas"
-    # t_config.target.file_path = test_name + "." + extension
-    # t_config.target.type = "." + extension
     t_config.target.url = test_url
     if test_type == "xlsx":
         t_config.target.table = kwargs["sheet_name"]
-    if test_type in ("mssql", "sqlite"):
+    if t_config.target.type_is_db:
         t_config.target.if_exists = "replace"
     t_config.source.table = test_name
     t_config.source.url = "pandas://"
 
-    # t_config.target.table = str(t_config.pipe_id)
     test_els_out = test_name + "." + test_type + ".out.els.yml"
 
     staged_frames[test_name] = df
@@ -301,19 +273,17 @@ def round_trip_file(test_case: _Test, request, test_type: str):
 
     execute(test_els_out)
 
-    # to_func = getattr(df, to_func_name)
-    # to_func(test_file, index=False, **kwargs)
-
     df_config = get_df_config(df)
+    df_config.source.url = test_url
     if test_type == "xlsx":
-        df_config["source"]["table"] = kwargs["sheet_name"]
-    if test_type in ("mssql", "sqlite"):
-        df_config["source"]["table"] = test_name
-        df_config["source"]["url"] = test_url
-    # df_config["source"]["url"] = f"*.{extension}"
+        df_config.source.table = kwargs["sheet_name"]
+    if df_config.source.type_is_db:
+        df_config.source.table = test_name
+
     test_els = test_name + "." + test_type + ".els.yml"
+    print(df_config.model_dump(exclude_none=True))
     yaml.dump(
-        df_config,
+        df_config.model_dump(exclude_none=True),
         open(test_els, "w"),
         sort_keys=False,
         allow_unicode=True,
@@ -329,10 +299,10 @@ def round_trip_file(test_case: _Test, request, test_type: str):
     # logger.info(df.dtypes)
     # logger.info(df)
 
-    if test_type in ("mssql", "sqlite", "csv"):
-        df2 = staged_frames[test_name]
-    elif test_type == "xlsx":
+    if test_type == "xlsx":
         df2 = staged_frames[kwargs["sheet_name"]]
+    else:
+        df2 = staged_frames[test_name]
         # logger.info(kwargs["sheet_name"])
 
     # assert True
@@ -351,28 +321,9 @@ def round_trip_file(test_case: _Test, request, test_type: str):
     #     os.remove(test_url)
 
 
-# def round_trip_db(test_case: Test, request, table_name):
-#     # Access the fields of the Test named tuple using dot notation
-#     test_name = request.node.callspec.id
-#     df = test_case.df
-#     kwargs = test_case.kwargs
-
-#     # Create a SQLite database in memory
-#     conn = sqlite3.connect(":memory:")
-
-#     # Write the DataFrame to the SQLite database
-#     df.to_sql(table_name, conn, if_exists="replace", index=False, **kwargs)
-
-#     # Read the table back into a DataFrame
-#     df2 = pd.read_sql_table(table_name, conn)
-
-#     # Close the SQLite database
-#     conn.close()
-
-#     # Rest of your code...
-
-
-def create_test_class_file(get_frames_func, test_name, get_tests_func, extension):
+def create_test_class_file(
+    get_frames_func, test_name, get_tests_func, extension, query
+):
     def get_tests():
         atomic_frames = get_frames_func()
         return get_tests_func(atomic_frames)
@@ -386,7 +337,7 @@ def create_test_class_file(get_frames_func, test_name, get_tests_func, extension
             tmp_path,
         ):
             os.chdir(tmp_path)
-            round_trip_file(test_case, request, extension)
+            round_trip_file(test_case, request, extension, query)
 
     IoTemplate.__name__ = test_name
     return IoTemplate
@@ -404,6 +355,18 @@ class TestMSSQL:
     pass
 
 
+class TestMSSQL_TDS:
+    pass
+
+
+class TestMSSQL_ODBC17:
+    pass
+
+
+class TestMSSQL_ODBC18:
+    pass
+
+
 class TestSQLite:
     pass
 
@@ -417,64 +380,30 @@ test_classes = {
 }
 
 
-# def create_test_class_db(atomic_func, test_name, get_tests_func, table_name):
-#     def get_tests():
-#         atomic_results = atomic_func()
-#         return get_tests_func(atomic_results)
-
-#     class SqliteTemplate:
-#         @pytest.mark.parametrize("test_case", get_tests(), ids=id_func)
-#         def test_round_trip(self, test_case: Test, request):
-#             round_trip_db(test_case, request, table_name)
-
-#     SqliteTemplate.__name__ = test_name
-#     return SqliteTemplate
-
-
-# class TestSQLite:
-#     pass
-
 for testset in (
-    (TestCSV, get_1r1c_tests_csv, "csv"),
-    (TestExcel, get_1r1c_tests_excel, "xlsx"),
-    (TestMSSQL, get_1r1c_tests_sql, "mssql"),
-    (TestSQLite, get_1r1c_tests_sql, "sqlite"),
+    (TestCSV, get_1r1c_tests_csv, "csv", None),
+    (TestExcel, get_1r1c_tests_excel, "xlsx", None),
+    (TestMSSQL, get_1r1c_tests_sql, "mssql", None),
+    (TestMSSQL_TDS, get_1r1c_tests_sql, "mssql+pymssql", None),
+    (
+        TestMSSQL_ODBC17,
+        get_1r1c_tests_sql,
+        "mssql+pyodbc",
+        "driver=odbc driver 17 for sql server",
+    ),
+    (
+        TestMSSQL_ODBC18,
+        get_1r1c_tests_sql,
+        "mssql+pyodbc",
+        "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
+    ),
+    (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
 ):
     for class_name, get_frames_func in test_classes.items():
         setattr(
             testset[0],
             class_name,
-            create_test_class_file(get_frames_func, class_name, testset[1], testset[2]),
+            create_test_class_file(
+                get_frames_func, class_name, testset[1], testset[2], testset[3]
+            ),
         )
-
-
-# for class_name, get_frames_func in test_classes.items():
-#     setattr(
-#         TestCSV,
-#         class_name,
-#         create_test_class_file(get_frames_func, class_name, get_1r1c_tests_csv, "csv"),
-#     )
-
-#     setattr(
-#         TestExcel,
-#         class_name,
-#         create_test_class_file(
-#             get_frames_func, class_name, get_1r1c_tests_excel, "xlsx"
-#         ),
-#     )
-
-#     setattr(
-#         TestMSSQL,
-#         class_name,
-#         create_test_class_file(
-#             get_frames_func, class_name, get_1r1c_tests_sql, "mssql"
-#         ),
-#     )
-
-#     setattr(
-#         TestSQLite,
-#         class_name,
-#         create_test_class_file(
-#             get_frames_func, class_name, get_1r1c_tests_sql, "sqlite"
-#         ),
-#     )
