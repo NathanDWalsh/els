@@ -18,9 +18,6 @@ jobs:
 
     runs-on: ubuntu-latest   
     steps:
-    - name: set permissions on socket
-      if: ${{ env.ACT }}
-      run: sudo chown runner:runneradmin /var/run/docker.sock
     - name: Install a SQL Server suite of tools
       if: ${{ env.ACT }}
       uses: NathanDWalsh/mssqlsuite@main
@@ -31,11 +28,11 @@ jobs:
   build:
     needs: sql-env
     # runs-on: ubuntu-latest
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     strategy:
       max-parallel: 1
       matrix:
-        python-version: ["3.11"]
+        python-version: ["3.11","3.12"]
     steps:
     - name: Install a SQL Server suite of tools
       if: ${{ !env.ACT }}
@@ -67,14 +64,12 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
-
-  # clean:
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - name: Close sql
-  #     if: ${{ env.ACT }}
-  #     run: |
-  #       docker stop mssql
-  #       docker remove mssql
-      
+  clean:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Close sql
+      if: ${{ env.ACT }}
+      run: |
+        docker stop mssql
+        docker remove mssql
