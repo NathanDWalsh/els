@@ -6,7 +6,7 @@ import sys
 from enum import Enum
 from pathlib import Path
 from stat import FILE_ATTRIBUTE_HIDDEN
-from typing import Callable, Optional, TypeAlias, Union
+from typing import Callable, Optional, Union
 
 import pandas as pd
 import typer
@@ -27,7 +27,7 @@ CONFIG_FILE_EXT = ".els.yml"
 FOLDER_CONFIG_FILE_STEM = "_"
 ROOT_CONFIG_FILE_STEM = "__"
 
-config_dict_type: TypeAlias = dict[str, dict[str, str]]
+# config_dict_type: TypeAlias = dict[str, dict[str, str]]
 
 
 class NodeType(Enum):
@@ -344,7 +344,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             #     dictionary[key] = value.replace("*", find_replace_dict["_leaf_name"])
 
     @staticmethod
-    def merge_configs(*configs: list[Union[ec.Config, config_dict_type]]) -> ec.Config:
+    def merge_configs(*configs: list[Union[ec.Config, dict]]) -> ec.Config:
         dicts: list[dict] = []
         for config in configs:
             if isinstance(config, ec.Config):
@@ -362,7 +362,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @staticmethod
-    def merge_dicts_by_top_level_keys(*dicts: config_dict_type) -> config_dict_type:
+    def merge_dicts_by_top_level_keys(*dicts: dict) -> dict:
         merged_dict: dict = {}
         for dict_ in dicts:
             for key, value in dict_.items():
