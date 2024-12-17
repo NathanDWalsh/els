@@ -34,12 +34,13 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
+    - run: docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=dbatools.I0" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
     - name: Install a SQL Server suite of tools
       if: ${{ !env.ACT }}
       uses: NathanDWalsh/mssqlsuite@main
       #uses: potatoqualitee/mssqlsuite@v1.7
       with:
-        install: sqlengine, sqlclient
+        install: sqlclient
     - name: Run sqlclient
       run: |
         sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
