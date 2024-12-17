@@ -63,7 +63,7 @@ jobs:
     #     flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        pytest tests/test_yaml.py -k 'TestMSSQL_ODBC17 and TestString and Stringy'
+        pytest tests/test_yaml.py -k 'TestMSSQL_ODBC18 and TestString and Stringy'
   # clean:
   #   needs: build
   #   runs-on: ubuntu-latest
