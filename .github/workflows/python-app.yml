@@ -34,7 +34,11 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - run: docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=dbatools.I0" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest --hostname localhost
+    - run: |
+        docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=dbatools.I0" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest --hostname localhost
+        curl https://packages.microsoft.com/keys/microsoft.asc | tee /etc/apt/trusted.gpg.d/microsoft.asc
+        apt-get update
+        apt-get install mssql-tools18 unixodbc-dev
     - name: Install a SQL Server suite of tools
       if: ${{ !env.ACT }}
       uses: NathanDWalsh/mssqlsuite@main
