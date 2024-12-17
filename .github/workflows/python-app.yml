@@ -34,9 +34,7 @@ jobs:
       matrix:
         python-version: ["3.11"]
     steps:
-    - run: |
-        docker switch-daemon --linux
-        docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=dbatools.I0" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
+    - run: docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=dbatools.I0" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
     - name: Install a SQL Server suite of tools
       if: ${{ !env.ACT }}
       uses: NathanDWalsh/mssqlsuite@main
