@@ -14,19 +14,19 @@ permissions:
 
 jobs:
 
-  sql-env:
+  # sql-env:
 
-    runs-on: ubuntu-latest   
-    steps:
-    - name: Install a SQL Server suite of tools
-      if: ${{ env.ACT }}
-      uses: NathanDWalsh/mssqlsuite@main
-      #uses: potatoqualitee/mssqlsuite@v1.7
-      with:
-        install: sqlengine
+  #   runs-on: ubuntu-latest   
+  #   steps:
+  #   - name: Install a SQL Server suite of tools
+  #     if: ${{ env.ACT }}
+  #     uses: NathanDWalsh/mssqlsuite@main
+  #     #uses: potatoqualitee/mssqlsuite@v1.7
+  #     with:
+  #       install: sqlengine
  
   build:
-    needs: sql-env
+    # needs: sql-env
     # runs-on: ubuntu-latest
     runs-on: windows-latest
     strategy:
@@ -64,12 +64,12 @@ jobs:
     - name: Test with pytest
       run: |
         pytest tests/test_yaml.py -k 'TestMSSQL_ODBC17 and TestString and Stringy'
-  clean:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-    - name: Close sql
-      if: ${{ env.ACT }}
-      run: |
-        docker stop mssql
-        docker remove mssql
+  # clean:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #   - name: Close sql
+  #     if: ${{ env.ACT }}
+  #     run: |
+  #       docker stop mssql
+  #       docker remove mssql
