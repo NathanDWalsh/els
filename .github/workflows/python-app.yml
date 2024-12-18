@@ -36,7 +36,7 @@ jobs:
     steps:
     - run: |
         docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=dbatools.I0" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest --hostname localhost
-        sudo curl https://packages.microsoft.com/keys/microsoft.asc | tee /etc/apt/trusted.gpg.d/microsoft.asc
+        curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
         sudo apt-get update
         sudo apt-get install mssql-tools18 unixodbc-dev
     - name: Install a SQL Server suite of tools
