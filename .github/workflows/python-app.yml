@@ -39,6 +39,10 @@ jobs:
         curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
         sudo apt-get update
         sudo apt-get install mssql-tools18 unixodbc-dev
+        echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bash_profile
+        source ~/.bash_profile
+        echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bashrc
+        source ~/.bashrc
     - name: Install a SQL Server suite of tools
       if: ${{ !env.ACT }}
       uses: NathanDWalsh/mssqlsuite@main
