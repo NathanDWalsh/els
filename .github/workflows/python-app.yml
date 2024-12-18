@@ -43,6 +43,8 @@ jobs:
         source ~/.bash_profile
         echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bashrc
         source ~/.bashrc
+        sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
+        sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
     - name: Install a SQL Server suite of tools
       if: ${{ !env.ACT }}
       uses: NathanDWalsh/mssqlsuite@main
