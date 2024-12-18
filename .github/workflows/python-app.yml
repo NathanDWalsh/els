@@ -28,34 +28,22 @@ jobs:
   build:
     # needs: sql-env
     # runs-on: ubuntu-latest
-    runs-on: self-hosted
+    runs-on: windows-latest
     strategy:
       max-parallel: 1
       matrix:
         python-version: ["3.11"]
     steps:
-    - name: docker run sql server
+    - name: Install a SQL Server suite of tools
+      if: ${{ !env.ACT }}
+      uses: NathanDWalsh/mssqlsuite@main
+      #uses: potatoqualitee/mssqlsuite@v1.7
+      with:
+        install: sqlengine, sqlclient
+    - name: Run sqlclient
       run: |
-        docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=dbatools.I0" -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest --hostname localhost
-        curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
-        sudo apt-get update
-        sudo apt-get install mssql-tools18 unixodbc-dev
-        echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bash_profile
-        source ~/.bash_profile
-        echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bashrc
-        source ~/.bashrc
         sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
         sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
-    # - name: Install a SQL Server suite of tools
-    #   if: ${{ !env.ACT }}
-    #   uses: NathanDWalsh/mssqlsuite@main
-    #   #uses: potatoqualitee/mssqlsuite@v1.7
-    #   with:
-    #     install: sqlclient
-    # - name: Run sqlclient
-    #   run: |
-    #     sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
-    #     sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
