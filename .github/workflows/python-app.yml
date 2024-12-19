@@ -32,7 +32,8 @@ jobs:
         sys:
           - os: windows-latest
             shell: powershell
-        python-version: ["3.13"]
+            tox-factor: -f win
+        python-version: ["3.12"]
         # needs: sql-env
         # runs-on: ubuntu-latest
         # runs-on: windows-latest
@@ -59,7 +60,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install tox
+          pip install tox ${{ matrix.sys.tox-factor }}
       # pip install -r requirements.txt
       # pip install -r requirements-test.txt
       # - name: Lint with flake8
