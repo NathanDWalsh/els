@@ -14,6 +14,7 @@ permissions:
 
 jobs:
 
+
   # sql-env:
 
   #   runs-on: ubuntu-latest   
@@ -28,11 +29,14 @@ jobs:
   build:
     # needs: sql-env
     # runs-on: ubuntu-latest
-    runs-on: self-hosted
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh -noprofile -nologo -Command "Get-Content {0} | Where-Object { $_ -ne '' } | pwsh -noprofile -nologo"
     strategy:
       max-parallel: 1
       matrix:
-        python-version: ["3.10","3.11"]
+        python-version: ["3.10"]
     steps:
     - name: Install a SQL Server suite of tools
       if: ${{ !env.ACT }}
@@ -46,7 +50,7 @@ jobs:
         sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: "${{ matrix.python-version }}"
     - name: Install dependencies
