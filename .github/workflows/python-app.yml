@@ -41,6 +41,9 @@ jobs:
       run:
         shell: ${{ matrix.sys.shell }}
     steps:
+      - name: Install odbc18 for mssql
+        if: ${{ !env.ACT }}
+        run: choco install sqlserver-odbcdriver
       - name: Install a SQL Server suite of tools
         if: ${{ !env.ACT }}
         uses: NathanDWalsh/mssqlsuite@main
