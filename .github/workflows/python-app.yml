@@ -33,7 +33,7 @@ jobs:
           - os: windows-latest
             shell: powershell
             tox-factor: -f win
-        python-version: ["3.12"]
+        python-version: ["3.13"]
         # needs: sql-env
         # runs-on: ubuntu-latest
         # runs-on: windows-latest
@@ -60,7 +60,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install tox ${{ matrix.sys.tox-factor }}
+          pip install tox
       # pip install -r requirements.txt
       # pip install -r requirements-test.txt
       # - name: Lint with flake8
@@ -74,7 +74,7 @@ jobs:
       #     pytest tests/test_yaml.py
       - name: Test with tox
         run: |
-          python -m tox
+          python -m tox ${{ matrix.sys.tox-factor }}
   # clean:
   #   needs: build
   #   runs-on: ubuntu-latest
