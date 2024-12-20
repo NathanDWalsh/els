@@ -51,10 +51,10 @@ jobs:
         #uses: potatoqualitee/mssqlsuite@v1.7
         with:
           install: sqlengine, sqlclient
-      - name: Run sqlclient
-        run: |
-          sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
-          sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
+      # - name: Run sqlclient
+      #   run: |
+      #     sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
+      #     sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
       - uses: actions/checkout@v4
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
