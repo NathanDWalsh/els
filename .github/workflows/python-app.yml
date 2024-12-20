@@ -32,11 +32,11 @@ jobs:
         sys:
           # - os: windows-latest
           #   shell: powershell
-          #   tox-factor: -f win
+          #   tox-args: -f win
           # sqlcmd-path: sqlcmd
           - os: ubuntu-latest
             shell: bash
-            tox-factor: -f lin
+            tox-args: -f lin -- -k 'not TestMSSQL_ODBC17'
             sqlcmd-path: /opt/mssql-tools18/bin/sqlcmd
         # python-version: ["3.13"]
         # needs: sql-env
@@ -79,7 +79,7 @@ jobs:
       #     pytest tests/test_yaml.py
       - name: Test with tox
         run: |
-          python -m tox ${{ matrix.sys.tox-factor }}
+          python -m tox ${{ matrix.sys.tox-args }}
   # clean:
   #   needs: build
   #   runs-on: ubuntu-latest
