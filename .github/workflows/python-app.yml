@@ -30,10 +30,10 @@ jobs:
       max-parallel: 2
       matrix:
         sys:
-          # - os: windows-2022
-          #   shell: powershell
-          #   tox-args: -f win
-          #   sqlcmd-path: sqlcmd
+          - os: windows-2022
+            shell: powershell
+            tox-args: -f win
+            sqlcmd-path: sqlcmd
           # - os: ubuntu-22.04
           #   shell: bash
           #   tox-args: -f lin -- -k 'not TestMSSQL_ODBC17'
@@ -57,10 +57,11 @@ jobs:
         #uses: potatoqualitee/mssqlsuite@v1.7
         with:
           install: sqlengine, sqlclient
+          show-log: true
       - name: Run sqlclient
         run: |
-          ${{ matrix.sys.sqlcmd-path }} -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
-          ${{ matrix.sys.sqlcmd-path }} -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
+          ${{ matrix.sys.sqlcmd-path }} -C -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
+          ${{ matrix.sys.sqlcmd-path }} -C -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
       - uses: actions/checkout@v4
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
