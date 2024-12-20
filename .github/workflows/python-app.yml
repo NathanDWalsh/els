@@ -53,8 +53,8 @@ jobs:
           install: sqlengine, sqlclient
       - name: Run sqlclient
         run: |
-          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
-          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
+          sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
+          sqlcmd -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
       - uses: actions/checkout@v4
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
