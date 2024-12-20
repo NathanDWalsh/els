@@ -27,6 +27,7 @@ jobs:
 
   build:
     strategy:
+      fail-fast: false
       max-parallel: 2
       matrix:
         sys:
