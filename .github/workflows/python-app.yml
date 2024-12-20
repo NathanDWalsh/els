@@ -41,7 +41,7 @@ jobs:
           - os: macos-13
             shell: bash
             tox-args: -f lin -- -k 'not TestMSSQL_ODBC17'
-            sqlcmd-path: /opt/mssql-tools18/bin/sqlcmd
+            sqlcmd-path: sqlcmd
         # python-version: ["3.13"]
         # needs: sql-env
         # runs-on: ubuntu-latest
