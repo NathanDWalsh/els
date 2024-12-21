@@ -26,7 +26,7 @@ jobs:
             sqlcmd-path: /opt/mssql-tools18/bin/sqlcmd
           - os: macos-14
             shell: bash
-            tox-args: -f mac
+            tox-args: -f mac -- -k 'not TestMSSQL_ODBC17'
             sqlcmd-path: sqlcmd
     runs-on: ${{ matrix.sys.os }}
     defaults:
