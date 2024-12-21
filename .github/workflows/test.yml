@@ -1,4 +1,4 @@
-name: Python tests
+name: Test
 on:
   workflow_dispatch:
   push:
@@ -24,7 +24,7 @@ jobs:
             shell: bash
             tox-args: -f lin -- -k 'not TestMSSQL_ODBC17'
             sqlcmd-path: /opt/mssql-tools18/bin/sqlcmd
-          - os: macos-13
+          - os: macos-14
             shell: bash
             tox-args: -f mac
             sqlcmd-path: sqlcmd
