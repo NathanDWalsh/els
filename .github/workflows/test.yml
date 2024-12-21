@@ -24,7 +24,7 @@ jobs:
             shell: bash
             tox-args: -f lin -- -k 'not TestMSSQL_ODBC17'
             sqlcmd-path: /opt/mssql-tools18/bin/sqlcmd
-          - os: macos-14
+          - os: macos-14-large
             shell: bash
             tox-args: -f mac -- -k 'not TestMSSQL_ODBC17'
             sqlcmd-path: sqlcmd
