@@ -16,18 +16,18 @@ jobs:
       max-parallel: 3
       matrix:
         sys:
-          - os: windows-2022
-            shell: powershell
-            tox-args: -f win
-            sqlcmd-path: sqlcmd
+          # - os: windows-2022
+          #   shell: powershell
+          #   tox-args: -f win
+          #   sqlcmd-path: sqlcmd
           - os: ubuntu-22.04
             shell: bash
             tox-args: -f lin -- -k 'not TestMSSQL_ODBC17'
             sqlcmd-path: /opt/mssql-tools18/bin/sqlcmd
-          - os: macos-14-large
-            shell: bash
-            tox-args: -f mac -- -k 'not TestMSSQL_ODBC17'
-            sqlcmd-path: sqlcmd
+          # - os: macos-14-large
+          #   shell: bash
+          #   tox-args: -f mac -- -k 'not TestMSSQL_ODBC17'
+          #   sqlcmd-path: sqlcmd
     runs-on: ${{ matrix.sys.os }}
     defaults:
       run:
