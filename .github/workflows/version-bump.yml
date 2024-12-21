@@ -17,6 +17,7 @@ jobs:
             pyproject.toml
       - name: Bump version
         run: |
+          pip install semantic_release
           python -m semantic_release --pyproject-toml pyproject.toml --bump patch
       - name: Commit and tag
         run: |
