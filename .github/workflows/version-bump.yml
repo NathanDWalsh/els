@@ -1,0 +1,29 @@
+name: Version Bump
+
+on:
+  push:
+    branches-ignore:
+      - main
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    permissions:                # Job-level permissions configuration starts here
+      contents: write           # 'write' access to repository contents
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            pyproject.toml
+      - name: Bump version
+        run: |
+          python -m semantic_release --pyproject-toml pyproject.toml --bump patch
+      - name: Commit and tag
+        run: |
+          # Note: the following account information will not work on GHES
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "Bumped version to $(cat pyproject.toml | grep version | cut -d\"\" -f2)"
+          git tag -a "v$(cat pyproject.toml | grep version | cut -d\"\" -f2)"
+          git push
