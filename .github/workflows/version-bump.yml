@@ -6,7 +6,9 @@ on:
 jobs:
   bump-version:
     runs-on: ubuntu-latest
+    concurrency: release
     permissions:
+      id-token: write
       contents: write
     steps:
       - name: Checkout code
@@ -14,6 +16,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Python Semantic Release
+        id: release
         uses: python-semantic-release/python-semantic-release@v9.15.2
         with:
           git_committer_email: 41898282+github-actions[bot]@users.noreply.github.com
