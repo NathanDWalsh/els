@@ -20,7 +20,7 @@ Pipeline configurations define the dataflow between sources and targets,
 including any transformations. These configurations must be defined in a
 structured manner: it is the design of this configuration structure via
 els's _configuration components_ that is covered in this chapter. The
-human-readable design is covered in [@sec:els-config-design], explaining
+human-readable design is covered in [Configuration Schema](#Configuration-Schema), explaining
 a shallow YAML document schema for setting ingestion pipeline
 configurations.
 
