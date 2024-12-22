@@ -1,8 +1,8 @@
-name: Version Bump
+name: Release
 
 on:
   push:
-    branches-ignore:
+    branches:
       - main
 jobs:
   bump-version:
@@ -15,16 +15,19 @@ jobs:
         # with:
         #   sparse-checkout: |
         #     pyproject.toml
-      - name: Bump version
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
-          python -m pip install python-semantic-release
-          python -m semantic_release version --patch
-          git commit -m "Bumped version to $(cat pyproject.toml | grep version | cut -d\" -f2)"
-          git tag -a "v$(cat pyproject.toml | grep version | cut -d\"\" -f2)"
-          git push
+      - name: Python Semantic Release
+        uses: python-semantic-release/python-semantic-release@v9.15.2
+
+      # - name: Bump version
+      #   run: |
+      #     git config user.name "github-actions[bot]"
+      #     git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      #     git add .
+      #     python -m pip install python-semantic-release
+      #     python -m semantic_release version --patch
+      #     git commit -m "Bumped version to $(cat pyproject.toml | grep version | cut -d\" -f2)"
+      #     git tag -a "v$(cat pyproject.toml | grep version | cut -d\"\" -f2)"
+      #     git push
       # - name: Commit and tag
       #   run: |
       #     # Note: the following account information will not work on GHES
