@@ -23,3 +23,8 @@ els = "els.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/NathanDWalsh/els"
+
+[tool.semantic_release]
+version_toml = [
+    "pyproject.toml:project.version",
+]
