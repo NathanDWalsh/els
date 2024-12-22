@@ -21,8 +21,8 @@ jobs:
         uses: python-semantic-release/python-semantic-release@v9.15.2
         with:
           git_committer_email: 41898282+github-actions[bot]@users.noreply.github.com
-          git_committer_name: "github-actions[bot]"
-          root_options: "-vv --noop"
+          git_committer_name: github-actions[bot]
+          # root_options: "-vv --noop"
 
       # - name: Bump version
       #   run: |
