@@ -20,9 +20,15 @@ Pipeline configurations define the dataflow between sources and targets,
 including any transformations. These configurations must be defined in a
 structured manner: it is the design of this configuration structure via
 els's _configuration components_ that is covered in this chapter. The
-human-readable design is covered in [Configuration Schema](#Configuration-Schema), explaining
+human-readable design is covered in [Configuration Schema](#configuration-schema), explaining
 a shallow YAML document schema for setting ingestion pipeline
 configurations.
+
+---
+
+**Configuration component overview:** the first column lists three node
+components; the second column lists three node-level components which
+when present, configure the nodes in the first column.
 
 | Node component     | Node-level config.   | Configures...                               |
 | ------------------ | -------------------- | ------------------------------------------- |
@@ -39,11 +45,6 @@ configurations.
 |                    | `_.els.yml`          | directory with explicit configuration.      |
 |                    | Root-level config.   |                                             |
 |                    | `__.els.yml`         | root directory with explicit configuration. |
-
-: Configuration component overview: the first column lists three node
-components; the second column lists three node-level components which
-when present, configure the nodes in the first column.
-{#tbl:configtypes}
 
 The configuration components are a set of six filesystem objects
 available for defining a pipeline. The six configuration components are
