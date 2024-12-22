@@ -486,7 +486,7 @@ to a _single configuration file scheme_, removing the need for a
 root-level configuration and keeping all configuration in a single
 configuration node.
 
-## Configuration Schema \_ els-config-design
+## Configuration Schema
 
 A YAML schema is a file that defines the property structure of YAML
 files. Likewise, els comes with a _configuration file schema_ that
