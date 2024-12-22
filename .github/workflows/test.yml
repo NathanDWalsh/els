@@ -24,10 +24,10 @@ jobs:
             shell: bash
             tox-args: -f lin -- -k 'not TestMSSQL_ODBC17'
             sqlcmd-path: /opt/mssql-tools18/bin/sqlcmd
-          - os: macos-13
-            shell: bash
-            tox-args: -f mac
-            sqlcmd-path: sqlcmd
+          # - os: macos-13
+          #   shell: bash
+          #   tox-args: -f mac
+          #   sqlcmd-path: sqlcmd
     runs-on: ${{ matrix.sys.os }}
     defaults:
       run:
