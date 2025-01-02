@@ -1,20 +1,32 @@
 # ELS
 
-ELS (Extract-Load-Spec) is a command line tool and yaml schema for ingesting tabular data.
+WIP
+
+ELS (Extract-Load-Spec) is a cross-platform CLI for loading data.
 
 ## Install
 
-ELS is python based and can be installed with pip.
-
-```bash
-pip install elspec
+```console
+python -m pip install elspec
 ```
 
-## Documentation
+## Basic usage - autoloader
 
-Documentation is sparse, so far I have just copied/pasted some chapters from my dissertation that explains core concepts and functionality.
+With zero configuration, ELS defaults to autoloader.
+There must be [recognized data files](#supported-source-files) in the directory context from which ELS is run:
+These are the source files to be loaded.
+Each dataset recognized in the source files will be loaded to a separate pandas dataframe.
+Once loaded, a preview is printed.
 
-## Configuration Components \_ config-path-design
+Run ELS in a directory containing supported files, and it will load all files to a set of pandas dataframes and print preview.
+
+## Supported source files
+
+- csv
+- tsv
+- Excel
+
+## Configuration Components
 
 Pipeline configurations define the dataflow between sources and targets,
 including any transformations. These configurations must be defined in a
@@ -24,9 +36,9 @@ human-readable design is covered in [Configuration Schema](#configuration-schema
 a shallow YAML document schema for setting ingestion pipeline
 configurations.
 
----
+## **Configuration component overview**
 
-**Configuration component overview:** the first column lists three node
+The first column lists three node
 components; the second column lists three node-level components which
 when present, configure the nodes in the first column.
 
@@ -491,7 +503,7 @@ configuration node.
 
 A YAML schema is a file that defines the property structure of YAML
 files. Likewise, els comes with a _configuration file schema_ that
-defines the configuration files reviewed in [@sec:config-path-design].
+defines the configuration files reviewed in [Configuration Components](#configuration-components).
 
 els configuration files are YAML files with a `.els.yml` extension,
 which define properties of an ingestion pipeline such as data sources,
@@ -506,7 +518,7 @@ modify and validate configuration files rapidly.
 Returning to the running example, the `els preview` command is
 introduced in [@lst:id200preview]. `els preview` displays a sample of
 rows and columns for each _target table_ defined in the pipeline. Like
-the `els tree` command reviewed in [@sec:config-path-design],
+the `els tree` command reviewed in [Configuration Components](#configuration-components),
 `els preview` requires a valid configuration context, using the current
 working directory as a default. To keep the listings as brief as
 possible by previewing a single source file, the listings in the

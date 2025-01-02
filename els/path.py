@@ -110,6 +110,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
         elif self.is_config_file:
             self._config = {"source": {"url": self.adjacent_file_path}}
+            # raise Exception()
             self.grow_config_branches()
 
         else:
@@ -187,6 +188,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def grow_config_branches(self):
         previous_url = ""
+        # raise Exception(self.paired_config)
         for doc in self.paired_config:
             merged_doc = ConfigPath.merge_configs(self.config, doc)
             source = merged_doc.source
@@ -201,16 +203,21 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 raise Exception("expected to have a url for child config doc")
 
             table_docs = dict()
-
-            if source.table:
-                table_docs[source.table] = doc
-            elif self.node_type in (NodeType.CONFIG_ADJACENT, NodeType.CONFIG_VIRTUAL):
+            # raise Exception(self)
+            if self.node_type in (NodeType.CONFIG_ADJACENT, NodeType.CONFIG_VIRTUAL):
                 for content_table in get_content_leaf_names(url_parent.config.source):
                     if not source.table or source.table == content_table:
                         doc = ConfigPath.merge_configs(
                             doc, {"source": {"table": content_table}}
                         )
                         table_docs[content_table] = doc
+            else:
+                # if no source table defined explicitly, assumes to be last element in url
+                # (after last / and (before first .))
+                # TODO: consider relocating to config
+                if not source.table:
+                    source.table = source.url.split("/")[-1].split(".")[0]
+                table_docs[source.table] = doc
 
             for tab, doc in table_docs.items():
                 ca_path = ConfigPath(Path(previous_url) / tab)

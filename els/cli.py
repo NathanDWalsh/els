@@ -31,7 +31,7 @@ app = typer.Typer()
 
 
 def start_logging():
-    logging.basicConfig(level=logging.INFO, format="%(relativeCreated)d - %(message)s")
+    logging.basicConfig(level=logging.ERROR, format="%(relativeCreated)d - %(message)s")
     # logging.disable(logging.CRITICAL)
     logging.info("Getting Started")
 
@@ -94,7 +94,7 @@ def tree(path: Optional[str] = typer.Argument(None), keep_virtual: bool = False)
     path = clean_none_path(path)
     ca_path = get_ca_path(path)
     tree = plant_tree(ca_path)
-
+    # raise Exception(tree.children[0].children[0].config)
     if not keep_virtual:
         tree = remove_virtual_nodes(tree)
     if tree:
@@ -389,7 +389,7 @@ def root():
 
 @app.command()
 def version():
-    print(importlib.metadata.version("els"))
+    print(importlib.metadata.version("elspec"))
 
 
 def main():
