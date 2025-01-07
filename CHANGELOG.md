@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.1.0 (2025-01-07)
+
+### Features
+
+- **duckdb**: Supportd
+  ([`862d37b`](https://github.com/NathanDWalsh/els/commit/862d37bfdda183bc696f86b1d8a84f885db5ca2f))
+
+
 ## v0.0.6 (2024-12-22)
 
 ### Bug Fixes
