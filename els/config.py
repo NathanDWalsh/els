@@ -184,19 +184,21 @@ class Frame(BaseModel):
             else:
                 logging.info("No ODBC drivers for pyodbc, using pymssql")
                 res = urlparse(self.url)._replace(scheme="mssql+pymssql").geturl()
-        elif self.type == "sqlite":
+        elif self.type in ("sqlite", "duckdb"):
             res = self.url
         elif self.type == "postgres":
             res = "Driver={{PostgreSQL}};Server={self.server};Database={self.database};"
-        elif self.type == "duckdb":
-            res = f"Driver={{DuckDB}};Database={self.database};"
+        # elif self.type == "duckdb":
+        #     res = f"Driver={{DuckDB}};Database={self.url.replace('duckdb://','')};"
         else:
             res = None
         return res
 
     @cached_property
     def sqn(self) -> Optional[str]:
-        if self.dbschema and self.table:
+        if self.type == "duckdb":
+            res = '"' + self.table + '"'
+        elif self.dbschema and self.table:
             res = "[" + self.dbschema + "].[" + self.table + "]"
         elif self.table:
             res = "[" + self.table + "]"

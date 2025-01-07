@@ -94,7 +94,6 @@ def tree(path: Optional[str] = typer.Argument(None), keep_virtual: bool = False)
     path = clean_none_path(path)
     ca_path = get_ca_path(path)
     tree = plant_tree(ca_path)
-    # raise Exception(tree.children[0].children[0].config)
     if not keep_virtual:
         tree = remove_virtual_nodes(tree)
     if tree:

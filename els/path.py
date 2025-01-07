@@ -110,7 +110,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
         elif self.is_config_file:
             self._config = {"source": {"url": self.adjacent_file_path}}
-            # raise Exception()
             self.grow_config_branches()
 
         else:
@@ -203,7 +202,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 raise Exception("expected to have a url for child config doc")
 
             table_docs = dict()
-            # raise Exception(self)
             if self.node_type in (NodeType.CONFIG_ADJACENT, NodeType.CONFIG_VIRTUAL):
                 for content_table in get_content_leaf_names(url_parent.config.source):
                     if not source.table or source.table == content_table:

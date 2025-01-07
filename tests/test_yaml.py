@@ -249,7 +249,9 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
         if query:
             test_url += f"?{query}"
     elif test_type == "sqlite":
-        test_url = "sqlite:///test_database.db"
+        test_url = "sqlite:///test_lite.db"
+    elif test_type == "duckdb":
+        test_url = "duckdb:///test_duck.db"
 
     t_config = get_config_default()
     t_config.target.url = test_url
@@ -371,6 +373,10 @@ class TestSQLite:
     pass
 
 
+class TestDuckDb:
+    pass
+
+
 test_classes = {
     "TestString": get_atomic_string_frames,
     "TestNumber": get_atomic_number_frames,
@@ -398,6 +404,7 @@ for testset in (
         "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
     ),
     (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
+    (TestDuckDb, get_1r1c_tests_sql, "duckdb", None),
 ):
     for class_name, get_frames_func in test_classes.items():
         setattr(
