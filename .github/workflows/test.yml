@@ -1,9 +1,8 @@
-name: Test
+name: test
 on:
   push:
-    branches-ignore:
+    branches:
       - main
-  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
