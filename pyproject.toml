@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "elspec"
-version = "0.1.1"
+version = "0.1.2"
 authors = [
     { name="Nathan Walsh", email="nwalsh82@gmail.com" },
 ]

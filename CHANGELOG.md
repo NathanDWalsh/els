@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.1.2 (2025-01-10)
+
+
 ## v0.1.1 (2025-01-07)
+
+### Bug Fixes
+
+- **db**: Improved date dtype, add table scan
+  ([`1e07d56`](https://github.com/NathanDWalsh/els/commit/1e07d565770bca24642540849337f58dfccde293))
+
+### Continuous Integration
+
+- **actions**: Chain test, versioning, publish
+  ([`daca25a`](https://github.com/NathanDWalsh/els/commit/daca25a4c6074e7829f6f327202a8c965c65747c))
 
 
 ## v0.1.0 (2025-01-07)
