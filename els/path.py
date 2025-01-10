@@ -9,6 +9,7 @@ from stat import FILE_ATTRIBUTE_HIDDEN
 from typing import Callable, Optional, Union
 
 import pandas as pd
+import sqlalchemy as sa
 import typer
 import yaml
 
@@ -89,10 +90,10 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             super().__init__(*args, **kwargs)
         # self.parent = parent
 
-    # called in plant_tree() to build:
+    # called from plant_tree() to build:
     #  (1) individual inheritance chain nodes without walking
     #  (2) configuration context node with walking
-    # called in grow_dir_branches() to build
+    # called from grow_dir_branches() to build
     #  (1) config file nodes
     #  (2) config dir nodes
     def configure_node(
@@ -202,7 +203,10 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 raise Exception("expected to have a url for child config doc")
 
             table_docs = dict()
-            if self.node_type in (NodeType.CONFIG_ADJACENT, NodeType.CONFIG_VIRTUAL):
+            if self.node_type in (
+                NodeType.CONFIG_ADJACENT,
+                NodeType.CONFIG_VIRTUAL,
+            ) or (source.type_is_db and not source.table):
                 for content_table in get_content_leaf_names(url_parent.config.source):
                     if not source.table or source.table == content_table:
                         doc = ConfigPath.merge_configs(
@@ -806,6 +810,15 @@ def dict_diff(dict1: dict, dict2: dict) -> dict:
     return diff
 
 
+def get_table_names(source: ec.Source) -> list[str]:
+    res = None
+    if source.type_is_db and not source.table:
+        with sa.create_engine(source.db_connection_string).connect() as sqeng:
+            inspector = sa.inspect(sqeng)
+            res = inspector.get_table_names(source.dbschema)
+    return res
+
+
 # def get_sheet_names(file_path, sheet_states: list = ["visible"]) -> list[str]:
 def get_sheet_names(
     file_path, sheet_states: list = [SheetVisibleEnum.Visible]
@@ -873,7 +886,9 @@ def config_path_valid(path: ConfigPath) -> bool:
 
 def get_content_leaf_names(source: ec.Source) -> list[str]:
     # raise Exception()
-    if source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
+    if source.type_is_db:
+        return get_table_names(source)
+    elif source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
         return get_sheet_names(source.url)
     elif source.type in (".csv", ".tsv", ".fwf", ".xml"):
         # return root file name without path and suffix

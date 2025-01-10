@@ -45,6 +45,9 @@ def setup():
 def get_df_config(df: pd.DataFrame):
     config_df = get_config_default()
     config_df.source.dtype = df.dtypes.apply(lambda x: x.name).to_dict()
+    for k, v in config_df.source.dtype.items():
+        if v.split("[")[0] == "datetime64":
+            config_df.source.dtype[k] = "date"
     return config_df
 
 
@@ -88,6 +91,18 @@ def get_atomic_strings():
     return res
 
 
+def get_atomic_times():
+    res = {
+        "ISODate": "2000-01-01",
+        "ISODateTime": "2000-01-01T22:22:22",
+        "ISODateTimeMs": "2000-01-01T22:22:22.222",
+        "ISOTime": "22:22:22",
+        "ISOTimeMs": "22:22:22.222",
+    }
+
+    return res
+
+
 def get_atomic_string_frames():
     res = {
         f"{pd.StringDtype.name.capitalize()}({k})": pd.DataFrame(
@@ -95,7 +110,6 @@ def get_atomic_string_frames():
         )
         for k, v in get_atomic_strings().items()
     }
-
     return res
 
 
@@ -107,7 +121,14 @@ def get_atomic_number_frames():
         for num_type in [pd.Float64Dtype, pd.Int64Dtype]
         for num_val in [-1, 0, 1, None]
     }
+    return res
 
+
+def get_atomic_time_frames():
+    res = {
+        f"DATE({k})": pd.DataFrame({k: [v]}, dtype="datetime64[ns]")
+        for k, v in get_atomic_times().items()
+    }
     return res
 
 
@@ -283,7 +304,7 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
         df_config.source.table = test_name
 
     test_els = test_name + "." + test_type + ".els.yml"
-    print(df_config.model_dump(exclude_none=True))
+    # print(df_config.model_dump(exclude_none=True))
     yaml.dump(
         df_config.model_dump(exclude_none=True),
         open(test_els, "w"),
@@ -315,6 +336,7 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
     # # logger.info(df.dtypes)
     # # logger.info(df)
     # logger.info(compare.report())
+    assert df.dtypes.equals(df2.dtypes)
     assert df.equals(df2)
 
     # os.remove(test_els)
@@ -380,6 +402,7 @@ class TestDuckDb:
 test_classes = {
     "TestString": get_atomic_string_frames,
     "TestNumber": get_atomic_number_frames,
+    "TestTime": get_atomic_time_frames,
     "TestFaker": get_faker_frames,
     # bools are rare in datasets + pandas has a bug with Bool64
     # "TestBool": get_atomic_bool_frames,

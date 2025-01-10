@@ -3,6 +3,7 @@ import logging
 import os
 from typing import Optional, Union
 
+import numpy as np
 import pandas as pd
 import sqlalchemy as sa
 from openpyxl import load_workbook
@@ -470,7 +471,11 @@ def get_source_kwargs(read_x, frame: ec.Source, nrows: Optional[int] = None):
     )
     for k in root_kwargs:
         if hasattr(frame, k) and getattr(frame, k):
-            kwargs[k] = getattr(frame, k)
+            if k == "dtype":
+                dtypes = getattr(frame, "dtype")
+                kwargs["dtype"] = {k: v for k, v in dtypes.items() if v != "date"}
+            else:
+                kwargs[k] = getattr(frame, k)
 
     if nrows:
         kwargs["nrows"] = nrows
@@ -626,6 +631,10 @@ def pull_frame(
         )
     if transform and transform.astype:
         df = df.astype(transform.astype.dtype)
+    if hasattr(frame, "dtype") and frame.dtype:
+        for k, v in frame.dtype.items():
+            if v == "date" and not isinstance(type(df[k]), np.dtypes.DateTime64DType):
+                df[k] = pd.to_datetime(df[k])
     return pd.DataFrame(df)
 
 
