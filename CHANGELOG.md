@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.1.1 (2025-01-07)
+
+
 ## v0.1.0 (2025-01-07)
+
+### Bug Fixes
+
+- **duckdb**: Requirement
+  ([`1f81618`](https://github.com/NathanDWalsh/els/commit/1f816181539c3a919a90d481aab4380d9dedac04))
 
 ### Features
 
