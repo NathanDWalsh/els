@@ -749,6 +749,13 @@ def get_root_inheritance(start_dir: Path) -> Union[list[Path], None]:
                 return [start_dir]
 
 
+def plant_memory_tree(path, memory_config):
+    ca_path = ConfigPath(path)
+    ca_path._config = memory_config
+    ca_path.grow_config_branches()
+    return ca_path
+
+
 def plant_tree(path: ConfigPath) -> Optional[ConfigPath]:
     root_paths = list(reversed(get_root_inheritance(str(path))))
     root_path = Path(root_paths[0])

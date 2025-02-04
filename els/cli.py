@@ -12,13 +12,14 @@ import ruamel.yaml as yaml
 import typer
 from anytree import PreOrderIter
 
-from els.config import TargetIfExistsValue
+from els.config import Config, TargetIfExistsValue
 from els.execute import staged_frames
 from els.path import (
     CONFIG_FILE_EXT,
     NodeType,
     get_root_config_name,
     get_root_inheritance,
+    plant_memory_tree,
     plant_tree,
 )
 
@@ -50,10 +51,16 @@ def get_ca_path(path: str = None) -> Path:
 
 
 def get_taskflow(
-    path: str = None, force_pandas_target: bool = False, nrows: Optional[bool] = None
+    path: str = None,
+    force_pandas_target: bool = False,
+    nrows: Optional[bool] = None,
+    memory_config=None,
 ):
     ca_path = get_ca_path(path)
-    tree = plant_tree(ca_path)
+    if not memory_config:
+        tree = plant_tree(ca_path)
+    else:
+        tree = plant_memory_tree(ca_path, memory_config)
     if force_pandas_target:
         tree.force_pandas_target()
     if nrows:
@@ -253,8 +260,12 @@ def preview(
 
 @app.command()
 def execute(path: Optional[str] = typer.Argument(None)):
-    path = clean_none_path(path)
-    taskflow = get_taskflow(path)
+    if isinstance(path, Config):
+        taskflow = get_taskflow("./__dynamic__.els.yml", memory_config=path)
+    else:
+        path = clean_none_path(path)
+        taskflow = get_taskflow(path)
+
     if taskflow:
         taskflow.execute()
         # print(pandas_end_points)

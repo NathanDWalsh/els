@@ -251,7 +251,7 @@ def id_func(testcase_vals):
     return "_".join(
         (
             f"{name if not (name == 'name' or isinstance(value, dict)) else ''}"
-            f"{value if not isinstance(value,dict) else '_'.join( (f'{k}{v}') for k,v in value.items())}"  # noqa
+            f"{value if not isinstance(value, dict) else '_'.join((f'{k}{v}') for k, v in value.items())}"  # noqa
         )
         for name, value in testcase_vals._asdict().items()
         if not isinstance(value, pd.DataFrame)
@@ -285,18 +285,18 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
     t_config.source.table = test_name
     t_config.source.url = "pandas://"
 
-    test_els_out = test_name + "." + test_type + ".out.els.yml"
+    # test_els_out = test_name + "." + test_type + ".out.els.yml"
 
     staged_frames[test_name] = df
 
-    yaml.dump(
-        t_config.model_dump(exclude_none=True),
-        open(test_els_out, "w"),
-        sort_keys=False,
-        allow_unicode=True,
-    )
+    # yaml.dump(
+    #     t_config.model_dump(exclude_none=True),
+    #     open(test_els_out, "w"),
+    #     sort_keys=False,
+    #     allow_unicode=True,
+    # )
 
-    execute(test_els_out)
+    execute(t_config)
 
     df_config = get_df_config(df)
     df_config.source.url = test_url
@@ -305,7 +305,8 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
     if df_config.source.type_is_db:
         df_config.source.table = test_name
 
-    test_els = test_name + "." + test_type + ".els.yml"
+    # test_els = test_name + "." + test_type + ".els.yml"
+    test_els = "__.els.yml"
     # print(df_config.model_dump(exclude_none=True))
     yaml.dump(
         df_config.model_dump(exclude_none=True),

@@ -7,6 +7,7 @@ on:
 jobs:
   bump-version:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     concurrency: release
     permissions:
       id-token: write
@@ -20,6 +21,7 @@ jobs:
         id: release
         uses: python-semantic-release/python-semantic-release@v9.15.2
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           git_committer_email: 41898282+github-actions[bot]@users.noreply.github.com
           git_committer_name: github-actions[bot]
           root_options: "-vv"
