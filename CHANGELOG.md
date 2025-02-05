@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.0 (2025-02-04)
+
+### Features
+
+- **core**: Pass explicit config via python
+  ([`2335000`](https://github.com/NathanDWalsh/els/commit/2335000b1cba505692bda6b35c08826f2a7e65e3))
+
+
 ## v0.1.2 (2025-01-10)
 
 
