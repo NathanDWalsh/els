@@ -1,12 +1,18 @@
 # CHANGELOG
 
 
+## v0.3.0 (2025-02-05)
+
+
 ## v0.2.0 (2025-02-04)
 
 ### Features
 
 - **core**: Pass explicit config via python
   ([`2335000`](https://github.com/NathanDWalsh/els/commit/2335000b1cba505692bda6b35c08826f2a7e65e3))
+
+- **pdf**: Add pdf source support
+  ([`f9ac995`](https://github.com/NathanDWalsh/els/commit/f9ac99532244ba1615c536edf363242d2f9c055f))
 
 
 ## v0.1.2 (2025-01-10)
