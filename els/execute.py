@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import sqlalchemy as sa
 from openpyxl import load_workbook
+from pdfminer.high_level import LAParams, extract_pages
+from pdfminer.layout import LTChar, LTTextBox
 from python_calamine import CalamineWorkbook
 
 import els.config as ec
@@ -268,7 +270,10 @@ def build_pandas_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
     if not target.table:
         raise Exception("invalid table")
 
-    if target.table in staged_frames.keys():
+    if (
+        target.table in staged_frames.keys()
+        and target.if_exists == ec.TargetIfExistsValue.FAIL
+    ):
         raise Exception(f"table {target.table} already exists in staged frames")
     else:
         staged_frames[target.table] = df.head(0)
@@ -419,6 +424,55 @@ def get_sql_data_type(dtype):
         return "DATETIME"
     else:
         return "VARCHAR(MAX)"
+
+
+def pull_pdf(file, laparams, **kwargs) -> pd.DataFrame:
+    def get_first_char_from_text_box(tb) -> LTChar:
+        for line in tb:
+            for char in line:
+                return char
+
+    lap = LAParams()
+    if laparams:
+        for k, v in laparams.items():
+            lap.__setattr__(k, v)
+    pm_pages = extract_pages(file, laparams=lap, **kwargs)
+
+    dict_res = {
+        "page_index": [],
+        "y0": [],
+        "y1": [],
+        "x0": [],
+        "x1": [],
+        "height": [],
+        "width": [],
+        "font_name": [],
+        "font_size": [],
+        "font_color": [],
+        "text": [],
+    }
+
+    for p in pm_pages:
+        for e in p:
+            if isinstance(e, LTTextBox):
+                first_char = get_first_char_from_text_box(e)
+                dict_res["page_index"].append(p.pageid)
+                dict_res["x0"].append(e.x0)
+                dict_res["x1"].append(e.x1)
+                dict_res["y0"].append(e.y0)
+                dict_res["y1"].append(e.y1)
+                dict_res["height"].append(e.height)
+                dict_res["width"].append(e.width)
+                dict_res["font_name"].append(first_char.fontname)
+                dict_res["font_size"].append(first_char.height)
+                dict_res["font_color"].append(
+                    str(first_char.graphicstate.ncolor)
+                    if not isinstance(first_char.graphicstate.ncolor, tuple)
+                    else str(first_char.graphicstate.ncolor)
+                )
+                dict_res["text"].append(e.get_text().rstrip())
+
+    return pd.DataFrame(dict_res)
 
 
 def pull_csv(file, clean_last_column, **kwargs):
@@ -599,6 +653,16 @@ def pull_frame(
             kwargs = {}
 
         df = pull_fwf(frame.url, **kwargs)
+    elif frame.type == ".pdf":
+        if isinstance(frame, ec.Source) and frame.extract_pages_pdf:
+            kwargs = frame.extract_pages_pdf.model_dump(exclude_none=True)
+            laparams = None
+            if "laparams" in kwargs:
+                laparams = kwargs.pop("laparams")
+        else:
+            kwargs = {}
+        # raise Exception(kwargs)
+        df = pull_pdf(frame.url, laparams=laparams, **kwargs)
     elif frame.type == ".xml":
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_xml, frame)

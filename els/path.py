@@ -47,6 +47,7 @@ class FileType(Enum):
     ELS = "els"
     FWF = "fixed width file"
     XML = "xml"
+    PDF = "pdf"
 
     @classmethod
     def suffix_to_type(cls, extension: str):
@@ -62,6 +63,7 @@ class FileType(Enum):
             "yml": cls.ELS,
             "fwf": cls.FWF,
             "xml": cls.XML,
+            "pdf": cls.PDF,
         }
         return mapping.get(extension.lower().strip("."), None)
 
@@ -897,7 +899,7 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
         return get_table_names(source)
     elif source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
         return get_sheet_names(source.url)
-    elif source.type in (".csv", ".tsv", ".fwf", ".xml"):
+    elif source.type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
         # return root file name without path and suffix
         res = [Path(source.url).stem]
         return res

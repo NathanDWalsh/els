@@ -151,6 +151,87 @@ $defs:
     - _parent_folder_name
     title: DynamicPathValue
     type: string
+  ExtractPagesPdf:
+    properties:
+      caching:
+        anyOf:
+        - type: boolean
+        - type: 'null'
+        default: null
+        title: Caching
+      laparams:
+        anyOf:
+        - $ref: '#/$defs/LAParams'
+        - type: 'null'
+        default: null
+      maxpages:
+        anyOf:
+        - type: integer
+        - type: 'null'
+        default: null
+        title: Maxpages
+      page_numbers:
+        anyOf:
+        - items:
+            type: integer
+          type: array
+        - type: 'null'
+        default: null
+        title: Page Numbers
+      password:
+        anyOf:
+        - type: string
+        - type: 'null'
+        default: null
+        title: Password
+    title: ExtractPagesPdf
+    type: object
+  LAParams:
+    properties:
+      all_texts:
+        anyOf:
+        - type: boolean
+        - type: 'null'
+        default: null
+        title: All Texts
+      boxes_flow:
+        anyOf:
+        - type: number
+        - type: 'null'
+        default: null
+        title: Boxes Flow
+      char_margin:
+        anyOf:
+        - type: number
+        - type: 'null'
+        default: null
+        title: Char Margin
+      detect_vertical:
+        anyOf:
+        - type: boolean
+        - type: 'null'
+        default: null
+        title: Detect Vertical
+      line_margin:
+        anyOf:
+        - type: number
+        - type: 'null'
+        default: null
+        title: Line Margin
+      line_overlap:
+        anyOf:
+        - type: number
+        - type: 'null'
+        default: null
+        title: Line Overlap
+      word_margin:
+        anyOf:
+        - type: number
+        - type: 'null'
+        default: null
+        title: Word Margin
+    title: LAParams
+    type: object
   Melt:
     additionalProperties: false
     properties:
@@ -252,6 +333,11 @@ $defs:
         - type: 'null'
         default: null
         title: Dtype
+      extract_pages_pdf:
+        anyOf:
+        - $ref: '#/$defs/ExtractPagesPdf'
+        - type: 'null'
+        default: null
       load_parallel:
         default: false
         title: Load Parallel
@@ -441,6 +527,7 @@ properties:
     default:
       dbschema: null
       dtype: null
+      extract_pages_pdf: null
       load_parallel: false
       nrows: null
       read_csv: null

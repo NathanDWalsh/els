@@ -352,6 +352,24 @@ class ReadFwf(BaseModel, extra="allow"):
     names: Optional[list] = None
 
 
+class LAParams(BaseModel):
+    line_overlap: Optional[float] = None
+    char_margin: Optional[float] = None
+    line_margin: Optional[float] = None
+    word_margin: Optional[float] = None
+    boxes_flow: Optional[float] = None
+    detect_vertical: Optional[bool] = None
+    all_texts: Optional[bool] = None
+
+
+class ExtractPagesPdf(BaseModel):
+    password: Optional[str] = None
+    page_numbers: Optional[list[int]] = None
+    maxpages: Optional[int] = None
+    caching: Optional[bool] = None
+    laparams: Optional[LAParams] = None
+
+
 class ReadXml(BaseModel, extra="allow"):
     pass
 
@@ -375,6 +393,7 @@ class Source(Frame, extra="forbid"):
     read_excel: Optional[ReadExcel] = None
     read_fwf: Optional[ReadFwf] = None
     read_xml: Optional[ReadXml] = None
+    extract_pages_pdf: Optional[ExtractPagesPdf] = None
 
 
 class AddColumns(BaseModel, extra="allow"):
