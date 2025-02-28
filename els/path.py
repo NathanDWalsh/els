@@ -12,16 +12,13 @@ import pandas as pd
 import sqlalchemy as sa
 import typer
 import yaml
-
-# import zipfile
 from anytree import NodeMixin, PreOrderIter, RenderTree
-
-# from openpyxl import load_workbook
-from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 
 import els.config as ec
 import els.execute as ee
 import els.flow as ef
+import els.xl as xl
+from els.core import fetch_file_io, staged_frames
 from els.pathprops import HumanPathPropertiesMixin
 
 CONFIG_FILE_EXT = ".els.yml"
@@ -185,6 +182,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 )
 
             return docs
+        elif self._config:
+            return [self._config]
         else:  # NodeType.CONFIG_VIRTUAL has no explicit config
             return [dict()]
 
@@ -227,6 +226,31 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 ca_path = ConfigPath(Path(previous_url) / tab)
                 ca_path.parent = url_parent
                 ca_path._config = doc
+                if (
+                    not isinstance(doc, dict)
+                    and doc.source
+                    and doc.source.split_on_column
+                ) or (
+                    isinstance(doc, dict)
+                    and "source" in doc
+                    and "split_on_column" in doc["source"]
+                ):
+                    sub_tables = get_distinct_column_values(source)
+                    for sub_table in sub_tables:
+                        if isinstance(sub_table, str):
+                            column_eq = f"'{sub_table}'"
+                            table_name = sub_table
+                        else:
+                            column_eq = sub_table
+                            table_name = f"{source.split_on_column}_{sub_table}"
+                        filter = f"{source.split_on_column} == {column_eq}"
+                        st_path = ca_path / filter
+                        st_path.parent = ca_path
+                        st_path._config = {
+                            "target": {"table": table_name},
+                            "source": {"filter": filter},
+                        }
+                    # raise Exception(doc.source.split_on_column)
 
     @property
     def node_type(self) -> NodeType:
@@ -828,30 +852,6 @@ def get_table_names(source: ec.Source) -> list[str]:
     return res
 
 
-# def get_sheet_names(file_path, sheet_states: list = ["visible"]) -> list[str]:
-def get_sheet_names(
-    file_path, sheet_states: list = [SheetVisibleEnum.Visible]
-) -> list[str]:
-    # workbook = load_workbook(
-    #     filename=file_path, read_only=True, data_only=True, keep_links=False
-    # )
-    workbook = CalamineWorkbook.from_path(file_path)
-
-    if sheet_states is None:
-        # worksheet_names = workbook.sheetnames
-        sheet_states = [SheetVisibleEnum.Visible]
-    # else:
-    worksheet_names = [
-        sheet.name
-        # for sheet in workbook.worksheets
-        for sheet in workbook.sheets_metadata
-        if (sheet.visible in sheet_states) and (sheet.typ == SheetTypeEnum.WorkSheet)
-    ]
-
-    # workbook.close()
-    return worksheet_names
-
-
 def get_yml_docs(path: Union[ConfigPath, Path], expected: int = None) -> list[dict]:
     if path.exists():
         with path.open() as file:
@@ -898,7 +898,8 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
     if source.type_is_db:
         return get_table_names(source)
     elif source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
-        return get_sheet_names(source.url)
+        xlIO = fetch_file_io(source.url)
+        return xl.get_sheet_names(xlIO)
     elif source.type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
         # return root file name without path and suffix
         res = [Path(source.url).stem]
@@ -908,6 +909,14 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
     elif source.type == "pandas":  # and self._config.type =='mssql'
         # return get_db_tables
         # pass  # TODO
-        return list(ee.staged_frames)
+        return list(staged_frames)
     else:
         return [source.url]
+
+
+def get_distinct_column_values(source: ec.Source) -> list[str]:
+    # TODO this can be made more efficient, just taking the single column
+    # and made even more efficient using custom pullers per source type.
+    source_df = ee.pull_frame(source)
+    return list(source_df[source.split_on_column].drop_duplicates())
+    # return ["target1", "target2"]

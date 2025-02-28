@@ -7,12 +7,13 @@ from functools import cached_property
 from typing import Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
-import pandas as pd
 import pyodbc
 import sqlalchemy as sa
 import yaml
 from pydantic import BaseModel, ConfigDict
 
+import els.xl as xl
+from els.core import fetch_file_io, staged_frames, write_files
 from els.pathprops import HumanPathPropertiesMixin
 
 
@@ -82,6 +83,12 @@ class Melt(BaseModel, extra="forbid"):
     var_name: str = "variable"
 
 
+class Pivot(BaseModel, extra="forbid"):
+    columns: Optional[Union[str, list[str]]] = None
+    values: Optional[Union[str, list[str]]] = None
+    index: Optional[Union[str, list[str]]] = None
+
+
 class AsType(BaseModel, extra="forbid"):
     dtype: dict[str, str]
 
@@ -89,7 +96,9 @@ class AsType(BaseModel, extra="forbid"):
 class Transform(BaseModel):
     melt: Optional[Melt] = None
     stack: Optional[Stack] = None
+    pivot: Optional[Pivot] = None
     astype: Optional[AsType] = None
+    prql: Optional[str] = None
 
     model_config = ConfigDict(
         extra="forbid",
@@ -127,10 +136,23 @@ def lcase_query_keys(query):
 
 class Frame(BaseModel):
     @cached_property
-    def db_url_driver(self):
+    def file_exists(self) -> Optional[bool]:
+        if self.url:
+            res = os.path.exists(self.url)
+        else:
+            res = None
+        return res
+
+    @cached_property
+    def query_lcased(self):
         url_parsed = urlparse(self.url)
         query = parse_qs(url_parsed.query)
-        query_lcased = {k.lower(): v[0].lower() for k, v in query.items()}
+        res = {k.lower(): v[0].lower() for k, v in query.items()}
+        return res
+
+    @cached_property
+    def db_url_driver(self):
+        query_lcased = self.query_lcased
         if "driver" in query_lcased.keys():
             return query_lcased["driver"]
         else:
@@ -266,8 +288,11 @@ class Frame(BaseModel):
     @cached_property
     def sheet_name(self):
         if self.type in (".xlsx", ".xls", ".xlsb", ".xlsm"):
-            return self.table
+            res = self.table or "Sheet1"
+            res = re.sub(re.compile(r"[\\*?:/\[\]]", re.UNICODE), "_", res)
+            return res[:31].strip()
         else:
+            # raise Exception("Cannot fetch sheet name from non-spreadsheet format.")
             return None
 
 
@@ -281,15 +306,6 @@ class Target(Frame):
     to_sql: Optional[ToSql] = None
     to_csv: Optional[ToCsv] = None
     to_excel: Optional[ToExcel] = None
-
-    @cached_property
-    def file_exists(self) -> Optional[bool]:
-        if self.url and self.type in (".csv", ".tsv", ".xlsx"):
-            # check file exists
-            res = os.path.exists(self.url)
-        else:
-            res = None
-        return res
 
     @cached_property
     def table_exists(self) -> Optional[bool]:
@@ -307,8 +323,11 @@ class Target(Frame):
             self.type in (".xlsx") and self.file_exists
         ):  # TODO: add other file types supported by Calamine
             # check if sheet exists
-            with pd.ExcelFile(self.url) as xls:
-                res = self.sheet_name in xls.sheet_names
+            xlIO = fetch_file_io(self.url)
+            sheet_names = xl.get_sheet_names(xlIO)
+            res = self.sheet_name in sheet_names
+        elif self.type == "pandas" and self.table in staged_frames:
+            res = True
         else:
             res = None
         return res
@@ -317,9 +336,13 @@ class Target(Frame):
     def preparation_action(self) -> str:
         if not self.if_exists:
             res = "fail"
-        elif self.url_scheme == "file" and (
-            not self.file_exists
-            or self.if_exists == TargetIfExistsValue.REPLACE_FILE.value
+        elif (
+            self.url_scheme == "file"
+            and self.url not in write_files
+            and (
+                self.if_exists == TargetIfExistsValue.REPLACE_FILE.value
+                or not self.file_exists
+            )
         ):
             res = "create_replace_file"
         elif (
@@ -364,7 +387,7 @@ class LAParams(BaseModel):
 
 class ExtractPagesPdf(BaseModel):
     password: Optional[str] = None
-    page_numbers: Optional[list[int]] = None
+    page_numbers: Optional[Union[int, list[int], str]] = None
     maxpages: Optional[int] = None
     caching: Optional[bool] = None
     laparams: Optional[LAParams] = None
@@ -385,7 +408,8 @@ class Source(Frame, extra="forbid"):
     # file_path: Optional[str] = (
     #     "_" + HumanPathPropertiesMixin.file_path_abs.fget.__name__
     # )
-
+    filter: Optional[str] = None
+    split_on_column: Optional[str] = None
     load_parallel: bool = False
     nrows: Optional[int] = None
     dtype: Optional[dict] = None

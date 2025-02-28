@@ -1,13 +1,13 @@
 import logging
 from typing import Callable, Optional
 
-import pandas as pd
 from anytree import NodeMixin, RenderTree
 from joblib import Parallel, delayed
 from joblib.externals.loky import get_reusable_executor
 
 import els.config as ec
 import els.execute as ee
+from els.core import fetch_file_io, open_files
 
 
 class FlowNodeMixin(NodeMixin):
@@ -106,10 +106,8 @@ class ElsXlsxWrapper(ElsFileWrapper):
         super().__init__(parent, file_path)
 
     def open(self):
-        if self.file_path not in ee.open_files:
-            # logging.info("OPEN: " + self.file_path)
-            file = pd.ExcelFile(self.file_path)
-            ee.open_files[self.file_path] = file
+        if self.file_path not in open_files:
+            fetch_file_io(self.file_path)
 
     def execute(self):
         self.open()
@@ -117,10 +115,9 @@ class ElsXlsxWrapper(ElsFileWrapper):
         self.close()
 
     def close(self):
-        file = ee.open_files[self.file_path]
+        file = open_files[self.file_path]
         file.close()
-        del ee.open_files[self.file_path]
-        # logging.info("CLOSED: " + self.file_path)
+        del open_files[self.file_path]
 
 
 # groups files together that share a common target frame so that target can be built once

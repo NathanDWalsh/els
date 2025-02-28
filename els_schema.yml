@@ -172,9 +172,11 @@ $defs:
         title: Maxpages
       page_numbers:
         anyOf:
+        - type: integer
         - items:
             type: integer
           type: array
+        - type: string
         - type: 'null'
         default: null
         title: Page Numbers
@@ -260,6 +262,38 @@ $defs:
     - id_vars
     title: Melt
     type: object
+  Pivot:
+    additionalProperties: false
+    properties:
+      columns:
+        anyOf:
+        - type: string
+        - items:
+            type: string
+          type: array
+        - type: 'null'
+        default: null
+        title: Columns
+      index:
+        anyOf:
+        - type: string
+        - items:
+            type: string
+          type: array
+        - type: 'null'
+        default: null
+        title: Index
+      values:
+        anyOf:
+        - type: string
+        - items:
+            type: string
+          type: array
+        - type: 'null'
+        default: null
+        title: Values
+    title: Pivot
+    type: object
   ReadCsv:
     additionalProperties: true
     properties:
@@ -338,6 +372,12 @@ $defs:
         - $ref: '#/$defs/ExtractPagesPdf'
         - type: 'null'
         default: null
+      filter:
+        anyOf:
+        - type: string
+        - type: 'null'
+        default: null
+        title: Filter
       load_parallel:
         default: false
         title: Load Parallel
@@ -368,6 +408,12 @@ $defs:
         - $ref: '#/$defs/ReadXml'
         - type: 'null'
         default: null
+      split_on_column:
+        anyOf:
+        - type: string
+        - type: 'null'
+        default: null
+        title: Split On Column
       table:
         anyOf:
         - type: string
@@ -501,6 +547,17 @@ $defs:
         - $ref: '#/$defs/Melt'
         - type: 'null'
         default: null
+      pivot:
+        anyOf:
+        - $ref: '#/$defs/Pivot'
+        - type: 'null'
+        default: null
+      prql:
+        anyOf:
+        - type: string
+        - type: 'null'
+        default: null
+        title: Prql
       stack:
         anyOf:
         - $ref: '#/$defs/Stack'
@@ -528,12 +585,14 @@ properties:
       dbschema: null
       dtype: null
       extract_pages_pdf: null
+      filter: null
       load_parallel: false
       nrows: null
       read_csv: null
       read_excel: null
       read_fwf: null
       read_xml: null
+      split_on_column: null
       table: null
       url: null
   target:

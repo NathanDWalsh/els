@@ -5,7 +5,7 @@ import os
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Type
+from typing import Optional, Type, Union
 
 import pandas as pd
 import ruamel.yaml as yaml
@@ -13,7 +13,7 @@ import typer
 from anytree import PreOrderIter
 
 from els.config import Config, TargetIfExistsValue
-from els.execute import staged_frames
+from els.core import open_files, staged_frames, write_files
 from els.path import (
     CONFIG_FILE_EXT,
     NodeType,
@@ -50,17 +50,76 @@ def get_ca_path(path: str = None) -> Path:
     return ca_path
 
 
+class TaskFlow:
+    def __init__(
+        self,
+        config_like: Union[str, Config] = None,
+        force_pandas_target: bool = False,
+        nrows: Optional[bool] = None,
+    ):
+        self.config_like = config_like
+        self.force_pandas_target = force_pandas_target
+        self.nrows = nrows
+        # if tree:
+        #     taskflow = tree.get_ingest_taskflow()
+        # else:
+        #     raise Exception("TaskFlow not built")
+
+    def execute(self):
+        if isinstance(self.config_like, str):
+            ca_path = get_ca_path(self.config_like)
+            tree = plant_tree(ca_path)
+        else:
+            ca_path = get_ca_path("./__dynamic__.els.yml")
+            tree = plant_memory_tree(ca_path, self.config_like)
+
+        if self.force_pandas_target:
+            tree.force_pandas_target()
+        if self.nrows:
+            tree.set_nrows(self.nrows)
+        if tree:
+            taskflow = tree.get_ingest_taskflow()
+            taskflow.execute()
+        else:
+            raise Exception("TaskFlow not built")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.cleanup()
+
+    def cleanup(self):
+        global write_files
+        global open_files
+        # for k, v in write_files.items():
+        #     v.close()
+        # write_files = {}
+        # raise Exception(write_files)
+        for wf in write_files:
+            with open(wf, "wb") as write_file:
+                open_files[wf].seek(0)
+                write_file.write(open_files[wf].getbuffer())
+
+        for k, v in open_files.items():
+            v.close()
+        open_files.clear()
+        write_files.clear()
+
+
 def get_taskflow(
-    path: str = None,
+    config_like: Union[str, Config] = None,
     force_pandas_target: bool = False,
     nrows: Optional[bool] = None,
-    memory_config=None,
+    # memory_config=None,
 ):
-    ca_path = get_ca_path(path)
-    if not memory_config:
+    if isinstance(config_like, str):
+        ca_path = get_ca_path(config_like)
         tree = plant_tree(ca_path)
     else:
-        tree = plant_memory_tree(ca_path, memory_config)
+        ca_path = get_ca_path("./__dynamic__.els.yml")
+        tree = plant_memory_tree(ca_path, config_like)
+
     if force_pandas_target:
         tree.force_pandas_target()
     if nrows:
@@ -98,9 +157,13 @@ def remove_virtual_nodes(tree):
 
 @app.command()
 def tree(path: Optional[str] = typer.Argument(None), keep_virtual: bool = False):
-    path = clean_none_path(path)
-    ca_path = get_ca_path(path)
-    tree = plant_tree(ca_path)
+    if isinstance(path, Config):
+        tree = plant_memory_tree(Path("./__dynamic__.els.yml"), path)
+    else:
+        path = clean_none_path(path)
+        ca_path = get_ca_path(path)
+        tree = plant_tree(ca_path)
+
     if not keep_virtual:
         tree = remove_virtual_nodes(tree)
     if tree:
@@ -260,18 +323,23 @@ def preview(
 
 @app.command()
 def execute(path: Optional[str] = typer.Argument(None)):
-    if isinstance(path, Config):
-        taskflow = get_taskflow("./__dynamic__.els.yml", memory_config=path)
-    else:
+    if isinstance(path, str):
         path = clean_none_path(path)
-        taskflow = get_taskflow(path)
 
-    if taskflow:
+    with TaskFlow(path) as taskflow:
+        # raise Exception("testy")
         taskflow.execute()
-        # print(pandas_end_points)
-    else:
-        logging.error("taskflow not loaded")
-    if staged_frames:
+        # taskflow.cleanup()
+        # taskflow.cleanup
+
+    # taskflow = get_taskflow(path)
+
+    # if taskflow:
+    #     taskflow.execute()
+    # print(pandas_end_points)
+    # else:
+    #     logging.error("taskflow not loaded")
+    if staged_frames and not isinstance(path, Config):
         print("\nNo target specified, sources saved to dataframes.\n\nTable summary:")
 
         print()

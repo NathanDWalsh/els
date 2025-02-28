@@ -1,21 +1,25 @@
 import csv
+import io
 import logging
 import os
 from typing import Optional, Union
 
+import duckdb
 import numpy as np
 import pandas as pd
+import prqlc
 import sqlalchemy as sa
 from openpyxl import load_workbook
 from pdfminer.high_level import LAParams, extract_pages
 from pdfminer.layout import LTChar, LTTextBox
-from python_calamine import CalamineWorkbook
 
 import els.config as ec
-
-open_files = {}
-staged_frames = {}
-created_files = []
+import els.xl as xl
+from els.core import (
+    fetch_file_io,
+    staged_frames,
+    write_files,
+)
 
 
 def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
@@ -27,20 +31,19 @@ def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
             res = True
         else:
             if target.type in (".csv"):
-                res = push_csv(df, target, add_cols)
+                res = push_csv(df, target)
             if target.type in (".xlsx"):
-                res = push_excel(df, target, add_cols)
+                res = push_excel(df, target)
             elif target.type_is_db:
-                res = push_sql(df, target, add_cols)
+                res = push_sql(df, target)
             elif target.type in ("pandas"):
-                # staged_frames[target.table] = df
-                res = push_pandas(df, target, add_cols)
+                res = push_pandas(df, target)
             else:
                 pass
     return res
 
 
-def push_pandas(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
+def push_pandas(source_df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.table:
         raise Exception("invalid table")
     if target.table not in staged_frames.keys():
@@ -52,7 +55,7 @@ def push_pandas(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> b
     return True
 
 
-def push_sql(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
+def push_sql(source_df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.db_connection_string:
         raise Exception("invalid db_connection_string")
     if not target.table:
@@ -90,7 +93,7 @@ def push_sql(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool
         return True
 
 
-def push_csv(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
+def push_csv(source_df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.url:
         raise Exception("no file path")
     if not os.path.exists(os.path.isfile(target.url)):
@@ -106,29 +109,24 @@ def push_csv(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool
     return True
 
 
-def push_excel(source_df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
+def push_excel(source_df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.url:
-        raise Exception("invalid file_path")
-    sheet_name = target.table or "Sheet1"
+        raise Exception("missing url")
+    sheet_name = target.sheet_name
 
-    if not sheet_name:
-        raise Exception("sheet name not defined")
+    xlIO = fetch_file_io(target.url)
 
-    # if target.to_excel:
-    #     kwargs = target.to_excel.model_dump()
-    # else:
-    #     kwargs = {}
-
-    sheet_height = get_excel_sheet_height(target.url, sheet_name)
+    sheet_height = xl.get_sheet_height(xlIO, sheet_name)
     start_row = sheet_height + 1
 
     if sheet_height is None:
         raise Exception("sheet name not found")
 
-    with pd.ExcelWriter(target.url, mode="a", if_sheet_exists="overlay") as writer:
+    with pd.ExcelWriter(xlIO, mode="a", if_sheet_exists="overlay") as writer:
         source_df.to_excel(
             writer, index=False, sheet_name=sheet_name, startrow=start_row, header=False
         )
+        write_files.add(target.url)
 
     return True
 
@@ -190,63 +188,28 @@ def build_csv(df: pd.DataFrame, target: ec.Frame) -> bool:
     return True
 
 
-def get_excel_sheet_height(file_path: str, sheet_name: str) -> int:
-    workbook = CalamineWorkbook.from_path(file_path)
-    if sheet_name in workbook.sheet_names:
-        return workbook.get_sheet_by_name(sheet_name).total_height
-    else:
-        return None
-
-
-def get_excel_sheet_row(file_path: str, sheet_name: str, row_index: int) -> list:
-    workbook = CalamineWorkbook.from_path(file_path)
-    if sheet_name in workbook.sheet_names:
-        return workbook.get_sheet_by_name(sheet_name).to_python(nrows=row_index + 1)[-1]
-    else:
-        return None
-
-
-def build_excel_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
+def build_excel_frame(df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.url:
-        raise Exception("invalid file_path")
-    sheet_name = target.table or "Sheet1"
-
-    if not sheet_name:
-        raise Exception("sheet name not defined")
-
-    # save header row to csv, overwriting if exists
-    # df.head(0).to_excel(target.file_path_dynamic, index=False, mode="w")
+        raise Exception("missing url")
+    sheet_name = target.sheet_name
 
     kwargs = {}
 
-    if (
-        (os.path.exists(target.url) and not target.if_exists == "replace_file")
-        or target.url in created_files
-        #
-    ):
+    if target.preparation_action == "create_replace_file":
+        kwargs["mode"] = "w"
+        replace_file = True
+    else:
         kwargs["mode"] = "a"
         kwargs["if_sheet_exists"] = "replace"
-    else:
-        kwargs["mode"] = "w"
+        replace_file = False
 
-    with pd.ExcelWriter(target.url, **kwargs) as writer:
+    xlIO = fetch_file_io(target.url, replace_file=replace_file)
+
+    with pd.ExcelWriter(xlIO, **kwargs) as writer:
         df.head(0).to_excel(writer, index=False, sheet_name=sheet_name)
-
-    created_files.append(target.url)
+        write_files.add(target.url)
 
     return True
-
-
-# def build_excel_table(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
-#     if not target.file_path:
-#         raise Exception("invalid file_path")
-#     if not target.table:
-#         raise Exception("invalid table")
-
-#     # save header row to csv, overwriting if exists
-#     df.head(0).to_csv(target.file_path, index=False, mode="w")
-
-#     return True
 
 
 def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
@@ -294,11 +257,17 @@ def truncate_target(target: ec.Target) -> bool:
         res = truncate_csv(target)
     elif target.type in (".xlsx"):
         res = truncate_excel(target)
-    # elif target.type in ("pandas"):
-    #     res = truncate_pandas_table(target)
+    elif target.type in ("pandas"):
+        res = truncate_pandas(target)
     else:
         raise Exception("invalid target type")
     return res
+
+
+def truncate_pandas(target):
+    df = staged_frames[target.table]
+    df.drop(df.index, axis=0, inplace=True)
+    return True
 
 
 def truncate_csv(target: ec.Target) -> bool:
@@ -365,6 +334,9 @@ def truncate_sql(target: ec.Target) -> bool:
 
 def frames_consistent(config: ec.Config) -> bool:
     target, source, add_cols, transform = get_configs(config)
+    # fileBytes = fetch_file_bytes(target.url)
+    # if len(fileBytes.getbuffer().tobytes()) == 0:
+    #     return True
 
     # if target and target.type in ("pandas"):
     #     return True
@@ -426,6 +398,28 @@ def get_sql_data_type(dtype):
         return "VARCHAR(MAX)"
 
 
+def text_range_to_list(text):
+    result = []
+    segments = text.split(",")
+    for segment in segments:
+        if "-" in segment:
+            start, end = map(int, segment.split("-"))
+            result.extend(range(start, end + 1))
+        else:
+            result.append(int(segment))
+    return result
+
+
+def clean_page_numbers(page_numbers):
+    if isinstance(page_numbers, int):
+        res = [page_numbers]
+    if isinstance(page_numbers, str):
+        res = text_range_to_list(page_numbers)
+    else:
+        res = page_numbers
+    return sorted(res)
+
+
 def pull_pdf(file, laparams, **kwargs) -> pd.DataFrame:
     def get_first_char_from_text_box(tb) -> LTChar:
         for line in tb:
@@ -436,6 +430,10 @@ def pull_pdf(file, laparams, **kwargs) -> pd.DataFrame:
     if laparams:
         for k, v in laparams.items():
             lap.__setattr__(k, v)
+
+    if "page_numbers" in kwargs:
+        kwargs["page_numbers"] = clean_page_numbers(kwargs["page_numbers"])
+
     pm_pages = extract_pages(file, laparams=lap, **kwargs)
 
     dict_res = {
@@ -456,7 +454,11 @@ def pull_pdf(file, laparams, **kwargs) -> pd.DataFrame:
         for e in p:
             if isinstance(e, LTTextBox):
                 first_char = get_first_char_from_text_box(e)
-                dict_res["page_index"].append(p.pageid)
+                dict_res["page_index"].append(
+                    kwargs["page_numbers"][p.pageid - 1]
+                    if "page_numbers" in kwargs
+                    else p.pageid
+                )
                 dict_res["x0"].append(e.x0)
                 dict_res["x1"].append(e.x1)
                 dict_res["y0"].append(e.y0)
@@ -470,7 +472,7 @@ def pull_pdf(file, laparams, **kwargs) -> pd.DataFrame:
                     if not isinstance(first_char.graphicstate.ncolor, tuple)
                     else str(first_char.graphicstate.ncolor)
                 )
-                dict_res["text"].append(e.get_text().rstrip())
+                dict_res["text"].append(e.get_text().replace("\n", " ").rstrip())
 
     return pd.DataFrame(dict_res)
 
@@ -490,8 +492,9 @@ def pull_csv(file, clean_last_column, **kwargs):
     return df
 
 
-def pull_excel(file, **kwargs):
-    df = pd.read_excel(file, **kwargs)
+def pull_excel(xlIO, **kwargs):
+    with pd.ExcelFile(xlIO, engine="calamine") as xlRead:
+        df = pd.read_excel(xlRead, **kwargs)
     return df
 
 
@@ -619,15 +622,18 @@ def pull_frame(
         if isinstance(frame, ec.Source):
             # kwargs = get_source_kwargs(frame.read_excel, nrows, dtype)
             kwargs = get_source_kwargs(frame.read_excel, frame, nrows)
+
         elif isinstance(frame, ec.Target):
             kwargs = get_target_kwargs(frame.to_excel, frame, nrows)
         else:
             kwargs = {}
-        if frame.url in open_files:
-            file = open_files[frame.url]
-        else:
-            # raise Exception("Excel file not opened")
-            file = frame.url
+        xlIO = fetch_file_io(frame.url)
+
+        # if frame.url in open_files:
+        #     file = open_files[frame.url]
+        # else:
+        #     # raise Exception("Excel file not opened")
+        #     file = frame.url
         # kwargs["dtype"] = {1: "str"}
 
         # loop the values in add_cols
@@ -643,9 +649,9 @@ def pull_frame(
                 col = int(col)
                 # if v == "_r1c1":
                 # get the cell value corresponding to the rxcx
-                add_cols[k] = get_excel_sheet_row(file, frame.sheet_name, row)[col]
+                add_cols[k] = xl.get_sheet_row(xlIO, frame.sheet_name, row)[col]
 
-        df = pull_excel(file, **kwargs)
+        df = pull_excel(xlIO, **kwargs)
     elif frame.type == ".fwf":
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_fwf, frame, nrows)
@@ -685,6 +691,8 @@ def pull_frame(
             df = stack_columns(df, transform.stack)
         else:
             df = multiindex_to_singleindex(df)
+    if isinstance(frame, ec.Source) and frame.filter:
+        df = df.query(frame.filter)
     if transform and transform.melt:
         df = pd.melt(
             df,
@@ -693,6 +701,20 @@ def pull_frame(
             value_name=transform.melt.value_name,
             var_name=transform.melt.var_name,
         )
+    if transform and transform.prql:
+        with io.open(transform.prql) as file:
+            prql = file.read()
+        prqlo = prqlc.CompileOptions(target="sql.duckdb")
+        dsql = prqlc.compile(prql, options=prqlo)
+        df = duckdb.sql(dsql).df()
+    if transform and transform.pivot:
+        df = df.pivot(
+            columns=transform.pivot.columns,
+            values=transform.pivot.values,
+            index=transform.pivot.index,
+        )
+        df.columns.name = None
+        df.index.name = None
     if transform and transform.astype:
         df = df.astype(transform.astype.dtype)
     if hasattr(frame, "dtype") and frame.dtype:

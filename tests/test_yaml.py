@@ -11,7 +11,7 @@ import yaml
 from faker import Faker
 
 from els.cli import execute
-from els.execute import staged_frames
+from els.core import staged_frames
 from els.path import get_config_default
 
 _Test = collections.namedtuple("_Test", ["name", "df", "kwargs"])
@@ -282,11 +282,13 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
         t_config.target.table = kwargs["sheet_name"]
     if t_config.target.type_is_db:
         t_config.target.if_exists = "replace"
-    t_config.source.table = test_name
     t_config.source.url = "pandas://"
 
     # test_els_out = test_name + "." + test_type + ".out.els.yml"
 
+    # ensuring there is only one staged_frame allows for an implicit pickup of table name
+    # note above and line below negates this requirement: t_config.source.table = test_name
+    staged_frames.clear()
     staged_frames[test_name] = df
 
     # yaml.dump(
