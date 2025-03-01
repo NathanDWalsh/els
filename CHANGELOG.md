@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.0 (2025-03-01)
+
+### Features
+
+- **many**: Pdf source, prql, split on column, improved file io
+  ([`f87b351`](https://github.com/NathanDWalsh/els/commit/f87b351022a8d2132afda8811a611e74d134fb01))
+
+
 ## v0.3.0 (2025-02-05)
 
 
