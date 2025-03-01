@@ -1,7 +1,4 @@
 import collections
-import logging
-
-# import sqlite3
 import os
 import random
 
@@ -17,30 +14,6 @@ from els.path import get_config_default
 _Test = collections.namedtuple("_Test", ["name", "df", "kwargs"])
 
 
-# Create a logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# # Create a file handler
-# handler = logging.FileHandler(os.path.join("..", "temp", "running_log.log"))
-# handler.setLevel(logging.INFO)
-
-# # Create a logging format
-# formatter = logging.Formatter(
-#     "\t\t\t\t\t\t\t\t\t%(asctime)s - %(name)s - %(levelname)s:\n%(message)s"
-# )
-# handler.setFormatter(formatter)
-
-# # Add the handler to the logger
-# logger.addHandler(handler)
-
-
-@pytest.fixture(autouse=True, scope="session")
-def setup():
-    logger.info("Getting Started")
-    yield
-
-
 # Get the ec.Config dictionary for a given DataFrame
 def get_df_config(df: pd.DataFrame):
     config_df = get_config_default()
@@ -54,7 +27,6 @@ def get_df_config(df: pd.DataFrame):
 def test_enum_conversion():
     config = get_config_default()
     assert config.target.consistency == "strict"
-    # assert config.target.if_exists == "fail"
 
 
 # Test python type to pandas type conversion and euqality
@@ -135,20 +107,16 @@ def get_atomic_time_frames():
 
 
 def get_faker_frames():
-    # Create a Faker instance
     fake = Faker()
-
-    # Set the seed for reproducibility
     fake.seed_instance(1)
 
-    # Function to randomly return a value or None
+    # Randomly return a value or None
     def occasionally_null(value, null_probability=0.1):
         return value if random.random() > null_probability else None
 
     number_of_rows = 100
 
-    # Generate sample data
-    data = {
+    sample_data = {
         "id": [
             occasionally_null(fake.unique.random_int(min=1, max=1000000))
             for _ in range(number_of_rows)
@@ -174,17 +142,19 @@ def get_faker_frames():
         ],
     }
 
-    # Define the desired data types
     data_types = {
         "id": pd.Int64Dtype.name,  # Nullable integer type
         "salary": pd.Float64Dtype.name,  # Nullable float type
+        "name": pd.StringDtype.name,
+        "email": pd.StringDtype.name,
+        "address": pd.StringDtype.name,
+        "hired_at_date": "datetime64[ns]",
         # "is_active": pd.BooleanDtype.name,  # Nullable boolean type
     }
 
-    # Create a DataFrame with specified data types
-    df = pd.DataFrame(data).astype(data_types)
+    df = pd.DataFrame(sample_data).astype(data_types)
 
-    res = {"FakeEmployee10": df}
+    res = {"FakeEmployee100": df}
 
     return res
 
@@ -284,19 +254,10 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
         t_config.target.if_exists = "replace"
     t_config.source.url = "pandas://"
 
-    # test_els_out = test_name + "." + test_type + ".out.els.yml"
-
     # ensuring there is only one staged_frame allows for an implicit pickup of table name
     # note above and line below negates this requirement: t_config.source.table = test_name
     staged_frames.clear()
     staged_frames[test_name] = df
-
-    # yaml.dump(
-    #     t_config.model_dump(exclude_none=True),
-    #     open(test_els_out, "w"),
-    #     sort_keys=False,
-    #     allow_unicode=True,
-    # )
 
     execute(t_config)
 
@@ -307,9 +268,7 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
     if df_config.source.type_is_db:
         df_config.source.table = test_name
 
-    # test_els = test_name + "." + test_type + ".els.yml"
     test_els = "__.els.yml"
-    # print(df_config.model_dump(exclude_none=True))
     yaml.dump(
         df_config.model_dump(exclude_none=True),
         open(test_els, "w"),
@@ -320,34 +279,25 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
     staged_frames.clear()
 
     execute(test_els)
-    # assert True
-    # return
-    # logger.info(test_name)
-
-    # logger.info(df.dtypes)
-    # logger.info(df)
 
     if test_type == "xlsx":
         df2 = staged_frames[kwargs["sheet_name"]]
     else:
         df2 = staged_frames[test_name]
-        # logger.info(kwargs["sheet_name"])
-
-    # assert True
-
-    # compare = dc.Compare(df, df2, on_index=True)
-    # # logger.info(df2.dtypes)
-    # # logger.info(df2)
-    # # logger.info(df.dtypes)
-    # # logger.info(df)
-    # logger.info(compare.report())
     assert df.dtypes.equals(df2.dtypes)
-    assert df.equals(df2)
 
-    # os.remove(test_els)
-    # os.remove(test_els_out)
-    # if test_type == "xlsx" or test_type == "csv":
-    #     os.remove(test_url)
+    for col in df.columns:
+        for row in df[col].index:
+            if isinstance(df.at[row, col], type(pd.NA)):
+                assert isinstance(df2.at[row, col], type(pd.NA))
+            elif isinstance(df.at[row, col], type(pd.NaT)):
+                assert isinstance(df2.at[row, col], type(pd.NaT))
+            elif isinstance(df.at[row, col], str):
+                # calamine reader reads line breaks with carriage return when tox testing
+                assert df.at[row, col] == df2.at[row, col].replace("\r\n", "\n")
+                # assert df.at[row, col] == df2.at[row, col]
+            else:
+                assert df.at[row, col] == df2.at[row, col]
 
 
 def create_test_class_file(
