@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.1 (2025-03-03)
+
+### Performance Improvements
+
+- **Excel.IO**: Read once, write once
+  ([`cebd4c1`](https://github.com/NathanDWalsh/els/commit/cebd4c1e29fb9be430f6bf488804899f41c70b32))
+
+
 ## v0.4.0 (2025-03-01)
 
 ### Features
