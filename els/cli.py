@@ -12,8 +12,8 @@ import ruamel.yaml as yaml
 import typer
 from anytree import PreOrderIter
 
+import els.core as el
 from els.config import Config, TargetIfExistsValue
-from els.core import open_files, staged_frames, write_files
 from els.path import (
     CONFIG_FILE_EXT,
     NodeType,
@@ -60,10 +60,21 @@ class TaskFlow:
         self.config_like = config_like
         self.force_pandas_target = force_pandas_target
         self.nrows = nrows
-        # if tree:
-        #     taskflow = tree.get_ingest_taskflow()
-        # else:
-        #     raise Exception("TaskFlow not built")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.cleanup()
+
+    def cleanup(self):
+        for excel_file in el.open_workbooks.values():
+            excel_file.write()
+            excel_file.close()
+        el.open_workbooks.clear()
+        for file in el.open_files.values():
+            file.close()
+        el.open_files.clear()
 
     def execute(self):
         if isinstance(self.config_like, str):
@@ -83,56 +94,9 @@ class TaskFlow:
         else:
             raise Exception("TaskFlow not built")
 
-    def __enter__(self):
-        return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.cleanup()
-
-    def cleanup(self):
-        global write_files
-        global open_files
-        # for k, v in write_files.items():
-        #     v.close()
-        # write_files = {}
-        # raise Exception(write_files)
-        for wf in write_files:
-            with open(wf, "wb") as write_file:
-                open_files[wf].seek(0)
-                write_file.write(open_files[wf].getbuffer())
-
-        for k, v in open_files.items():
-            v.close()
-        open_files.clear()
-        write_files.clear()
-
-
-def get_taskflow(
-    config_like: Union[str, Config] = None,
-    force_pandas_target: bool = False,
-    nrows: Optional[bool] = None,
-    # memory_config=None,
-):
-    if isinstance(config_like, str):
-        ca_path = get_ca_path(config_like)
-        tree = plant_tree(ca_path)
-    else:
-        ca_path = get_ca_path("./__dynamic__.els.yml")
-        tree = plant_memory_tree(ca_path, config_like)
-
-    if force_pandas_target:
-        tree.force_pandas_target()
-    if nrows:
-        tree.set_nrows(nrows)
-    if tree:
-        taskflow = tree.get_ingest_taskflow()
-        return taskflow
-    else:
-        return None
-
-
-# remove a node and reassign its children to its parent
-def remove_node_and_reassign_children(node):
+# remove node and assign children grandparent
+def remove_node_and_adopt_orphans(node):
     parent = node.parent
     if parent is not None:
         for child in node.children:
@@ -151,7 +115,7 @@ def remove_virtual_nodes(tree):
         # If the node is virtual
         if node.node_type == NodeType.CONFIG_VIRTUAL:
             # Remove the node and reassign its children to its parent
-            remove_node_and_reassign_children(node)
+            remove_node_and_adopt_orphans(node)
     return tree
 
 
@@ -270,11 +234,9 @@ def process_ymls(ymls, overwrite=False):
 @app.command()
 def flow(path: Optional[str] = typer.Argument(None)):
     path = clean_none_path(path)
-    taskflow = get_taskflow(path)
-    if taskflow:
+    with TaskFlow(path) as taskflow:
         taskflow.display_tree()
-    else:
-        logging.error("taskflow not loaded")
+
     logging.info("Fin")
 
 
@@ -291,24 +253,17 @@ def preview(
     transpose: bool = False,
 ):
     path = clean_none_path(path)
-    # taskflow = get_taskflow(path, force_pandas_target=True, nrows=nrows)
-    taskflow = get_taskflow(path, force_pandas_target=True)
-    if taskflow:
+    with TaskFlow(path, force_pandas_target=True, nrows=nrows) as taskflow:
         taskflow.execute()
-        # print(pandas_end_points)
-    else:
-        logging.error("taskflow not loaded")
-    if staged_frames:
+
+    if el.staged_frames:
         pd.set_option("display.show_dimensions", False)
         pd.set_option("display.max_columns", 4)
         pd.set_option("display.width", None)
         pd.set_option("display.max_colwidth", 18)
         pd.set_option("display.max_rows", None)
 
-        # print()
-        # print("Printing the first five rows of each DataFrame below:\n")
-
-        for name, df in staged_frames.items():
+        for name, df in el.staged_frames.items():
             r, c = df.shape
             print(f"{name} [{r} rows x {c} columns]:")
             # df.index.name = " "
@@ -318,8 +273,6 @@ def preview(
                 print(df.head(nrows))
             print()
 
-        # print(value.dtypes)
-
 
 @app.command()
 def execute(path: Optional[str] = typer.Argument(None)):
@@ -327,19 +280,9 @@ def execute(path: Optional[str] = typer.Argument(None)):
         path = clean_none_path(path)
 
     with TaskFlow(path) as taskflow:
-        # raise Exception("testy")
         taskflow.execute()
-        # taskflow.cleanup()
-        # taskflow.cleanup
 
-    # taskflow = get_taskflow(path)
-
-    # if taskflow:
-    #     taskflow.execute()
-    # print(pandas_end_points)
-    # else:
-    #     logging.error("taskflow not loaded")
-    if staged_frames and not isinstance(path, Config):
+    if el.staged_frames and not isinstance(path, Config):
         print("\nNo target specified, sources saved to dataframes.\n\nTable summary:")
 
         print()
@@ -347,7 +290,7 @@ def execute(path: Optional[str] = typer.Argument(None)):
 
         pd.set_option("display.max_rows", 5)
 
-        for name, df in staged_frames.items():
+        for name, df in el.staged_frames.items():
             print(f"{name}:")
             df.index.name = " "
             print(df)

@@ -15,10 +15,9 @@ import yaml
 from anytree import NodeMixin, PreOrderIter, RenderTree
 
 import els.config as ec
+import els.core as el
 import els.execute as ee
 import els.flow as ef
-import els.xl as xl
-from els.core import fetch_file_io, staged_frames
 from els.pathprops import HumanPathPropertiesMixin
 
 CONFIG_FILE_EXT = ".els.yml"
@@ -622,14 +621,12 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
             return data
 
-        # raise Exception(self.leaves)
         data = [
             leaf_to_dict(leaf)
             for leaf in self.leaves
             if leaf.node_type == NodeType.DATA_TABLE
         ]
         df = pd.DataFrame(data)
-        # raise Exception(self.leaves)
         return df
 
     @staticmethod
@@ -654,13 +651,10 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 )
 
     def get_ingest_taskflow(self) -> ef.ElsFlow:
-        df = self.get_leaf_df
         root_flow = ef.ElsFlow()
-        # raise Exception(df.columns)
-        if "table" not in df.columns:
-            raise Exception("table column not found in leaf dataframe")
+        df = self.get_leaf_df
         for table, table_gb in df.groupby("table", dropna=False):
-            file_group_wrapper = ef.ElsFileGroupWrapper(
+            file_group_wrapper = ef.ElsTargetTableWrapper(
                 parent=root_flow, name=str(table)
             )
             ConfigPath.apply_file_wrappers(
@@ -898,8 +892,8 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
     if source.type_is_db:
         return get_table_names(source)
     elif source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
-        xlIO = fetch_file_io(source.url)
-        return xl.get_sheet_names(xlIO)
+        xlIO = el.fetch_excel_io(source.url)
+        return xlIO.sheets.keys()
     elif source.type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
         # return root file name without path and suffix
         res = [Path(source.url).stem]
@@ -909,7 +903,7 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
     elif source.type == "pandas":  # and self._config.type =='mssql'
         # return get_db_tables
         # pass  # TODO
-        return list(staged_frames)
+        return list(el.staged_frames)
     else:
         return [source.url]
 

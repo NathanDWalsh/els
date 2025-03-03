@@ -12,8 +12,7 @@ import sqlalchemy as sa
 import yaml
 from pydantic import BaseModel, ConfigDict
 
-import els.xl as xl
-from els.core import fetch_file_io, staged_frames, write_files
+import els.core as el
 from els.pathprops import HumanPathPropertiesMixin
 
 
@@ -323,10 +322,10 @@ class Target(Frame):
             self.type in (".xlsx") and self.file_exists
         ):  # TODO: add other file types supported by Calamine
             # check if sheet exists
-            xlIO = fetch_file_io(self.url)
-            sheet_names = xl.get_sheet_names(xlIO)
+            xlIO = el.fetch_excel_io(self.url)
+            sheet_names = xlIO.sheets.keys()
             res = self.sheet_name in sheet_names
-        elif self.type == "pandas" and self.table in staged_frames:
+        elif self.type == "pandas" and self.table in el.staged_frames:
             res = True
         else:
             res = None
@@ -338,7 +337,7 @@ class Target(Frame):
             res = "fail"
         elif (
             self.url_scheme == "file"
-            and self.url not in write_files
+            # and self.url not in el.write_files
             and (
                 self.if_exists == TargetIfExistsValue.REPLACE_FILE.value
                 or not self.file_exists

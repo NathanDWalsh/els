@@ -6,8 +6,8 @@ from joblib import Parallel, delayed
 from joblib.externals.loky import get_reusable_executor
 
 import els.config as ec
+import els.core as el
 import els.execute as ee
-from els.core import fetch_file_io, open_files
 
 
 class FlowNodeMixin(NodeMixin):
@@ -106,8 +106,8 @@ class ElsXlsxWrapper(ElsFileWrapper):
         super().__init__(parent, file_path)
 
     def open(self):
-        if self.file_path not in open_files:
-            fetch_file_io(self.file_path)
+        if self.file_path not in el.open_workbooks:
+            el.fetch_excel_io(self.file_path)
 
     def execute(self):
         self.open()
@@ -115,16 +115,16 @@ class ElsXlsxWrapper(ElsFileWrapper):
         self.close()
 
     def close(self):
-        file = open_files[self.file_path]
+        file = el.open_workbooks[self.file_path]
         file.close()
-        del open_files[self.file_path]
+        del el.open_workbooks[self.file_path]
 
 
-# groups files together that share a common target frame so that target can be built once
-class ElsFileGroupWrapper(FlowNodeMixin, SerialNodeMixin):
+# groups files together that share a common target table so that target can be built once
+class ElsTargetTableWrapper(FlowNodeMixin, SerialNodeMixin):
     def __init__(self, parent: FlowNodeMixin, name: str) -> None:
         self.parent = parent
-        self.name = f"{name} (ElsFileGroupWrapper)"
+        self.name = f"{name} ({self.__class__.__name__})"
 
     def execute(self):
         flow_child = self.children[0]

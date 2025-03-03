@@ -14,12 +14,8 @@ from pdfminer.high_level import LAParams, extract_pages
 from pdfminer.layout import LTChar, LTTextBox
 
 import els.config as ec
+import els.core as el
 import els.xl as xl
-from els.core import (
-    fetch_file_io,
-    staged_frames,
-    write_files,
-)
 
 
 def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
@@ -46,11 +42,11 @@ def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
 def push_pandas(source_df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.table:
         raise Exception("invalid table")
-    if target.table not in staged_frames.keys():
+    if target.table not in el.staged_frames.keys():
         raise Exception("table not found in staged frames")
 
-    staged_frames[target.table] = pd.concat(
-        [staged_frames[target.table], source_df], ignore_index=True
+    el.staged_frames[target.table] = pd.concat(
+        [el.staged_frames[target.table], source_df], ignore_index=True
     )
     return True
 
@@ -68,18 +64,6 @@ def push_sql(source_df: pd.DataFrame, target: ec.Target) -> bool:
             kwargs = target.to_sql.model_dump()
         else:
             kwargs = {}
-        # for col in source_df.columns:
-        #     new_df = source_df[col]
-        #     new_df.to_sql(
-        #         target.table,
-        #         sqeng,
-        #         schema=target.dbschema,
-        #         index=False,
-        #         if_exists="append",
-        #         chunksize=1000,
-        #         **kwargs,
-        #     )
-        #     sqeng.connection.commit()
         source_df.to_sql(
             target.table,
             sqeng,
@@ -112,21 +96,9 @@ def push_csv(source_df: pd.DataFrame, target: ec.Target) -> bool:
 def push_excel(source_df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.url:
         raise Exception("missing url")
-    sheet_name = target.sheet_name
 
-    xlIO = fetch_file_io(target.url)
-
-    sheet_height = xl.get_sheet_height(xlIO, sheet_name)
-    start_row = sheet_height + 1
-
-    if sheet_height is None:
-        raise Exception("sheet name not found")
-
-    with pd.ExcelWriter(xlIO, mode="a", if_sheet_exists="overlay") as writer:
-        source_df.to_excel(
-            writer, index=False, sheet_name=sheet_name, startrow=start_row, header=False
-        )
-        write_files.add(target.url)
+    xlIO = el.fetch_excel_io(target.url)
+    xlIO.set_sheet_df(target.sheet_name, source_df, target.if_exists)
 
     return True
 
@@ -189,25 +161,13 @@ def build_csv(df: pd.DataFrame, target: ec.Frame) -> bool:
 
 
 def build_excel_frame(df: pd.DataFrame, target: ec.Target) -> bool:
-    if not target.url:
-        raise Exception("missing url")
-    sheet_name = target.sheet_name
-
-    kwargs = {}
-
     if target.preparation_action == "create_replace_file":
-        kwargs["mode"] = "w"
         replace_file = True
     else:
-        kwargs["mode"] = "a"
-        kwargs["if_sheet_exists"] = "replace"
         replace_file = False
 
-    xlIO = fetch_file_io(target.url, replace_file=replace_file)
-
-    with pd.ExcelWriter(xlIO, **kwargs) as writer:
-        df.head(0).to_excel(writer, index=False, sheet_name=sheet_name)
-        write_files.add(target.url)
+    xlIO = el.fetch_excel_io(target.url, replace=replace_file)
+    xlIO.set_sheet_df(target.sheet_name, df, target.if_exists)
 
     return True
 
@@ -219,9 +179,10 @@ def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
         create_directory_if_not_exists(target.url)
         res = build_csv(df, target)
     elif target.type in (".xlsx"):
-        # res = df.to_excel(target.file_path, index=False)
         create_directory_if_not_exists(target.url)
-        res = build_excel_frame(df, target)
+        res = build_excel_frame(
+            pd.DataFrame(columns=df.columns, index=None, data=None), target
+        )
     elif target.type in ("pandas"):
         res = build_pandas_frame(df, target)
     else:
@@ -234,12 +195,12 @@ def build_pandas_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
         raise Exception("invalid table")
 
     if (
-        target.table in staged_frames.keys()
+        target.table in el.staged_frames.keys()
         and target.if_exists == ec.TargetIfExistsValue.FAIL
     ):
         raise Exception(f"table {target.table} already exists in staged frames")
     else:
-        staged_frames[target.table] = df.head(0)
+        el.staged_frames[target.table] = df.head(0)
 
     return True
 
@@ -265,7 +226,7 @@ def truncate_target(target: ec.Target) -> bool:
 
 
 def truncate_pandas(target):
-    df = staged_frames[target.table]
+    df = el.staged_frames[target.table]
     df.drop(df.index, axis=0, inplace=True)
     return True
 
@@ -492,12 +453,6 @@ def pull_csv(file, clean_last_column, **kwargs):
     return df
 
 
-def pull_excel(xlIO, **kwargs):
-    with pd.ExcelFile(xlIO, engine="calamine") as xlRead:
-        df = pd.read_excel(xlRead, **kwargs)
-    return df
-
-
 def pull_fwf(file, **kwargs):
     df = pd.read_fwf(file, **kwargs)
     return df
@@ -627,14 +582,7 @@ def pull_frame(
             kwargs = get_target_kwargs(frame.to_excel, frame, nrows)
         else:
             kwargs = {}
-        xlIO = fetch_file_io(frame.url)
-
-        # if frame.url in open_files:
-        #     file = open_files[frame.url]
-        # else:
-        #     # raise Exception("Excel file not opened")
-        #     file = frame.url
-        # kwargs["dtype"] = {1: "str"}
+        xlIO = el.fetch_excel_io(frame.url)
 
         # loop the values in add_cols
         for k, v in add_cols.items():
@@ -647,11 +595,10 @@ def pull_frame(
                 row, col = v[1:].upper().strip("R").split("C")
                 row = int(row)
                 col = int(col)
-                # if v == "_r1c1":
-                # get the cell value corresponding to the rxcx
-                add_cols[k] = xl.get_sheet_row(xlIO, frame.sheet_name, row)[col]
+                # get the cell value corresponding to the row/col
+                add_cols[k] = xl.get_sheet_row(xlIO.fileIO, frame.sheet_name, row)[col]
 
-        df = pull_excel(xlIO, **kwargs)
+        df = xlIO.pull_sheet(**kwargs)
     elif frame.type == ".fwf":
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_fwf, frame, nrows)
@@ -667,7 +614,6 @@ def pull_frame(
                 laparams = kwargs.pop("laparams")
         else:
             kwargs = {}
-        # raise Exception(kwargs)
         df = pull_pdf(frame.url, laparams=laparams, **kwargs)
     elif frame.type == ".xml":
         if isinstance(frame, ec.Source):
@@ -680,8 +626,8 @@ def pull_frame(
         if nrows:
             df = df.head(nrows)
     elif frame.type in ("pandas"):
-        if frame.table in staged_frames.keys():
-            df = staged_frames[frame.table]
+        if frame.table in el.staged_frames.keys():
+            df = el.staged_frames[frame.table]
         else:
             raise Exception("pandas frame not found")
     else:
@@ -789,8 +735,6 @@ def ingest(config: ec.Config) -> bool:
         or consistent
         or target.consistency == ec.TargetConsistencyValue.IGNORE.value
     ):
-        # print(config.dtype)
-        # source_df = get_df(source, config.nrows, config.dtype)
         source_df = pull_frame(source, config.nrows, add_cols, transform)
         source_df = add_columns(source_df, add_cols)
         return push_frame(source_df, target, add_cols)
@@ -807,7 +751,6 @@ def build(config: ec.Config) -> bool:
             # TODO, use caching to avoid pulling the same data twice
             df = pull_frame(source, 100, add_cols, transform)
             df = add_columns(df, add_cols)
-            # res = build_sql_table(df, target, add_cols)
             res = build_target(df, target, add_cols)
         elif action == "truncate":
             res = truncate_target(target)
@@ -829,7 +772,3 @@ def detect(config: ec.Config) -> bool:
     df = pull_frame(source)
     print(df.dtypes.to_dict())
     return True
-
-
-# def write_config(config: ec.Config) -> bool:
-#     target, source, _ = get_configs(config)
