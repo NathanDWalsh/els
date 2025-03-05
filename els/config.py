@@ -322,8 +322,8 @@ class Target(Frame):
             self.type in (".xlsx") and self.file_exists
         ):  # TODO: add other file types supported by Calamine
             # check if sheet exists
-            xlIO = el.fetch_excel_io(self.url)
-            sheet_names = xlIO.sheets.keys()
+            xl_io = el.fetch_excel_io(self.url)
+            sheet_names = xl_io.sheets.keys()
             res = self.sheet_name in sheet_names
         elif self.type == "pandas" and self.table in el.staged_frames:
             res = True

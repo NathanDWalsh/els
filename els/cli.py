@@ -72,6 +72,8 @@ class TaskFlow:
             excel_file.write()
             excel_file.close()
         el.open_workbooks.clear()
+
+        # just in case files still open
         for file in el.open_files.values():
             file.close()
         el.open_files.clear()

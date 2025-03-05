@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import prqlc
 import sqlalchemy as sa
-from openpyxl import load_workbook
 from pdfminer.high_level import LAParams, extract_pages
 from pdfminer.layout import LTChar, LTTextBox
 
@@ -97,8 +96,18 @@ def push_excel(source_df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.url:
         raise Exception("missing url")
 
-    xlIO = el.fetch_excel_io(target.url)
-    xlIO.set_sheet_df(target.sheet_name, source_df, target.if_exists)
+    if target.preparation_action == "create_replace_file":
+        replace_file = True
+    else:
+        replace_file = False
+
+    xl_io = el.fetch_excel_io(target.url, replace=replace_file)
+    xl_io.set_sheet_df(
+        target.sheet_name,
+        source_df,
+        target.if_exists,
+        target.to_excel,
+    )
 
     return True
 
@@ -160,18 +169,6 @@ def build_csv(df: pd.DataFrame, target: ec.Frame) -> bool:
     return True
 
 
-def build_excel_frame(df: pd.DataFrame, target: ec.Target) -> bool:
-    if target.preparation_action == "create_replace_file":
-        replace_file = True
-    else:
-        replace_file = False
-
-    xlIO = el.fetch_excel_io(target.url, replace=replace_file)
-    xlIO.set_sheet_df(target.sheet_name, df, target.if_exists)
-
-    return True
-
-
 def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
     if target.type_is_db:
         res = build_sql(df, target, add_cols)
@@ -180,13 +177,18 @@ def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
         res = build_csv(df, target)
     elif target.type in (".xlsx"):
         create_directory_if_not_exists(target.url)
-        res = build_excel_frame(
-            pd.DataFrame(columns=df.columns, index=None, data=None), target
-        )
+        res = build_excel_frame(df, target)
     elif target.type in ("pandas"):
         res = build_pandas_frame(df, target)
     else:
         raise Exception("invalid target type")
+    return res
+
+
+def build_excel_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
+    empty_frame = pd.DataFrame(columns=df.columns, index=None, data=None)
+    empty_frame = empty_frame.astype(df.dtypes)
+    res = push_excel(empty_frame, target)
     return res
 
 
@@ -217,7 +219,7 @@ def truncate_target(target: ec.Target) -> bool:
     elif target.type in (".csv"):
         res = truncate_csv(target)
     elif target.type in (".xlsx"):
-        res = truncate_excel(target)
+        res = True
     elif target.type in ("pandas"):
         res = truncate_pandas(target)
     else:
@@ -248,40 +250,6 @@ def truncate_csv(target: ec.Target) -> bool:
         writer.writerow(first_row)
 
     return True
-
-
-def truncate_excel(target: ec.Target) -> bool:
-    if not target.url:
-        raise Exception("no file path")
-    if not os.path.exists(os.path.isfile(target.url)):
-        raise Exception("invalid file path")
-
-    # read the first row of the file
-    with open(target.url, "r") as f:
-        reader = csv.reader(f)
-        first_row = next(reader)
-
-    # write the first row back to the file
-    with open(target.url, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(first_row)
-
-    return True
-
-
-def clear_excel_sheet_after_row(file_path, sheet_name, row_start):
-    # Load the workbook and select the sheet
-    wb = load_workbook(file_path)
-    sheet = wb[sheet_name]
-
-    # Iterate over the rows
-    for i in range(row_start, sheet.max_row + 1):
-        for j in range(1, sheet.max_column + 1):
-            # Clear the cell
-            sheet.cell(row=i, column=j).value = None
-
-    # Save the workbook
-    wb.save(file_path)
 
 
 def truncate_sql(target: ec.Target) -> bool:
@@ -492,6 +460,9 @@ def get_source_kwargs(read_x, frame: ec.Source, nrows: Optional[int] = None):
     if nrows:
         kwargs["nrows"] = nrows
 
+    if kwargs.get("nrows") and kwargs.get("skipfooter"):
+        del kwargs["nrows"]
+
     return kwargs
 
 
@@ -558,7 +529,6 @@ def pull_frame(
             reader = csv.reader(f, delimiter=kwargs["sep"])
             rows_n = [next(reader) for _ in range(row_scan)]
 
-        # loop the values in add_cols
         for k, v in add_cols.items():
             # check if the value is a DynamicCellValue
             if (
@@ -575,16 +545,18 @@ def pull_frame(
 
     elif frame.type and frame.type in (".xlsx", ".xls", ".xlsm", ".xlsb"):
         if isinstance(frame, ec.Source):
-            # kwargs = get_source_kwargs(frame.read_excel, nrows, dtype)
             kwargs = get_source_kwargs(frame.read_excel, frame, nrows)
 
         elif isinstance(frame, ec.Target):
             kwargs = get_target_kwargs(frame.to_excel, frame, nrows)
+            if "startrow" in kwargs:
+                startrow = kwargs.pop("startrow")
+                if startrow > 0:
+                    kwargs["skiprows"] = startrow + 1
         else:
             kwargs = {}
-        xlIO = el.fetch_excel_io(frame.url)
+        xl_io = el.fetch_excel_io(frame.url)
 
-        # loop the values in add_cols
         for k, v in add_cols.items():
             # check if the value is a DynamicCellValue
             if (
@@ -596,9 +568,11 @@ def pull_frame(
                 row = int(row)
                 col = int(col)
                 # get the cell value corresponding to the row/col
-                add_cols[k] = xl.get_sheet_row(xlIO.fileIO, frame.sheet_name, row)[col]
+                add_cols[k] = xl.get_sheet_row(xl_io.file_io, frame.sheet_name, row)[
+                    col
+                ]
 
-        df = xlIO.pull_sheet(**kwargs)
+        df = xl_io.pull_sheet(kwargs)
     elif frame.type == ".fwf":
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_fwf, frame, nrows)
