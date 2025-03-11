@@ -72,6 +72,9 @@ class TaskFlow:
             excel_file.write()
             excel_file.close()
         el.open_workbooks.clear()
+        for _dict in el.open_dicts.values():
+            _dict.write()
+        el.open_dicts.clear()
 
         # just in case files still open
         for file in el.open_files.values():
@@ -87,7 +90,9 @@ class TaskFlow:
             tree = plant_memory_tree(ca_path, self.config_like)
 
         if self.force_pandas_target:
-            tree.force_pandas_target()
+            tree.set_pandas_target(force=True)
+        else:
+            tree.set_pandas_target(force=False)
         if self.nrows:
             tree.set_nrows(self.nrows)
         if tree:
@@ -129,7 +134,7 @@ def tree(path: Optional[str] = typer.Argument(None), keep_virtual: bool = False)
         path = clean_none_path(path)
         ca_path = get_ca_path(path)
         tree = plant_tree(ca_path)
-
+    tree.set_pandas_target(force=False)
     if not keep_virtual:
         tree = remove_virtual_nodes(tree)
     if tree:
@@ -174,10 +179,7 @@ def generate(
                 with open(file_name, "w") as file:
                     file.write(yaml_str)
             elif yaml_str:
-                # yaml_str = yaml.dump_all(ymls, sort_keys=False, allow_unicode=True)
                 write_yaml_str(yaml_str)
-    # else:
-    #     print("current path different than els root")
 
 
 def organize_yaml_files_for_output(
@@ -191,7 +193,6 @@ def organize_yaml_files_for_output(
             current_path = yml.pop("config_path")
             if current_path != previous_path:
                 res[current_path] = []
-            # res[current_path].append(yml)
             previous_path = current_path
         if (
             "source" in yml
@@ -220,7 +221,6 @@ def process_ymls(ymls, overwrite=False):
             # Prepare the dict for serialization by removing 'config_path'
             yml_dict.pop("config_path")
 
-        # Serialize the YAML
         serialized_yaml = yaml.dump(yml_dict, default_flow_style=False)
 
         if overwrite and current_path:
@@ -258,14 +258,14 @@ def preview(
     with TaskFlow(path, force_pandas_target=True, nrows=nrows) as taskflow:
         taskflow.execute()
 
-    if el.staged_frames:
+    if el.default_target:
         pd.set_option("display.show_dimensions", False)
         pd.set_option("display.max_columns", 4)
         pd.set_option("display.width", None)
         pd.set_option("display.max_colwidth", 18)
         pd.set_option("display.max_rows", None)
 
-        for name, df in el.staged_frames.items():
+        for name, df in el.default_target.items():
             r, c = df.shape
             print(f"{name} [{r} rows x {c} columns]:")
             # df.index.name = " "
@@ -284,7 +284,7 @@ def execute(path: Optional[str] = typer.Argument(None)):
     with TaskFlow(path) as taskflow:
         taskflow.execute()
 
-    if el.staged_frames and not isinstance(path, Config):
+    if el.default_target and not isinstance(path, Config):
         print("\nNo target specified, sources saved to dataframes.\n\nTable summary:")
 
         print()
@@ -292,13 +292,11 @@ def execute(path: Optional[str] = typer.Argument(None)):
 
         pd.set_option("display.max_rows", 5)
 
-        for name, df in el.staged_frames.items():
+        for name, df in el.default_target.items():
             print(f"{name}:")
             df.index.name = " "
             print(df)
             print()
-
-        # print(value.dtypes)
 
     logging.info("Fin")
 
@@ -418,18 +416,3 @@ def version():
 def main():
     start_logging()
     app()
-
-
-if __name__ == "__main__":
-    start_logging()
-    # if os.path.exists(
-    #     "D:\\Sync\\test_data\\els-wb-population\\targets\\excel_container.xlsx"
-    # ):
-    #     os.remove(
-    #         "D:\\Sync\\test_data\\els-wb-population\\targets\\excel_container.xlsx"
-    #     )
-    os.chdir("C:\\Users\\nwals\\els-demo\\config")
-    # os.chdir("D:\\Sync\\test_data\\els-wb-population\\excel_lite")
-    # os.chdir("C:\\Users\\nwals\\els-demo\\config\\excel")
-    tree()
-    # print(list(staged_frames.values())[0].dtypes)

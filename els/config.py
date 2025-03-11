@@ -92,12 +92,21 @@ class AsType(BaseModel, extra="forbid"):
     dtype: dict[str, str]
 
 
+class AddColumns(BaseModel, extra="allow"):
+    additionalProperties: Optional[
+        Union[DynamicPathValue, DynamicColumnValue, DynamicCellValue, str, int, float]  # type: ignore
+    ] = None
+
+
 class Transform(BaseModel):
     melt: Optional[Melt] = None
     stack: Optional[Stack] = None
     pivot: Optional[Pivot] = None
     astype: Optional[AsType] = None
     prql: Optional[str] = None
+    add_columns: Optional[AddColumns] = None
+    filter: Optional[str] = None
+    split_on_column: Optional[str] = None
 
     model_config = ConfigDict(
         extra="forbid",
@@ -209,8 +218,6 @@ class Frame(BaseModel):
             res = self.url
         elif self.type == "postgres":
             res = "Driver={{PostgreSQL}};Server={self.server};Database={self.database};"
-        # elif self.type == "duckdb":
-        #     res = f"Driver={{DuckDB}};Database={self.url.replace('duckdb://','')};"
         else:
             res = None
         return res
@@ -227,17 +234,26 @@ class Frame(BaseModel):
             res = None
         return res
 
-    # @cached_property
-    # def file_path(self):
-    #     if self.type in (
-    #         ".csv",
-    #         ".tsv",
-    #         ".xlsx",
-    #         ".xls",
-    #     ) and not self.file_path.endswith(self.type):
-    #         return f"{self.file_path}{self.type}"
-    #     else:
-    #         return self.file_path
+    @cached_property
+    def df_dict_io(self):
+        if self.type == "dict":
+            dict_id = int(urlparse(self.url)[1])
+            return el.fetch_df_dict_io(dict_id)
+        else:
+            raise Exception(
+                f"not a dict frame type, but a {self.type} type and {self.url} url"
+            )
+
+    @property
+    def df_dict(self):
+        if self.type == "dict":
+            return self.df_dict_io.df_dict
+        return None
+
+    @df_dict.setter
+    def df_dict(self, _dict):
+        el.fetch_df_dict_io(_dict)
+        self.url = f"dict://{id(_dict)}"
 
     url: Optional[str] = None
     # type: Optional[str] = None
@@ -249,9 +265,7 @@ class Frame(BaseModel):
 
     @cached_property
     def type(self):
-        if not self.url:
-            return "pandas"
-        elif self.url_scheme == "file":
+        if self.url_scheme == "file":
             ext = os.path.splitext(self.url)[-1]
             if ext in (".txt"):
                 return ".csv"
@@ -325,23 +339,22 @@ class Target(Frame):
             xl_io = el.fetch_excel_io(self.url)
             sheet_names = xl_io.sheets.keys()
             res = self.sheet_name in sheet_names
-        elif self.type == "pandas" and self.table in el.staged_frames:
-            res = True
+        elif self.type == "dict":
+            if self.df_dict and not self.df_dict[self.table].empty:
+                res = True
+            else:
+                res = False
         else:
             res = None
         return res
 
     @cached_property
-    def preparation_action(self) -> str:
+    def build_action(self) -> str:
         if not self.if_exists:
             res = "fail"
-        elif (
-            self.url_scheme == "file"
-            # and self.url not in el.write_files
-            and (
-                self.if_exists == TargetIfExistsValue.REPLACE_FILE.value
-                or not self.file_exists
-            )
+        elif self.url_scheme == "file" and (
+            self.if_exists == TargetIfExistsValue.REPLACE_FILE.value
+            or not self.file_exists
         ):
             res = "create_replace_file"
         elif (
@@ -397,16 +410,6 @@ class ReadXml(BaseModel, extra="allow"):
 
 
 class Source(Frame, extra="forbid"):
-    # _parent: 'Config' = None
-
-    # @cached_property
-    # def parent(self) -> 'Config':
-    #     return self._parent
-
-    # type: Optional[str] = "_" + HumanPathPropertiesMixin.file_extension.fget.__name__
-    # file_path: Optional[str] = (
-    #     "_" + HumanPathPropertiesMixin.file_path_abs.fget.__name__
-    # )
     filter: Optional[str] = None
     split_on_column: Optional[str] = None
     load_parallel: bool = False
@@ -419,19 +422,12 @@ class Source(Frame, extra="forbid"):
     extract_pages_pdf: Optional[ExtractPagesPdf] = None
 
 
-class AddColumns(BaseModel, extra="allow"):
-    additionalProperties: Optional[
-        Union[DynamicPathValue, DynamicColumnValue, DynamicCellValue, str, int, float]
-    ] = None
-
-
 class Config(BaseModel):
-    # sub_path: str = "."
     config_path: Optional[str] = None
     source: Source = Source()
     target: Target = Target()
     add_cols: AddColumns = AddColumns()
-    transform: Optional[Transform] = None
+    transform: Optional[Union[Transform, list[Transform]]] = None
     children: Union[dict[str, Optional["Config"]], list[str], str, None] = None
 
     def schema_pop_children(s):
@@ -458,10 +454,6 @@ class Config(BaseModel):
         else:
             res = None
         return res
-
-    # @cached_property
-    # def dtype(self):
-    #     return self.source.dtype
 
 
 def main():

@@ -207,12 +207,20 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 NodeType.CONFIG_ADJACENT,
                 NodeType.CONFIG_VIRTUAL,
             ) or (source.type_is_db and not source.table):
-                for content_table in get_content_leaf_names(url_parent.config.source):
-                    if not source.table or source.table == content_table:
-                        doc = ConfigPath.merge_configs(
-                            doc, {"source": {"table": content_table}}
-                        )
-                        table_docs[content_table] = doc
+                leafs_names = get_content_leaf_names(url_parent.config.source)
+                if leafs_names:
+                    for content_table in get_content_leaf_names(
+                        url_parent.config.source
+                    ):
+                        if not source.table or source.table == content_table:
+                            doc = ConfigPath.merge_configs(
+                                doc, {"source": {"table": content_table}}
+                            )
+                            table_docs[content_table] = doc
+                else:
+                    raise Exception(
+                        f"No leafs found ({leafs_names}) in {url_parent.config.source}."
+                    )
             else:
                 # if no source table defined explicitly, assumes to be last element in url
                 # (after last / and (before first .))
@@ -249,7 +257,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                             "target": {"table": table_name},
                             "source": {"filter": filter},
                         }
-                    # raise Exception(doc.source.split_on_column)
 
     @property
     def node_type(self) -> NodeType:
@@ -324,11 +331,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     @property
     def config(self) -> ec.Config:
         config_copied = self.config_raw()
-
-        # if self.is_leaf:
         config_evaled = self.eval_dynamic_attributes(config_copied)
-        # else:
-        #     config_evaled = config_copied
 
         if self.node_type == NodeType.DATA_TABLE:
             if not config_evaled.target.if_exists:
@@ -366,11 +369,24 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @staticmethod
+    def dict_of_dfs(_dict):
+        for k, v in _dict:
+            if isinstance(k, str) and isinstance(v, pd.DataFrame):
+                pass
+            else:
+                return False
+        return True
+
+    @staticmethod
     def swap_dict_vals(dictionary: dict, find_replace_dict: dict) -> None:
         for key, value in dictionary.items():
             if isinstance(value, dict):
                 ConfigPath.swap_dict_vals(dictionary[key], find_replace_dict)
-            elif isinstance(value, list):
+            elif (
+                isinstance(value, list)
+                or (isinstance(value, dict) and ConfigPath.dict_of_dfs(value))
+                or isinstance(value, pd.DataFrame)
+            ):
                 pass
             elif value in find_replace_dict:
                 dictionary[key] = find_replace_dict[value]
@@ -427,8 +443,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             column2 = ""
             if node.is_root and node.is_dir():
                 column1 = f"{pre}{str(node.abs.name)}"
-                # column2 = f": {node.node_type.value}"
-                # column1 = f"{pre}{str(node.abs.name)}"
             elif node.node_type == NodeType.DATA_TABLE:
                 column1 = f"{pre}{node.name}"
             # TODO: this might be useful
@@ -438,7 +452,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 node.node_type == NodeType.DATA_URL
                 and not Path(node.config.source.url).exists()
             ):
-                # column1 = f"{pre}{node.name}"
                 url_branch = (
                     str(node.path[-1])
                     .split("?")[0]
@@ -446,20 +459,18 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                     .replace(":", ":/")
                 )
                 column1 = f"{pre}{url_branch}"
-                # column2 = f" : {node.node_type.value}"
             else:
                 column1 = f"{pre}{node.name}"
-
-            # column2 = ""
-            if node.node_type == NodeType.DATA_TABLE and node.config.target.url:
+            if (
+                node.node_type == NodeType.DATA_TABLE and node.config.target.url
+            ) and not node.config.target.type == "dict":
                 if node.config.target.type == ".csv":
                     target_path = os.path.relpath(node.config.target.url)
                 else:
                     target_path = f"{node.config.target.url.split('?')[0]}#{node.config.target.table}"
 
                 column2 = f" → {target_path}"
-            # elif node.is_leaf and node.config.source.url:
-            elif node.is_leaf and node.config.target.type == "pandas":
+            elif node.is_leaf and (node.config.target.type == "dict"):
                 column2 = f" → memory['{node.config.target.table}']"
 
             rows.append((column1, column2))
@@ -469,14 +480,10 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 column2_width = max(column2_width, len(column2))
 
         for column1, column2 in rows:
-            # if column2 == "":
-            #     typer.echo(column1)
-            # else:
             typer.echo(f"{column1:{column1_width}}{column2}".rstrip())
 
     @property
     def parent(self):
-        # return NodeMixin().parent
         if NodeMixin.parent.fget is not None:
             return NodeMixin.parent.fget(self)
         else:
@@ -703,14 +710,28 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         # with save_path.open("w", encoding="utf-8") as file:
         #     yaml.safe_dump_all(ymls, file, sort_keys=False, allow_unicode=True)
 
-    def force_pandas_target(self):
+    def set_pandas_target(self, force=False):
         # iterate all branches and leaves
         for node in PreOrderIter(self):
             # remove target from config
             if type(node._config) is ec.Config:
-                node._config.target.url = None
-            elif "target" in node._config and "url" in node._config["target"]:
-                node._config["target"]["url"] = None
+                if (node._config.target.url and force) or not node._config.target.url:
+                    node._config.target.df_dict = el.default_target
+            elif (
+                "target" in node._config
+                and "url" in node._config["target"]
+                and node._config["target"]["url"]
+                and force
+                or not (
+                    "target" in node._config
+                    and "url" in node._config["target"]
+                    and node._config["target"]["url"]
+                )
+            ):
+                el.fetch_df_dict_io(el.default_target)
+                if "target" not in node._config:
+                    node._config["target"] = {}
+                node._config["target"]["url"] = f"dict://{id(el.default_target)}"
 
     def set_nrows(self, nrows: int):
         # iterate all branches and leaves
@@ -839,10 +860,13 @@ def dict_diff(dict1: dict, dict2: dict) -> dict:
 
 def get_table_names(source: ec.Source) -> list[str]:
     res = None
-    if source.type_is_db and not source.table:
-        with sa.create_engine(source.db_connection_string).connect() as sqeng:
-            inspector = sa.inspect(sqeng)
-            res = inspector.get_table_names(source.dbschema)
+    if source.type_is_db:
+        if not source.table:
+            with sa.create_engine(source.db_connection_string).connect() as sqeng:
+                inspector = sa.inspect(sqeng)
+                res = inspector.get_table_names(source.dbschema)
+        else:
+            res = [source.table]
     return res
 
 
@@ -900,10 +924,16 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
         return res
     # elif self.suffix == ".zip":
     #     return get_zip_files(str(self))
-    elif source.type == "pandas":  # and self._config.type =='mssql'
-        # return get_db_tables
-        # pass  # TODO
-        return list(el.staged_frames)
+    elif source.type == "dict":  # and self._config.type =='mssql'
+        if source.table:
+            if source.df_dict:
+                return [source.table]
+            else:
+                raise Exception(
+                    f"source table {source.table} not in dict url: {source.url}"
+                )
+        else:
+            return list(source.df_dict)
     else:
         return [source.url]
 
@@ -913,4 +943,3 @@ def get_distinct_column_values(source: ec.Source) -> list[str]:
     # and made even more efficient using custom pullers per source type.
     source_df = ee.pull_frame(source)
     return list(source_df[source.split_on_column].drop_duplicates())
-    # return ["target1", "target2"]

@@ -57,7 +57,7 @@ class ExcelIO:
         else:
             return False
 
-    def get_sheet_deets(self, sheet_states: list = [SheetVisibleEnum.Visible]) -> dict:
+    def get_sheet_deets(self) -> dict:
         if self.create_or_replace:
             return {}
         else:
@@ -68,12 +68,11 @@ class ExcelIO:
                         "startrow": workbook.get_sheet_by_name(sheet.name).total_height
                         + 1,
                         "mode": "r",
-                        "kwargs": {},
                         "read_excel": {},
                         "to_excel": {},
                     }
                     for sheet in workbook.sheets_metadata
-                    if (sheet.visible in sheet_states)
+                    if (sheet.visible in [SheetVisibleEnum.Visible])
                     and (sheet.typ == SheetTypeEnum.WorkSheet)
                 }
                 return res
@@ -96,9 +95,7 @@ class ExcelIO:
         kwargs["sheet_name"] = sheet_name
         kwargs["nrows"] = sample_rows
         df = self.pull_sheet(kwargs)
-        empty_frame = pd.DataFrame(columns=df.columns, index=None, data=None)
-        empty_frame = empty_frame.astype(df.dtypes)
-        return empty_frame
+        return el.get_column_frame(df)
 
     def pull_bottom_blanks(self, sheet_name, blankrows):
         kwargs = {}
@@ -179,7 +176,6 @@ class ExcelIO:
                                     startrow=sheet_deet["startrow"],
                                     **kwargs,
                                 )
-                                self.mode = "a"
 
             with open(self.url, "wb") as write_file:
                 self.file_io.seek(0)
@@ -189,7 +185,7 @@ class ExcelIO:
         self.sheets[sheet_name] = {
             "startrow": 0,
             "mode": "w",
-            "if_sheet_exists": "replace",  # <- redundant?
+            "if_sheet_exists": "replace",
             "df": df,
             "to_excel": kwargs,
         }
@@ -197,8 +193,6 @@ class ExcelIO:
     def set_sheet_df(self, sheet_name, df, if_exists, kwargs):
         if sheet_name in self.sheets:
             if self.sheets[sheet_name]["mode"] == "r":
-                if not isinstance(if_exists, str):
-                    if_exists = if_exists.value
                 if if_exists == "fail":
                     raise Exception("Failing: sheet already exists")
                 elif if_exists == "replace":
@@ -206,19 +200,17 @@ class ExcelIO:
                 elif if_exists == "append":
                     # ensures alignment of columns with target
                     df0 = self.pull_sheet_structure(sheet_name)
-                    df = pd.concat([df0, df], join="inner")
+                    df = el.append_into([df0, df])
 
+                    # this dataframe contains only the appended rows
+                    # thus avoiding overwriting existing data/formats of sheet
                     self.sheets[sheet_name]["if_sheet_exists"] = "overlay"
                     self.sheets[sheet_name]["mode"] = "a"
-                elif if_exists == "append":
-                    df0 = self.pull_sheet_structure(sheet_name)
-                    df = pd.concat([df0, df], join="inner")
                 elif if_exists == "truncate":
                     df0 = self.pull_sheet_structure(sheet_name)
                     blank_row_count = len(self.sheets[sheet_name]["df"]) - len(df)
                     df1 = self.pull_bottom_blanks(sheet_name, blank_row_count)
-                    df = pd.concat([df0, df, df1], join="inner")
-
+                    df = el.append_into([df0, df, df1])
                     self.sheets[sheet_name]["if_sheet_exists"] = "overlay"
                     self.sheets[sheet_name]["mode"] = "a"
                     self.sheets[sheet_name]["startrow"] = 1

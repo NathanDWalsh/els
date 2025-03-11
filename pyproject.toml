@@ -6,8 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "elspec"
 version = "0.4.1"
 authors = [
-    { name="Nathan Walsh", email="nwalsh82@gmail.com" },
-]
+    { name="Nathan Walsh", email="nwalsh82@gmail.com" }]
 description = "A declarative data ingestion system"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -15,8 +14,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
-    "Development Status :: 2 - Pre-Alpha",
-]
+    "Development Status :: 2 - Pre-Alpha"]
 
 [project.scripts]
 els = "els.cli:main"
@@ -26,14 +24,12 @@ Homepage = "https://github.com/NathanDWalsh/els"
 
 [tool.semantic_release]
 version_toml = [
-    "pyproject.toml:project.version",
-]
+    "pyproject.toml:project.version"]
 
 [tool.semantic_release.commit_parser_options]
 allowed_types = [
     "build", "chore", "ci", "docs", "feat", "fix",
-    "perf", "style", "refactor", "test"
-]
+    "perf", "style", "refactor", "test"]
 # minor_types = ["feat"]
 patch_types = ["build", "chore", "ci", "docs", "feat", "fix",
     "perf", "style", "refactor", "test"]

@@ -7,17 +7,6 @@ import pytest
 
 from els.cli import tree
 
-# @pytest.mark.parametrize(
-#     "py_val, dtype",
-#     [
-#         (1, pd.Int64Dtype),
-#         (1.1, pd.Float64Dtype),
-#         (True, pd.BooleanDtype),
-#         ("a", pd.StringDtype),
-#     ],
-# )
-# def test_pd_type_equality(py_val, dtype):
-
 
 @pytest.mark.parametrize("explicit_context", [True, False])
 @pytest.mark.parametrize("pass_directory", [True, False])
@@ -121,30 +110,8 @@ def test_tree(
 
         # change out of temp dir so that it can be deleted
         os.chdir("/")
+        if actual != expected:
+            print(f"Actual:\n{actual}")
+            print(f"Expected:\n{expected}")
         assert actual == expected
     # print("done")
-
-
-# Create a pytest fixture for capsys
-@pytest.fixture
-def capsys_fixture():
-    return pytest.capsys
-
-
-# # Directly call the test function
-# def main():
-#     # capsys = capsys_fixture()
-#     test_tree(
-#         explicit_context=False,
-#         pass_directory=True,
-#         root_config=True,
-#         dir_config=True,
-#         source_config=False,
-#         keep_virtual=True,
-#         capsys=capsys,
-#     )
-#     # print(capsys.readouterr().out)
-
-
-# if __name__ == "__main__":
-# main()

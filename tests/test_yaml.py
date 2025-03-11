@@ -4,11 +4,11 @@ import random
 
 import pandas as pd
 import pytest
-import yaml
+
+# import yaml
 from faker import Faker
 
 from els.cli import execute
-from els.core import staged_frames
 from els.path import get_config_default
 
 _Test = collections.namedtuple("_Test", ["name", "df", "kwargs"])
@@ -246,44 +246,42 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
     elif test_type == "duckdb":
         test_url = "duckdb:///test_duck.db"
 
-    t_config = get_config_default()
-    t_config.target.url = test_url
+    outbound_config = get_config_default()
+    outbound_config.target.url = test_url
     if test_type == "xlsx":
-        t_config.target.table = kwargs["sheet_name"]
-    if t_config.target.type_is_db:
-        t_config.target.if_exists = "replace"
-    t_config.source.url = "pandas://"
+        outbound_config.target.table = kwargs["sheet_name"]
+    if outbound_config.target.type_is_db:
+        outbound_config.target.if_exists = "replace"
+    outbound_config.source.df_dict = {test_name: df}
 
     # ensuring there is only one staged_frame allows for an implicit pickup of table name
     # note above and line below negates this requirement: t_config.source.table = test_name
-    staged_frames.clear()
-    staged_frames[test_name] = df
 
-    execute(t_config)
+    execute(outbound_config)
 
-    df_config = get_df_config(df)
-    df_config.source.url = test_url
+    inbound_config = get_df_config(df)
+    inbound_config.source.url = test_url
+    inbound = {}
+    inbound_config.target.df_dict = inbound
     if test_type == "xlsx":
-        df_config.source.table = kwargs["sheet_name"]
-    if df_config.source.type_is_db:
-        df_config.source.table = test_name
+        inbound_config.source.table = kwargs["sheet_name"]
+    if inbound_config.source.type_is_db:
+        inbound_config.source.table = test_name
 
-    test_els = "__.els.yml"
-    yaml.dump(
-        df_config.model_dump(exclude_none=True),
-        open(test_els, "w"),
-        sort_keys=False,
-        allow_unicode=True,
-    )
+    # test_els = "__.els.yml"
+    # yaml.dump(
+    #     df_config.model_dump(exclude_none=True),
+    #     open(test_els, "w"),
+    #     sort_keys=False,
+    #     allow_unicode=True,
+    # )
 
-    staged_frames.clear()
-
-    execute(test_els)
+    execute(inbound_config)
 
     if test_type == "xlsx":
-        df2 = staged_frames[kwargs["sheet_name"]]
+        df2 = inbound[kwargs["sheet_name"]]
     else:
-        df2 = staged_frames[test_name]
+        df2 = inbound[test_name]
     assert df.dtypes.equals(df2.dtypes)
 
     for col in df.columns:

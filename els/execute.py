@@ -31,23 +31,12 @@ def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
                 res = push_excel(df, target)
             elif target.type_is_db:
                 res = push_sql(df, target)
-            elif target.type in ("pandas"):
+            elif target.type in ("dict"):
+                print(f"push frame{[df, target]}")
                 res = push_pandas(df, target)
             else:
                 pass
     return res
-
-
-def push_pandas(source_df: pd.DataFrame, target: ec.Target) -> bool:
-    if not target.table:
-        raise Exception("invalid table")
-    if target.table not in el.staged_frames.keys():
-        raise Exception("table not found in staged frames")
-
-    el.staged_frames[target.table] = pd.concat(
-        [el.staged_frames[target.table], source_df], ignore_index=True
-    )
-    return True
 
 
 def push_sql(source_df: pd.DataFrame, target: ec.Target) -> bool:
@@ -96,7 +85,7 @@ def push_excel(source_df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.url:
         raise Exception("missing url")
 
-    if target.preparation_action == "create_replace_file":
+    if target.build_action == "create_replace_file":
         replace_file = True
     else:
         replace_file = False
@@ -109,6 +98,14 @@ def push_excel(source_df: pd.DataFrame, target: ec.Target) -> bool:
         target.to_excel,
     )
 
+    return True
+
+
+def push_pandas(source_df: pd.DataFrame, target: ec.Target) -> bool:
+    if not target.table:
+        raise Exception("invalid table")
+    df_dict_io = target.df_dict_io
+    df_dict_io.set_df_df(target.table, source_df, target.if_exists)
     return True
 
 
@@ -178,7 +175,7 @@ def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
     elif target.type in (".xlsx"):
         create_directory_if_not_exists(target.url)
         res = build_excel_frame(df, target)
-    elif target.type in ("pandas"):
+    elif target.type in ("dict"):
         res = build_pandas_frame(df, target)
     else:
         raise Exception("invalid target type")
@@ -186,25 +183,16 @@ def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
 
 
 def build_excel_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
-    empty_frame = pd.DataFrame(columns=df.columns, index=None, data=None)
-    empty_frame = empty_frame.astype(df.dtypes)
+    empty_frame = el.get_column_frame(df)
     res = push_excel(empty_frame, target)
     return res
 
 
 def build_pandas_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
-    if not target.table:
-        raise Exception("invalid table")
+    empty_frame = el.get_column_frame(df)
 
-    if (
-        target.table in el.staged_frames.keys()
-        and target.if_exists == ec.TargetIfExistsValue.FAIL
-    ):
-        raise Exception(f"table {target.table} already exists in staged frames")
-    else:
-        el.staged_frames[target.table] = df.head(0)
-
-    return True
+    res = push_pandas(empty_frame, target)
+    return res
 
 
 def create_directory_if_not_exists(file_path: str):
@@ -220,15 +208,15 @@ def truncate_target(target: ec.Target) -> bool:
         res = truncate_csv(target)
     elif target.type in (".xlsx"):
         res = True
-    elif target.type in ("pandas"):
-        res = truncate_pandas(target)
+    elif target.type in ("dict"):
+        res = True
     else:
-        raise Exception("invalid target type")
+        raise Exception(f"invalid target type {target.type}")
     return res
 
 
 def truncate_pandas(target):
-    df = el.staged_frames[target.table]
+    df = target.pandas_frame
     df.drop(df.index, axis=0, inplace=True)
     return True
 
@@ -261,14 +249,9 @@ def truncate_sql(target: ec.Target) -> bool:
     return True
 
 
-def frames_consistent(config: ec.Config) -> bool:
+# TODO: add tests for this:
+def config_frames_consistent(config: ec.Config) -> bool:
     target, source, add_cols, transform = get_configs(config)
-    # fileBytes = fetch_file_bytes(target.url)
-    # if len(fileBytes.getbuffer().tobytes()) == 0:
-    #     return True
-
-    # if target and target.type in ("pandas"):
-    #     return True
 
     ignore_cols = []
     if add_cols:
@@ -493,8 +476,7 @@ def pull_frame(
     frame: Union[ec.Source, ec.Target],
     nrows: Optional[int] = None,
     add_cols: dict = {},
-    transform: Optional[ec.Transform] = None,
-    # dtype=None,
+    transform: Optional[Union[ec.Transform, list[ec.Transform]]] = None,
 ) -> pd.DataFrame:
     # logging.info(f"pulling frame {frame.file_path_dynamic}")
     if frame.type_is_db:
@@ -508,7 +490,6 @@ def pull_frame(
             # print(kwargs)
             if frame.type == ".tsv":
                 kwargs["sep"] = "\t"
-
         else:
             clean_last_column = False
             kwargs = {}
@@ -599,13 +580,15 @@ def pull_frame(
         df = pull_xml(frame.url, **kwargs)
         if nrows:
             df = df.head(nrows)
-    elif frame.type in ("pandas"):
-        if frame.table in el.staged_frames.keys():
-            df = el.staged_frames[frame.table]
-        else:
-            raise Exception("pandas frame not found")
+    elif frame.type in ("dict"):
+        df_dict_io = frame.df_dict_io
+        if frame.table not in df_dict_io.dfs:
+            raise Exception([frame.table, df_dict_io.dfs])
+        if "df" not in df_dict_io.dfs[frame.table]:
+            raise Exception([frame.table, df_dict_io.dfs[frame.table]])
+        df = df_dict_io.dfs[frame.table]["df"]
     else:
-        raise Exception("unable to build df")
+        raise Exception("unable to pull df")
     if isinstance(df.columns, pd.MultiIndex):
         if transform and transform.stack:
             df = stack_columns(df, transform.stack)
@@ -702,7 +685,7 @@ def add_columns(df: pd.DataFrame, add_cols: dict) -> pd.DataFrame:
 
 def ingest(config: ec.Config) -> bool:
     target, source, add_cols, transform = get_configs(config)
-    consistent = frames_consistent(config)
+    consistent = config_frames_consistent(config)
     if (
         not target
         or not target.table
@@ -713,14 +696,15 @@ def ingest(config: ec.Config) -> bool:
         source_df = add_columns(source_df, add_cols)
         return push_frame(source_df, target, add_cols)
     else:
-        logging.error(target.table + ": Inconsistent, not saved.")
-        return False
+        raise Exception(f"{target.table}: Inconsistent, not saved.")
 
 
 def build(config: ec.Config) -> bool:
     target, source, add_cols, transform = get_configs(config)
-    if target and target.preparation_action != "no_action":
-        action = target.preparation_action
+    print([target, target.build_action])
+    if target and target.build_action != "no_action":
+        print("build")
+        action = target.build_action
         if action in ("create_replace", "create_replace_file"):
             # TODO, use caching to avoid pulling the same data twice
             df = pull_frame(source, 100, add_cols, transform)
@@ -734,6 +718,7 @@ def build(config: ec.Config) -> bool:
         else:
             res = True
     else:
+        print("no build")
         res = True
     return res
 
