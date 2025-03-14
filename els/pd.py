@@ -1,124 +1,135 @@
 from functools import cached_property
 
-import pandas as pd
+from anytree import NodeMixin
 
 import els.core as el
 
 
-class DataFrameDictIO:
-    def __init__(self, df_dict, replace=False):
-        self.df_dict = df_dict
-        self.replace = replace
+class DataFrameIO(NodeMixin):
+    def __init__(self, df, parent, name, mode="r"):
+        self.df = df
+        self.df_id = el.fetch_df_id(df)
+        self.mode = mode
 
-        # self.dfdict_io = el.fetch_dfdict_io(df_dict, replace=self.replace)
-        self.dfs = self.get_df_deets()
-        # raise Exception(self.dfs)
+        self.parent = parent
+        self.name = name
+
+    @property
+    def open_df(self):
+        return el.open_dfs[self.df_id]
 
     @cached_property
-    def create_or_replace(self):
-        # if self.replace or not self.url:
-        if self.replace:
-            return True
-        else:
-            return False
+    def column_frame(self):
+        return el.get_column_frame(self.df)
 
-    def get_df_deets(self) -> dict:
-        if self.create_or_replace:
-            return {}
+    def write(self):
+        if self.mode == "a":
+            el.open_dfs[self.df_id] = el.append_into([self.open_df, self.df])
+        elif self.mode == "w":
+            el.open_dfs[self.df_id] = self.df
+
+    def append(self, df, truncate_first=False):
+        if truncate_first:
+            self.df = el.append_into([self.column_frame, df])
         else:
-            res = {k: {"mode": "r", "df": v} for k, v in self.df_dict.items()}
-            # res = {k: {"mode": "r"} for k, v in self.df_dict.items()}
-            # raise Exception(res)
+            self.df = el.append_into([self.df, df])
+
+    def set_df(self, df_name, df, if_exists):
+        if self.mode == "r":  # if in read mode, code below is first write
+            if if_exists == "fail":
+                raise Exception(
+                    f"Failing: dataframe {df_name} already exists with mode {self.mode}"
+                )
+            elif if_exists == "append":
+                # ensures alignment of columns with target
+                self.append(df, truncate_first=True)
+
+                # this dataframe contains only the appended rows
+                # thus avoiding rewriting existing data of df
+                self.mode = "a"
+            elif if_exists == "truncate":
+                self.append(df, truncate_first=True)
+                self.mode = "w"
+            else:
+                raise Exception(f"if_exists value {if_exists} not supported")
+        else:  # if already written once, subsequent calls are appends
+            self.append(df)
+
+
+class DataFrameDictIO(NodeMixin):
+    def __init__(self, df_dict, replace=False):
+        self._df_dict = df_dict
+        self.replace = replace
+        self.children = self._get_df_ios()
+
+    @property
+    def df_dict(self):
+        for c in self.children:
+            self._df_dict[c.name] = c.open_df
+        return self._df_dict
+
+    @df_dict.setter
+    def df_dict(self, v):
+        self._df_dict = v
+
+    def _get_df_ios(self) -> dict:
+        if self.replace:
+            return []
+        else:
+            res = [
+                DataFrameIO(df=v, parent=self, name=k) for k, v in self._df_dict.items()
+            ]
             return res
 
-    def pull_df_structure(self, df_name):
-        df = self.dfs[df_name]["df"]
-        return el.get_column_frame(df)
+    def get_child(self, child_name):
+        for c in self.children:
+            if c.name == child_name:
+                return c
+        return None
+
+    def has_child(self, child_name):
+        for c in self.children:
+            if c.name == child_name:
+                return True
+        return False
+
+    @property
+    def any_empty_frames(self):
+        for df_io in self.children:
+            if df_io.mode not in "r":
+                if df_io.df.empty:
+                    print(f"cannot write empty dataframe; {df_io.name}: {df_io.df}")
+                    return True
+        return False
 
     def write(self):
         if self.mode != "r":
-            print("write")
-            for df_name, df_deet in self.dfs.items():
-                if df_deet["mode"] not in "r":
-                    df = df_deet["df"]
-                    if df.empty:
-                        raise Exception(
-                            f"cannot write empty dataframe; {df_name}: {df}"
-                        )
-            if self.mode == "w":
-                print("writing")
-                for df_name, df_deet in self.dfs.items():
-                    df = df_deet["df"]
-                    self.df_dict[df_name] = df
-            else:  # self.mode == "a"
-                for df_name, df_deet in self.dfs.items():
-                    if df_deet["mode"] != "r":
-                        df = df_deet["df"]
-                        if df_deet["mode"] == "a":
-                            df0 = self.df_dict[df_name]
-                            print(f"appending {df} to {df0}")
-                            self.df_dict[df_name] = pd.concat(
-                                [df0, df], ignore_index=True
-                            )
-                            print(f"write dict {id(self.df_dict)}")
-                            print(f"res: {self.df_dict[df_name]}")
-                        else:
-                            self.df_dict[df_name] = df
+            if self.any_empty_frames:
+                raise Exception("Cannot write empty dataframe")
+            for df_io in self.children:
+                df_io.write()
+                self.df_dict[df_io.name] = df_io.open_df
 
-    def set_new_df_df(self, sheet_name, df):
-        self.dfs[sheet_name] = {
-            "mode": "w",
-            "if_exists": "replace",  # not sure about this
-            "df": df,
-        }
+    def add_child(self, child):
+        child.parent = self
 
-    def set_df_df(self, df_name, df, if_exists):
-        print(f"set_df_df: {[self.dfs, if_exists]}")
-        if df_name in self.dfs:
-            if self.dfs[df_name]["mode"] == "r":
-                if not isinstance(if_exists, str):
-                    if_exists = if_exists.value
-                if if_exists == "fail":
-                    raise Exception(
-                        f"Failing: dataframe {df_name} already exists with mode {self.dfs[df_name]['mode']}"
-                    )
-                elif if_exists == "replace":
-                    self.set_new_df_df(df_name, df)
-                elif if_exists == "append":
-                    # ensures alignment of columns with target
-                    df0 = self.pull_df_structure(df_name)
-                    df = el.append_into([df0, df])
+    def fetch_df_io(self, df_name, df) -> DataFrameIO:
+        if not self.has_child(df_name):
+            self.add_child(DataFrameIO(df=df, parent=self, name=df_name, mode="w"))
+        return self.get_child(df_name)
 
-                    # this dataframe contains only the appended rows
-                    # thus avoiding rewriting existing data of df
-                    self.dfs[df_name]["mode"] = "a"
-                elif if_exists == "truncate":
-                    df0 = self.pull_df_structure(df_name)
-                    df = el.append_into([df0, df])
-                    # raise Exception([df0, df, df_name])
-                    self.dfs[df_name]["mode"] = "w"
-                else:
-                    raise Exception(f"if_exists value {if_exists} not supported")
-            else:
-                df0 = self.dfs[df_name]["df"]
-                df = el.append_into([df0, df])
-                # df = pd.concat([df0, df], ignore_index=True)
-        else:
-            self.set_new_df_df(df_name, df)
-        self.dfs[df_name]["df"] = df
-
-    def close(self):
-        pass  # TODO:TEST; will it help with memory/garbage?
-        # del el.open_dicts[self.url]
+    def set_df(self, df_name, df, if_exists):
+        df_io = self.fetch_df_io(df_name, df)
+        df_io.set_df(df_name, df, if_exists)
 
     @cached_property
     def mode(self):
-        if len(self.dfs) == 0:
+        if len(self.children) == 0:
             return "r"
-        elif self.create_or_replace:
+        elif self.replace:
             return "w"
         else:
-            for deet in self.dfs.values():
-                if deet["mode"] in ("a", "w"):
+            for io in self.children:
+                if io.mode in ("a", "w"):
                     return "a"
         return "r"

@@ -234,7 +234,7 @@ class Frame(BaseModel):
             res = None
         return res
 
-    @cached_property
+    @property
     def df_dict_io(self):
         if self.type == "dict":
             dict_id = int(urlparse(self.url)[1])
@@ -252,6 +252,7 @@ class Frame(BaseModel):
 
     @df_dict.setter
     def df_dict(self, _dict):
+        # print("YYYYYY df dict accessed")
         el.fetch_df_dict_io(_dict)
         self.url = f"dict://{id(_dict)}"
 
@@ -340,7 +341,11 @@ class Target(Frame):
             sheet_names = xl_io.sheets.keys()
             res = self.sheet_name in sheet_names
         elif self.type == "dict":
-            if self.df_dict and not self.df_dict[self.table].empty:
+            if (
+                self.df_dict
+                and self.table in self.df_dict
+                and not self.df_dict[self.table].empty
+            ):
                 res = True
             else:
                 res = False

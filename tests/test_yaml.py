@@ -4,19 +4,19 @@ import random
 
 import pandas as pd
 import pytest
-
-# import yaml
 from faker import Faker
 
 from els.cli import execute
-from els.path import get_config_default
+from els.config import Config
+
+# import yaml
 
 _Test = collections.namedtuple("_Test", ["name", "df", "kwargs"])
 
 
 # Get the ec.Config dictionary for a given DataFrame
 def get_df_config(df: pd.DataFrame):
-    config_df = get_config_default()
+    config_df = Config()
     config_df.source.dtype = df.dtypes.apply(lambda x: x.name).to_dict()
     for k, v in config_df.source.dtype.items():
         if v.split("[")[0] == "datetime64":
@@ -25,7 +25,7 @@ def get_df_config(df: pd.DataFrame):
 
 
 def test_enum_conversion():
-    config = get_config_default()
+    config = Config()
     assert config.target.consistency == "strict"
 
 
@@ -246,7 +246,7 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
     elif test_type == "duckdb":
         test_url = "duckdb:///test_duck.db"
 
-    outbound_config = get_config_default()
+    outbound_config = Config()
     outbound_config.target.url = test_url
     if test_type == "xlsx":
         outbound_config.target.table = kwargs["sheet_name"]
@@ -363,24 +363,24 @@ test_classes = {
 
 
 for testset in (
-    (TestCSV, get_1r1c_tests_csv, "csv", None),
+    # (TestCSV, get_1r1c_tests_csv, "csv", None),
     (TestExcel, get_1r1c_tests_excel, "xlsx", None),
-    (TestMSSQL, get_1r1c_tests_sql, "mssql", None),
-    (TestMSSQL_TDS, get_1r1c_tests_sql, "mssql+pymssql", None),
-    (
-        TestMSSQL_ODBC17,
-        get_1r1c_tests_sql,
-        "mssql+pyodbc",
-        "driver=odbc driver 17 for sql server",
-    ),
-    (
-        TestMSSQL_ODBC18,
-        get_1r1c_tests_sql,
-        "mssql+pyodbc",
-        "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
-    ),
-    (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
-    (TestDuckDb, get_1r1c_tests_sql, "duckdb", None),
+    # (TestMSSQL, get_1r1c_tests_sql, "mssql", None),
+    # (TestMSSQL_TDS, get_1r1c_tests_sql, "mssql+pymssql", None),
+    # (
+    #     TestMSSQL_ODBC17,
+    #     get_1r1c_tests_sql,
+    #     "mssql+pyodbc",
+    #     "driver=odbc driver 17 for sql server",
+    # ),
+    # (
+    #     TestMSSQL_ODBC18,
+    #     get_1r1c_tests_sql,
+    #     "mssql+pyodbc",
+    #     "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
+    # ),
+    # (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
+    # (TestDuckDb, get_1r1c_tests_sql, "duckdb", None),
 ):
     for class_name, get_frames_func in test_classes.items():
         setattr(

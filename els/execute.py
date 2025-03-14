@@ -97,6 +97,12 @@ def push_excel(source_df: pd.DataFrame, target: ec.Target) -> bool:
         target.if_exists,
         target.to_excel,
     )
+    xl_io.set_sheet_df2(
+        target.sheet_name,
+        source_df,
+        target.if_exists,
+        target.to_excel,
+    )
 
     return True
 
@@ -105,7 +111,7 @@ def push_pandas(source_df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.table:
         raise Exception("invalid table")
     df_dict_io = target.df_dict_io
-    df_dict_io.set_df_df(target.table, source_df, target.if_exists)
+    df_dict_io.set_df(target.table, source_df, target.if_exists)
     return True
 
 
@@ -554,6 +560,7 @@ def pull_frame(
                 ]
 
         df = xl_io.pull_sheet(kwargs)
+        df = xl_io.pull_sheet2(kwargs)
     elif frame.type == ".fwf":
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_fwf, frame, nrows)
@@ -582,11 +589,12 @@ def pull_frame(
             df = df.head(nrows)
     elif frame.type in ("dict"):
         df_dict_io = frame.df_dict_io
-        if frame.table not in df_dict_io.dfs:
-            raise Exception([frame.table, df_dict_io.dfs])
-        if "df" not in df_dict_io.dfs[frame.table]:
-            raise Exception([frame.table, df_dict_io.dfs[frame.table]])
-        df = df_dict_io.dfs[frame.table]["df"]
+        # if not df_dict_io.get_child(frame.table):
+        #     raise Exception([frame.table, df_dict_io.children])
+        # if "df" not in df_dict_io.ios[frame.table]:
+        #     raise Exception([frame.table, df_dict_io.ios[frame.table]])
+        # df = df_dict_io.children[frame.table].df
+        df = df_dict_io.get_child(frame.table).df
     else:
         raise Exception("unable to pull df")
     if isinstance(df.columns, pd.MultiIndex):
@@ -702,6 +710,8 @@ def ingest(config: ec.Config) -> bool:
 def build(config: ec.Config) -> bool:
     target, source, add_cols, transform = get_configs(config)
     print([target, target.build_action])
+    # if target.type == "dict":
+    #     raise Exception()
     if target and target.build_action != "no_action":
         print("build")
         action = target.build_action

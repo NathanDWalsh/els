@@ -84,7 +84,7 @@ def clear_runways():
     outbound.clear()
 
 
-def f_1_to_1(for_calling, tmp_path=None):
+def single(for_calling, tmp_path=None):
     clear_runways()
     outbound["df"] = pd.DataFrame({"a": [1, 2, 3]})
     expected = outbound
@@ -93,7 +93,7 @@ def f_1_to_1(for_calling, tmp_path=None):
     assert_expected(expected)
 
 
-def f_2_to_2(for_calling, tmp_path=None):
+def double_together(for_calling, tmp_path=None):
     clear_runways()
     outbound["dfa"] = pd.DataFrame({"a": [1, 2, 3]})
     outbound["dfb"] = pd.DataFrame({"b": [4, 5, 6]})
@@ -103,7 +103,23 @@ def f_2_to_2(for_calling, tmp_path=None):
     assert_expected(expected)
 
 
-def f_2_to_1_together(for_calling, tmp_path=None):
+def double_separate(for_calling, tmp_path=None):
+    clear_runways()
+    outbound["dfa"] = pd.DataFrame({"a": [1, 2, 3]})
+    call_io_funcs(for_calling, **dict(tmp_path=tmp_path))
+
+    outbound.clear()
+    outbound["dfb"] = pd.DataFrame({"b": [4, 5, 6]})
+    call_io_funcs(for_calling, **dict(tmp_path=tmp_path))
+
+    expected = {}
+    expected["dfa"] = pd.DataFrame({"a": [1, 2, 3]})
+    expected["dfb"] = pd.DataFrame({"b": [4, 5, 6]})
+
+    assert_expected(expected)
+
+
+def append_together(for_calling, tmp_path=None):
     clear_runways()
     outbound["df0a"] = pd.DataFrame({"a": [1, 2, 3]})
     outbound["df0b"] = pd.DataFrame({"a": [10, 20, 30]})
@@ -115,14 +131,17 @@ def f_2_to_1_together(for_calling, tmp_path=None):
     assert_expected(expected)
 
 
-def append_fixed(for_calling, tmp_path=None):
+def append_separate(for_calling, tmp_path=None):
     clear_runways()
-    outbound["dfa"] = pd.DataFrame({"a": [1, 2, 3]})
-    outbound["dfb"] = pd.DataFrame({"a": [10, 20, 30]})
+    outbound["df"] = pd.DataFrame({"a": [1, 2, 3]})
+    call_io_funcs(for_calling, **dict(tmp_path=tmp_path))
+
+    outbound.clear()
+    outbound["df"] = pd.DataFrame({"a": [10, 20, 30]})
     expected = {}
     expected["df"] = pd.DataFrame({"a": [1, 2, 3, 10, 20, 30]})
 
-    target = {"if_exists": "append", "table": "df"}
+    target = {"if_exists": "append"}
     call_io_funcs(for_calling, **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
@@ -182,31 +201,66 @@ def append_plus(for_calling, tmp_path=None):
     assert_expected(expected)
 
 
-def truncate2(push, pull=None, tmp_path=None):
+def truncate_single(push, pull=None, tmp_path=None):
     clear_runways()
-    outbound["dfa"] = pd.DataFrame(
+    outbound["df"] = pd.DataFrame(
         {
             "a": [1, 2, 3],
             "b": [4, 5, 6],
         }
     )
-    target = {"if_exists": "truncate", "table": "df"}
-    call_io_funcs(push, **dict(tmp_path=tmp_path, target=target))
+    call_io_funcs(push, **dict(tmp_path=tmp_path))
     outbound.clear()
 
-    outbound["dfb"] = pd.DataFrame(
+    outbound["df"] = pd.DataFrame(
         {
-            "b": [40, 50, 60],
-            "a": [10, 20, 30],
+            "b": [40, 50],
+            "a": [10, 20],
         }
     )
     expected = {}
     expected["df"] = pd.DataFrame(
         {
-            "a": [10, 20, 30],
-            "b": [40, 50, 60],
+            "a": [10, 20],
+            "b": [40, 50],
         }
     )
+    target = {"if_exists": "truncate"}
+    call_io_funcs([push, pull], **dict(tmp_path=tmp_path, target=target))
+    assert_expected(expected)
+
+
+def truncate_double(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["df"] = pd.DataFrame(
+        {
+            "a": [1, 2, 3],
+            "b": [4, 5, 6],
+        }
+    )
+    call_io_funcs(push, **dict(tmp_path=tmp_path))
+    outbound.clear()
+
+    outbound["dfa"] = pd.DataFrame(
+        {
+            "b": [40, 50],
+            "a": [10, 20],
+        }
+    )
+    outbound["dfb"] = pd.DataFrame(
+        {
+            "b": [60, 70],
+            "a": [30, 40],
+        }
+    )
+    expected = {}
+    expected["df"] = pd.DataFrame(
+        {
+            "a": [10, 20, 30, 40],
+            "b": [40, 50, 60, 70],
+        }
+    )
+    target = {"if_exists": "truncate", "table": "df"}
     call_io_funcs([push, pull], **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 

@@ -70,11 +70,14 @@ class TaskFlow:
     def cleanup(self):
         for excel_file in el.open_workbooks.values():
             excel_file.write()
+            # excel_file.write2()
+            # excel_file.persist()
             excel_file.close()
         el.open_workbooks.clear()
         for _dict in el.open_dicts.values():
             _dict.write()
         el.open_dicts.clear()
+        el.open_dfs.clear()
 
         # just in case files still open
         for file in el.open_files.values():
@@ -332,7 +335,7 @@ def test():
     yml.dump(yml_obj, yml_stream)
     print(yml_stream.getvalue())
     # yml = ryaml.load(yml_str)
-    # config_default = get_config_default()
+    # config_default = Config()
     # yml = config_default.model_dump(exclude_none=True)
     # yaml_str = yaml.dump(yml, sort_keys=False, allow_unicode=True)
     # write_yaml_str(yaml_str)

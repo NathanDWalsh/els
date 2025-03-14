@@ -897,10 +897,6 @@ def get_configs(ymls: list[dict]) -> list[ec.Config]:
     return configs
 
 
-def get_config_default() -> ec.Config:
-    return ec.Config()
-
-
 def config_path_valid(path: ConfigPath) -> bool:
     if path.is_dir():
         return True

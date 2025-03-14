@@ -174,4 +174,4 @@ eel/test.zip
 tests/docs/running_example.md
 tests/docs/running_example_lite.md
 .github/workflows/temptest.yml
-.testmondata
+.testmondata*
