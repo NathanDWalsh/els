@@ -720,10 +720,10 @@ def build(config: ec.Config) -> bool:
     return res
 
 
-def detect(config: ec.Config) -> bool:
-    _, source, _, _ = get_configs(config)
-    source = source.model_copy()
-    source.nrows = 100
+# def detect(config: ec.Config) -> bool:
+#     _, source, _, _ = get_configs(config)
+#     source = source.model_copy()
+#     source.nrows = 100
 
-    df = pull_frame(source)
-    return True
+#     df = pull_frame(source)
+#     return True

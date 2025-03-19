@@ -51,8 +51,8 @@ class DataFrameIO(NodeMixin):
                 self.append(df, truncate_first=True)
                 self.mode = "w"
             elif if_exists == "replace":
-                self.df =df
-                self.mode='w'
+                self.df = df
+                self.mode = "w"
             else:
                 raise Exception(f"if_exists value {if_exists} not supported")
         else:  # if already written once, subsequent calls are appends
@@ -61,6 +61,7 @@ class DataFrameIO(NodeMixin):
     def close(self):
         if self.df_id in el.open_dfs:
             del el.open_dfs[self.df_id]
+
 
 class DataFrameContainerMixinIO(NodeMixin):
     def get_child(self, child_name):
@@ -74,7 +75,7 @@ class DataFrameContainerMixinIO(NodeMixin):
             if c.name == child_name:
                 return True
         return False
-    
+
     @property
     def any_empty_frames(self):
         for df_io in self.children:
@@ -98,7 +99,7 @@ class DataFrameContainerMixinIO(NodeMixin):
     @property
     def create_or_replace(self):
         return self.replace
-    
+
     @cached_property
     def mode(self):
         if len(self.children) == 0:
@@ -110,6 +111,7 @@ class DataFrameContainerMixinIO(NodeMixin):
                 if c.mode in ("a", "w"):
                     return "a"
         return "r"
+
 
 class DataFrameDictIO(DataFrameContainerMixinIO):
     def __init__(self, df_dict, replace=False):
@@ -148,5 +150,3 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
     def set_df(self, df_name, df, if_exists):
         df_io = self.fetch_df_io(df_name, df)
         df_io.set_df(df_name, df, if_exists)
-
-    

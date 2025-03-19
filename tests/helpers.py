@@ -227,6 +227,7 @@ def append_minus(for_calling, tmp_path=None):
     call_io_funcs(for_calling, **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
+
 def truncate_single(push, pull=None, tmp_path=None):
     clear_runways()
     outbound["df"] = pd.DataFrame(
@@ -242,7 +243,7 @@ def truncate_single(push, pull=None, tmp_path=None):
         {
             "b": [30, 40],
             "a": [10, 20],
-            'c':[50,60],
+            "c": [50, 60],
         }
     )
     expected = {}
@@ -252,7 +253,7 @@ def truncate_single(push, pull=None, tmp_path=None):
             "b": [30, 40],
         }
     )
-    target = {"if_exists": "truncate", 'consistency':'ignore'}
+    target = {"if_exists": "truncate", "consistency": "ignore"}
     call_io_funcs([push, pull], **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
@@ -283,56 +284,35 @@ def truncate_double(push, pull=None, tmp_path=None):
     expected["df"] = pd.DataFrame(
         {
             "a": [10, 20, None, None],
-            "b": [ 50, 60, 70,80],
+            "b": [50, 60, 70, 80],
         }
     )
-    target = {"if_exists": "truncate", "table": "df", 'consistency':'ignore'}
+    target = {"if_exists": "truncate", "table": "df", "consistency": "ignore"}
     call_io_funcs([push, pull], **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
 
 def replace(push, pull=None, tmp_path=None):
     clear_runways()
-    outbound["a"] = pd.DataFrame(
-        {
-            "a": [1, 2, 3],
-        }
-    )
-    outbound["b"] = pd.DataFrame(
-        {
-            "b": [4, 5, 6],
-        }
-    )
+    outbound["a"] = pd.DataFrame({"a": [1, 2, 3]})
+    outbound["b"] = pd.DataFrame({"b": [4, 5, 6]})
     expected = outbound.copy()
     push(tmp_path)
 
     if pull:
         pull(tmp_path)
-        
+
     assert_expected(expected)
 
     outbound.clear()
-    outbound["b"] = pd.DataFrame(
-        {
-            "bb": [44, 55, 66],
-        }
-    )
+    outbound["b"] = pd.DataFrame({"bb": [44, 55, 66]})
     expected.clear()
-    expected['a'] = pd.DataFrame(
-        {
-            "a": [1, 2, 3],
-        }
-    )
-    expected['b'] = pd.DataFrame(
-        {
-            "bb": [44,55,66],
-        }
-    )
+    expected["a"] = pd.DataFrame({"a": [1, 2, 3]})
+    expected["b"] = pd.DataFrame({"bb": [44, 55, 66]})
 
     target = {"if_exists": "replace"}
     call_io_funcs([push], **dict(tmp_path=tmp_path, target=target))
-    
+
     if pull:
         pull(tmp_path)
     assert_expected(expected)
-    

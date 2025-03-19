@@ -2,7 +2,6 @@ import os
 from functools import cached_property
 
 import pandas as pd
-from anytree import NodeMixin
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 
 import els.core as el
@@ -76,18 +75,18 @@ class ExcelSheetIO(epd.DataFrameIO):
 
     @property
     def startrow(self):
-        if self.truncate or self.mode =='w':
+        if self.truncate or self.mode == "w":
             return 0
         else:
             return self._startrow
 
     @startrow.setter
-    def startrow(self,v):
+    def startrow(self, v):
         self._startrow = v
 
     def pull(self, kwargs=None):
         if not kwargs:
-            kwargs=self.read_excel
+            kwargs = self.read_excel
         if self.mode == "r" and self.read_excel != kwargs:
             if "engine" not in kwargs:
                 kwargs["engine"] = "calamine"
@@ -96,7 +95,7 @@ class ExcelSheetIO(epd.DataFrameIO):
             self.df = pd.read_excel(self.parent.file_io, **kwargs)
             self.read_excel = kwargs
         return self.df
-    
+
 
 class ExcelIO(epd.DataFrameContainerMixinIO):
     def __init__(self, url, replace=False):
@@ -132,7 +131,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
             return True
         else:
             return False
-    
+
     def pull_sheet(self, kwargs):
         sheet_name = kwargs["sheet_name"]
         if self.has_child(sheet_name):
@@ -224,5 +223,3 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
         for ws_io in self.children:
             res.append(ws_io.name)
         return res
-
-    

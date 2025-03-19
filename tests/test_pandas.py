@@ -13,7 +13,6 @@ def push(tmp_path=None, target=None):
         config.target = Target.model_validate(
             config.target.model_dump(exclude_none=True) | target
         )
-    
+
     tree(config)
     execute(config)
-

@@ -1,6 +1,5 @@
 import os
 
-import numpy as np
 import pandas as pd
 
 from els.cli import execute, tree
@@ -58,7 +57,7 @@ def test_sheet_skipfooter(tmp_path):
 
     th.outbound.clear()
     th.outbound["df1"] = df0f
-    
+
     push(tmp_path)
 
     pull(tmp_path)
@@ -70,6 +69,7 @@ def test_sheet_skipfooter(tmp_path):
     df1 = th.inbound["df1"]
     th.assert_dfs_equal(df0, df1)
 
+
 def test_replace_file(tmp_path):
     df0a = pd.DataFrame({"a": [1, 2, 3]})
     df0b = pd.DataFrame({"b": [4, 5, 6]})
@@ -77,7 +77,7 @@ def test_replace_file(tmp_path):
     th.outbound.clear()
     th.outbound["df0"] = df0a
     push(tmp_path)
-    
+
     th.outbound.clear()
     th.outbound["df1"] = df0b
     push(tmp_path, {"if_exists": "replace_file"})

@@ -252,7 +252,6 @@ class Frame(BaseModel):
 
     @df_dict.setter
     def df_dict(self, _dict):
-        # print("YYYYYY df dict accessed")
         el.fetch_df_dict_io(_dict)
         self.url = f"dict://{id(_dict)}"
 
