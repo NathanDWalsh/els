@@ -23,9 +23,9 @@ class DataFrameIO(NodeMixin):
         return el.get_column_frame(self.df)
 
     def write(self):
-        if self.mode == "a":
+        if self.mode == "a" and not self.open_df.empty:
             el.open_dfs[self.df_id] = el.append_into([self.open_df, self.df])
-        elif self.mode == "w":
+        else:
             el.open_dfs[self.df_id] = self.df
 
     def append(self, df, truncate_first=False):
@@ -58,8 +58,60 @@ class DataFrameIO(NodeMixin):
         else:  # if already written once, subsequent calls are appends
             self.append(df)
 
+    def close(self):
+        if self.df_id in el.open_dfs:
+            del el.open_dfs[self.df_id]
 
-class DataFrameDictIO(NodeMixin):
+class DataFrameContainerMixinIO(NodeMixin):
+    def get_child(self, child_name):
+        for c in self.children:
+            if c.name == child_name:
+                return c
+        return None
+
+    def has_child(self, child_name):
+        for c in self.children:
+            if c.name == child_name:
+                return True
+        return False
+    
+    @property
+    def any_empty_frames(self):
+        for df_io in self.children:
+            if df_io.mode not in "r":
+                if df_io.df.empty:
+                    print(f"cannot write empty dataframe; {df_io.name}: {df_io.df}")
+                    return True
+        return False
+
+    def write(self):
+        if self.mode != "r":
+            if self.any_empty_frames:
+                raise Exception("Cannot write empty dataframe")
+            for df_io in self.children:
+                df_io.write()
+            self.persist()
+
+    def add_child(self, child):
+        child.parent = self
+
+    @property
+    def create_or_replace(self):
+        return self.replace
+    
+    @cached_property
+    def mode(self):
+        if len(self.children) == 0:
+            return "r"
+        elif self.create_or_replace:
+            return "w"
+        else:
+            for c in self.children:
+                if c.mode in ("a", "w"):
+                    return "a"
+        return "r"
+
+class DataFrameDictIO(DataFrameContainerMixinIO):
     def __init__(self, df_dict, replace=False):
         self._df_dict = df_dict
         self.replace = replace
@@ -84,37 +136,9 @@ class DataFrameDictIO(NodeMixin):
             ]
             return res
 
-    def get_child(self, child_name):
-        for c in self.children:
-            if c.name == child_name:
-                return c
-        return None
-
-    def has_child(self, child_name):
-        for c in self.children:
-            if c.name == child_name:
-                return True
-        return False
-
-    @property
-    def any_empty_frames(self):
+    def persist(self):
         for df_io in self.children:
-            if df_io.mode not in "r":
-                if df_io.df.empty:
-                    print(f"cannot write empty dataframe; {df_io.name}: {df_io.df}")
-                    return True
-        return False
-
-    def write(self):
-        if self.mode != "r":
-            if self.any_empty_frames:
-                raise Exception("Cannot write empty dataframe")
-            for df_io in self.children:
-                df_io.write()
-                self.df_dict[df_io.name] = df_io.open_df
-
-    def add_child(self, child):
-        child.parent = self
+            self.df_dict[df_io.name] = df_io.open_df
 
     def fetch_df_io(self, df_name, df) -> DataFrameIO:
         if not self.has_child(df_name):
@@ -125,14 +149,4 @@ class DataFrameDictIO(NodeMixin):
         df_io = self.fetch_df_io(df_name, df)
         df_io.set_df(df_name, df, if_exists)
 
-    @cached_property
-    def mode(self):
-        if len(self.children) == 0:
-            return "r"
-        elif self.replace:
-            return "w"
-        else:
-            for io in self.children:
-                if io.mode in ("a", "w"):
-                    return "a"
-        return "r"
+    

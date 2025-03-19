@@ -61,6 +61,10 @@ class ExcelSheetIO(epd.DataFrameIO):
         self.to_excel = to_excel
         self.truncate = truncate
 
+        # TODO not efficient to pull sheet if not being used
+        if self.df.empty:
+            self.df = self.pull()
+
     @property
     def if_sheet_exists(self):
         if self.mode == "a":
@@ -76,21 +80,14 @@ class ExcelSheetIO(epd.DataFrameIO):
             return 0
         else:
             return self._startrow
-        
 
     @startrow.setter
     def startrow(self,v):
         self._startrow = v
 
-    @property
-    def column_frame(self):
-        if self.df.empty:
-            self.df = self.parent.pull_sheet({'sheet_name':self.name})
-        res = el.get_column_frame(self.df)
-        return res
-        
-
-    def pull(self, kwargs):
+    def pull(self, kwargs=None):
+        if not kwargs:
+            kwargs=self.read_excel
         if self.mode == "r" and self.read_excel != kwargs:
             if "engine" not in kwargs:
                 kwargs["engine"] = "calamine"
@@ -99,22 +96,9 @@ class ExcelSheetIO(epd.DataFrameIO):
             self.df = pd.read_excel(self.parent.file_io, **kwargs)
             self.read_excel = kwargs
         return self.df
+    
 
-    def close(self):
-        if self.df_id in el.open_dfs:
-            del el.open_dfs[self.df_id]
-
-    def write(self):
-        if self.mode == "a" and not self.open_df.empty:
-            # print('write appending into')
-            el.open_dfs[self.df_id] = el.append_into([self.open_df, self.df])
-        # elif self.mode == "w":
-        else:
-            # print('write just write')
-            el.open_dfs[self.df_id] = self.df
-
-
-class ExcelIO(NodeMixin):
+class ExcelIO(epd.DataFrameContainerMixinIO):
     def __init__(self, url, replace=False):
         self.url = url
         self.replace = replace
@@ -148,33 +132,12 @@ class ExcelIO(NodeMixin):
             return True
         else:
             return False
-
-    def get_child(self, child_name):
-        for c in self.children:
-            if c.name == child_name:
-                return c
-        return None
-
-    def has_child(self, child_name):
-        for c in self.children:
-            if c.name == child_name:
-                return True
-        return False
     
-    def add_child(self, child):
-        child.parent = self
-    
-
     def pull_sheet(self, kwargs):
         sheet_name = kwargs["sheet_name"]
         if self.has_child(sheet_name):
             sheet = self.get_child(sheet_name)
-            if sheet.mode == "r" and sheet.read_excel != kwargs:
-                if "engine" not in kwargs:
-                    kwargs["engine"] = "calamine"
-                sheet.df = pd.read_excel(self.file_io, **kwargs)
-                sheet.read_excel = kwargs
-            return sheet.df
+            return sheet.pull(kwargs)
         else:
             raise Exception(f"sheet not found: {sheet_name}")
 
@@ -185,27 +148,7 @@ class ExcelIO(NodeMixin):
         else:
             return "xlsxwriter"
 
-    @property
-    def any_empty_frames(self):
-        for df_io in self.children:
-            if df_io.mode not in "r":
-                if df_io.df.empty:
-                    print(f"cannot write empty dataframe; {df_io.name}: {df_io.df}")
-                    return True
-        return False
-
-    def write(self):
-        if self.mode != "r":
-            if self.any_empty_frames:
-                raise Exception("Cannot write empty dataframe")
-            for df_io in self.children:
-                df_io.write()
-                # TODO this is pd persist
-                # self.df_dict[df_io.name] = df_io.open_df
-            self.persist()
-
     def persist(self):
-
         if self.mode == "w":
             with pd.ExcelWriter(
                 self.file_io, engine=self.write_engine, mode=self.mode
@@ -282,14 +225,4 @@ class ExcelIO(NodeMixin):
             res.append(ws_io.name)
         return res
 
-    @cached_property
-    def mode(self):
-        if len(self.children) == 0:
-            return "r"
-        elif self.create_or_replace:
-            return "w"
-        else:
-            for c in self.children:
-                if c.mode in ("a", "w"):
-                    return "a"
-        return "r"
+    
