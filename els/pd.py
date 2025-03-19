@@ -50,6 +50,9 @@ class DataFrameIO(NodeMixin):
             elif if_exists == "truncate":
                 self.append(df, truncate_first=True)
                 self.mode = "w"
+            elif if_exists == "replace":
+                self.df =df
+                self.mode='w'
             else:
                 raise Exception(f"if_exists value {if_exists} not supported")
         else:  # if already written once, subsequent calls are appends

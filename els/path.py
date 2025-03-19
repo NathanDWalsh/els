@@ -913,7 +913,7 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
         return get_table_names(source)
     elif source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
         xl_io = el.fetch_excel_io(source.url)
-        return xl_io.sheets.keys()
+        return xl_io.sheet_names
     elif source.type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
         # return root file name without path and suffix
         res = [Path(source.url).stem]

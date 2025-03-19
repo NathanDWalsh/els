@@ -70,8 +70,6 @@ class TaskFlow:
     def cleanup(self):
         for excel_file in el.open_workbooks.values():
             excel_file.write()
-            # excel_file.write2()
-            # excel_file.persist()
             excel_file.close()
         el.open_workbooks.clear()
         for _dict in el.open_dicts.values():

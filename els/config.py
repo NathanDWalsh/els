@@ -338,7 +338,7 @@ class Target(Frame):
         ):  # TODO: add other file types supported by Calamine
             # check if sheet exists
             xl_io = el.fetch_excel_io(self.url)
-            sheet_names = xl_io.sheets.keys()
+            sheet_names = xl_io.sheet_names
             res = self.sheet_name in sheet_names
         elif self.type == "dict":
             if (

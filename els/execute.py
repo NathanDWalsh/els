@@ -32,7 +32,6 @@ def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
             elif target.type_is_db:
                 res = push_sql(df, target)
             elif target.type in ("dict"):
-                print(f"push frame{[df, target]}")
                 res = push_pandas(df, target)
             else:
                 pass
@@ -92,12 +91,6 @@ def push_excel(source_df: pd.DataFrame, target: ec.Target) -> bool:
 
     xl_io = el.fetch_excel_io(target.url, replace=replace_file)
     xl_io.set_sheet_df(
-        target.sheet_name,
-        source_df,
-        target.if_exists,
-        target.to_excel,
-    )
-    xl_io.set_sheet_df2(
         target.sheet_name,
         source_df,
         target.if_exists,
@@ -560,7 +553,6 @@ def pull_frame(
                 ]
 
         df = xl_io.pull_sheet(kwargs)
-        df = xl_io.pull_sheet2(kwargs)
     elif frame.type == ".fwf":
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_fwf, frame, nrows)
@@ -709,11 +701,7 @@ def ingest(config: ec.Config) -> bool:
 
 def build(config: ec.Config) -> bool:
     target, source, add_cols, transform = get_configs(config)
-    print([target, target.build_action])
-    # if target.type == "dict":
-    #     raise Exception()
     if target and target.build_action != "no_action":
-        print("build")
         action = target.build_action
         if action in ("create_replace", "create_replace_file"):
             # TODO, use caching to avoid pulling the same data twice
@@ -728,7 +716,6 @@ def build(config: ec.Config) -> bool:
         else:
             res = True
     else:
-        print("no build")
         res = True
     return res
 
@@ -739,5 +726,4 @@ def detect(config: ec.Config) -> bool:
     source.nrows = 100
 
     df = pull_frame(source)
-    print(df.dtypes.to_dict())
     return True
