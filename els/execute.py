@@ -1,13 +1,9 @@
 import csv
-import io
 import logging
 import os
 from typing import Optional, Union
 
-import duckdb
-import numpy as np
 import pandas as pd
-import prqlc
 import sqlalchemy as sa
 from pdfminer.high_level import LAParams, extract_pages
 from pdfminer.layout import LTChar, LTTextBox
@@ -251,6 +247,7 @@ def truncate_sql(target: ec.Target) -> bool:
 # TODO: add tests for this:
 def config_frames_consistent(config: ec.Config) -> bool:
     target, source, add_cols, transform = get_configs(config)
+    # print(f"t.md: {transform.model_dump()}")
 
     ignore_cols = []
     if add_cols:
@@ -258,10 +255,58 @@ def config_frames_consistent(config: ec.Config) -> bool:
             if v == ec.DynamicColumnValue.ROW_INDEX.value:
                 ignore_cols.append(k)
 
-    source_df = pull_frame(source, 100, add_cols, transform)
+    # source_df = pull_frame(source, 100, add_cols, transform)
+    source_df = pull_frame(source, 100, add_cols)
+    source_df = apply_transforms(source_df, transform, source)
     source_df = add_columns(source_df, add_cols)
     target_df = pull_frame(target, 100)
     return data_frames_consistent(source_df, target_df, ignore_cols)
+
+
+def apply_transforms(df, transform, frame):
+    # if isinstance(df.columns, pd.MultiIndex):
+    #     if transform and transform.stack:
+    #         df = stack_columns(df, transform.stack)
+    #     else:
+    #         # TODO move this line just before persisting if target does not support multicolindex
+    #         df = multiindex_to_singleindex(df)
+    # print(f"applying transforms {[type(transform)]}")
+    if isinstance(transform, ec.FilterTransform):
+        # print("applying filters")
+        df = df.query(transform.filter)
+    # else:
+    #     raise Exception("here")
+    # if isinstance(frame, ec.Source) and frame.filter:
+    #     df = df.query(frame.filter)
+    # if transform and transform.melt:
+    #     df = pd.melt(
+    #         df,
+    #         id_vars=transform.melt.id_vars,
+    #         value_vars=transform.melt.value_vars,
+    #         value_name=transform.melt.value_name,
+    #         var_name=transform.melt.var_name,
+    #     )
+    # if transform and transform.prql:
+    #     with io.open(transform.prql) as file:
+    #         prql = file.read()
+    #     prqlo = prqlc.CompileOptions(target="sql.duckdb")
+    #     dsql = prqlc.compile(prql, options=prqlo)
+    #     df = duckdb.sql(dsql).df()
+    # if transform and transform.pivot:
+    #     df = df.pivot(
+    #         columns=transform.pivot.columns,
+    #         values=transform.pivot.values,
+    #         index=transform.pivot.index,
+    #     )
+    #     df.columns.name = None
+    #     df.index.name = None
+    # if transform and transform.astype:
+    #     df = df.astype(transform.astype.dtype)
+    # if hasattr(frame, "dtype") and frame.dtype:
+    #     for k, v in frame.dtype.items():
+    #         if v == "date" and not isinstance(type(df[k]), np.dtypes.DateTime64DType):
+    #             df[k] = pd.to_datetime(df[k])
+    return df
 
 
 def data_frames_consistent(
@@ -475,7 +520,7 @@ def pull_frame(
     frame: Union[ec.Source, ec.Target],
     nrows: Optional[int] = None,
     add_cols: dict = {},
-    transform: Optional[Union[ec.Transform, list[ec.Transform]]] = None,
+    # transform: Optional[Union[ec.Transform, list[ec.Transform]]] = None,
 ) -> pd.DataFrame:
     # logging.info(f"pulling frame {frame.file_path_dynamic}")
     if frame.type_is_db:
@@ -589,46 +634,12 @@ def pull_frame(
         df = df_dict_io.get_child(frame.table).df
     else:
         raise Exception("unable to pull df")
-    if isinstance(df.columns, pd.MultiIndex):
-        if transform and transform.stack:
-            df = stack_columns(df, transform.stack)
-        else:
-            df = multiindex_to_singleindex(df)
-    if isinstance(frame, ec.Source) and frame.filter:
-        df = df.query(frame.filter)
-    if transform and transform.melt:
-        df = pd.melt(
-            df,
-            id_vars=transform.melt.id_vars,
-            value_vars=transform.melt.value_vars,
-            value_name=transform.melt.value_name,
-            var_name=transform.melt.var_name,
-        )
-    if transform and transform.prql:
-        with io.open(transform.prql) as file:
-            prql = file.read()
-        prqlo = prqlc.CompileOptions(target="sql.duckdb")
-        dsql = prqlc.compile(prql, options=prqlo)
-        df = duckdb.sql(dsql).df()
-    if transform and transform.pivot:
-        df = df.pivot(
-            columns=transform.pivot.columns,
-            values=transform.pivot.values,
-            index=transform.pivot.index,
-        )
-        df.columns.name = None
-        df.index.name = None
-    if transform and transform.astype:
-        df = df.astype(transform.astype.dtype)
-    if hasattr(frame, "dtype") and frame.dtype:
-        for k, v in frame.dtype.items():
-            if v == "date" and not isinstance(type(df[k]), np.dtypes.DateTime64DType):
-                df[k] = pd.to_datetime(df[k])
+
     return pd.DataFrame(df)
 
 
-def stack_columns(df, stack: ec.Stack):
-    # Define the primary column headers based on the first four columns
+def stack_columns(df, stack: ec.StackDynamic):
+    # Define the primary column headers based on the first columns
     primary_headers = list(df.columns[: stack.fixed_columns])
 
     # Extract the top-level column names from the primary headers
@@ -667,7 +678,7 @@ def get_configs(config):
     target = config.target
     source = config.source
     add_cols = config.add_cols.model_dump()
-    transform = config.transform
+    transform = config.transform2
 
     return target, source, add_cols, transform
 
@@ -692,7 +703,9 @@ def ingest(config: ec.Config) -> bool:
         or consistent
         or target.consistency == ec.TargetConsistencyValue.IGNORE.value
     ):
-        source_df = pull_frame(source, config.nrows, add_cols, transform)
+        # source_df = pull_frame(source, config.nrows, add_cols, transform)
+        source_df = pull_frame(source, config.nrows, add_cols)
+        source_df = apply_transforms(source_df, transform, source)
         source_df = add_columns(source_df, add_cols)
         return push_frame(source_df, target, add_cols)
     else:
@@ -705,7 +718,9 @@ def build(config: ec.Config) -> bool:
         action = target.build_action
         if action in ("create_replace", "create_replace_file"):
             # TODO, use caching to avoid pulling the same data twice
-            df = pull_frame(source, 100, add_cols, transform)
+            df = pull_frame(source, 100, add_cols)
+            # df = pull_frame(source, 100, add_cols, transform)
+            df = apply_transforms(df, transform, source)
             df = add_columns(df, add_cols)
             res = build_target(df, target, add_cols)
         elif action == "truncate":

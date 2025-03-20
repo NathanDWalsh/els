@@ -45,7 +45,7 @@ def get_sheet_row(xl_io, sheet_name: str, row_index: int) -> list:
 class ExcelSheetIO(epd.DataFrameIO):
     def __init__(
         self,
-        parent,
+        # parent,
         name,
         mode="r",
         df=pd.DataFrame(),
@@ -54,7 +54,8 @@ class ExcelSheetIO(epd.DataFrameIO):
         to_excel={},
         truncate=False,
     ):
-        super().__init__(df, parent, name, mode)
+        # super().__init__(df, parent, name, mode)
+        super().__init__(df, name, mode)
         self._startrow = startrow
         self.read_excel = read_excel
         self.to_excel = to_excel
@@ -99,31 +100,27 @@ class ExcelSheetIO(epd.DataFrameIO):
 
 class ExcelIO(epd.DataFrameContainerMixinIO):
     def __init__(self, url, replace=False):
+        self.child_class = ExcelSheetIO
+
         self.url = url
         self.replace = replace
 
         # load file and sheets
         self.file_io = el.fetch_file_io(self.url, replace=self.replace)
-        self.sheet_ios = self.get_sheet_ios()
+        self.children = [] if self.mode == "w" else self._children_init()
 
-    def get_sheet_ios(self) -> dict:
-        if self.create_or_replace:
-            return []
-        else:
-            self.file_io.seek(0)
-            with CalamineWorkbook.from_filelike(self.file_io) as workbook:
-                res = [
-                    ExcelSheetIO(
-                        startrow=workbook.get_sheet_by_name(sheet.name).total_height
-                        + 1,
-                        name=sheet.name,
-                        parent=self,
-                    )
-                    for sheet in workbook.sheets_metadata
-                    if (sheet.visible in [SheetVisibleEnum.Visible])
-                    and (sheet.typ == SheetTypeEnum.WorkSheet)
-                ]
-                return res
+    def _children_init(self):
+        self.file_io.seek(0)
+        with CalamineWorkbook.from_filelike(self.file_io) as workbook:
+            return [
+                ExcelSheetIO(
+                    startrow=workbook.get_sheet_by_name(sheet.name).total_height + 1,
+                    name=sheet.name,
+                )
+                for sheet in workbook.sheets_metadata
+                if (sheet.visible in [SheetVisibleEnum.Visible])
+                and (sheet.typ == SheetTypeEnum.WorkSheet)
+            ]
 
     @cached_property
     def create_or_replace(self):
@@ -199,11 +196,6 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
             self.file_io.seek(0)
             write_file.write(self.file_io.getbuffer())
 
-    def fetch_df_io(self, df_name, df) -> ExcelSheetIO:
-        if not self.has_child(df_name):
-            self.add_child(ExcelSheetIO(df=df, parent=self, name=df_name, mode="w"))
-        return self.get_child(df_name)
-
     def set_sheet_df(self, sheet_name, df, if_exists, kwargs):
         df_io = self.fetch_df_io(df_name=sheet_name, df=df)
         df_io.set_df(df_name=sheet_name, df=df, if_exists=if_exists)
@@ -216,10 +208,3 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
             df_io.close()
         self.file_io.close()
         del el.open_files[self.url]
-
-    @property
-    def sheet_names(self):
-        res = []
-        for ws_io in self.children:
-            res.append(ws_io.name)
-        return res

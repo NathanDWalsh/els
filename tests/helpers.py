@@ -1,5 +1,7 @@
 import pandas as pd
 
+import els.config as ec
+
 outbound = {}
 inbound = {}
 
@@ -80,14 +82,16 @@ def call_io_funcs(for_calling, **kwargs):
 
 
 def clear_runways():
-    inbound.clear()
-    outbound.clear()
+    global inbound
+    inbound = {}
+    global outbound
+    outbound = {}
 
 
 def single(for_calling, tmp_path=None):
     clear_runways()
     outbound["df"] = pd.DataFrame({"a": [1, 2, 3]})
-    expected = outbound
+    expected = outbound.copy()
 
     call_io_funcs(for_calling, **dict(tmp_path=tmp_path))
     assert_expected(expected)
@@ -97,7 +101,7 @@ def double_together(for_calling, tmp_path=None):
     clear_runways()
     outbound["dfa"] = pd.DataFrame({"a": [1, 2, 3]})
     outbound["dfb"] = pd.DataFrame({"b": [4, 5, 6]})
-    expected = outbound
+    expected = outbound.copy()
 
     call_io_funcs(for_calling, **dict(tmp_path=tmp_path))
     assert_expected(expected)
@@ -315,4 +319,85 @@ def replace(push, pull=None, tmp_path=None):
 
     if pull:
         pull(tmp_path)
+    assert_expected(expected)
+
+
+# TODO: split_on_column_implicit_table
+
+
+def split_on_column_explicit_table(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "split_col": ["t1", "t1", "t2", "t2"],
+            "a": [1, 2, 3, 4],
+            "b": [10, 20, 30, 40],
+        }
+    )
+    source = {"split_on_column": "split_col", "table": "dfo"}
+    # expected = outbound.copy()
+    global inbound
+    inbound = outbound
+
+    push(tmp_path, source=source)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["t1"] = pd.DataFrame(
+        {
+            "split_col": ["t1", "t1"],
+            "a": [1, 2],
+            "b": [10, 20],
+        }
+    )
+    expected["t2"] = pd.DataFrame(
+        {
+            "split_col": ["t2", "t2"],
+            "a": [3, 4],
+            "b": [30, 40],
+        }
+    )
+
+    assert_expected(expected)
+
+
+def split_on_column_explicit_table2(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "split_col": ["t1", "t1", "t2", "t2"],
+            "a": [1, 2, 3, 4],
+            "b": [10, 20, 30, 40],
+        }
+    )
+    transform = ec.SplitOnColumn(column_name="split_col")
+    # transform.
+    source = {"table": "dfo"}
+    # expected = outbound.copy()
+    global inbound
+    inbound = outbound
+
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["t1"] = pd.DataFrame(
+        {
+            "split_col": ["t1", "t1"],
+            "a": [1, 2],
+            "b": [10, 20],
+        }
+    )
+    expected["t2"] = pd.DataFrame(
+        {
+            "split_col": ["t2", "t2"],
+            "a": [3, 4],
+            "b": [30, 40],
+        }
+    )
+
     assert_expected(expected)

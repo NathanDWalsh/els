@@ -253,10 +253,26 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                         filter = f"{source.split_on_column} == {column_eq}"
                         st_path = ca_path / filter
                         st_path.parent = ca_path
-                        st_path._config = {
-                            "target": {"table": table_name},
-                            "source": {"filter": filter},
-                        }
+                        st_path._config = ec.Config(
+                            target=ec.Target(table=table_name),
+                            source=ec.Source(filter=filter),
+                            transform2=ec.FilterTransform(filter=filter),
+                        )
+                        # raise Exception(type(st_path._config.transform2))
+                        # st_path._config = {
+                        #     "target": {"table": table_name},
+                        #     "source": {"filter": filter},
+                        #     "transform2": ec.FilterTransform(filter=filter),
+                        # }
+                        # raise Exception(
+                        #     [
+                        #         id(self),
+                        #         id(st_path),
+                        #         id(st_path.parent),
+                        #         id(st_path.parent.parent),
+                        #         id(st_path.parent.parent.parent),
+                        #     ]
+                        # )
 
     @property
     def node_type(self) -> NodeType:
@@ -331,6 +347,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     @property
     def config(self) -> ec.Config:
         config_copied = self.config_raw()
+        # config_evaled = config_copied
         config_evaled = self.eval_dynamic_attributes(config_copied)
 
         if self.node_type == NodeType.DATA_TABLE:
@@ -471,7 +488,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
                 column2 = f" → {target_path}"
             elif node.is_leaf and (node.config.target.type == "dict"):
-                column2 = f" → memory['{node.config.target.table}']"
+                # column2 = f" → memory['{node.config.target.table}']"
+                column2 = f" → {node.config.target.url}#{node.config.target.table}"
 
             rows.append((column1, column2))
 
@@ -714,24 +732,27 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         # iterate all branches and leaves
         for node in PreOrderIter(self):
             # remove target from config
-            if type(node._config) is ec.Config:
-                if (node._config.target.url and force) or not node._config.target.url:
-                    node._config.target.df_dict = el.default_target
-            elif (
-                "target" in node._config
-                and "url" in node._config["target"]
-                and node._config["target"]["url"]
-                and force
-                or not (
-                    "target" in node._config
-                    and "url" in node._config["target"]
-                    and node._config["target"]["url"]
-                )
-            ):
-                el.fetch_df_dict_io(el.default_target)
-                if "target" not in node._config:
-                    node._config["target"] = {}
-                node._config["target"]["url"] = f"dict://{id(el.default_target)}"
+            if type(node._config) is not ec.Config:
+                node._config = ec.Config.model_validate(node._config)
+            # if type(node._config) is ec.Config:
+            if force or not node.config.target.url:
+                node._config.target.df_dict = el.default_target
+            # elif (
+            #     "target" in node._config
+            #     and "url" in node._config["target"]
+            #     and node._config["target"]["url"]
+            #     and force
+            #     or not (
+            #         "target" in node._config
+            #         and "url" in node._config["target"]
+            #         and node._config["target"]["url"]
+            #     )
+            # ):
+            #     el.fetch_df_dict_io(el.default_target)
+            #     if "target" not in node._config:
+            #         node._config["target"] = {}
+            #     print("setting here" + f"dict://{id(el.default_target)}")
+            #     node._config["target"]["url"] = f"dict://{id(el.default_target)}"
 
     def set_nrows(self, nrows: int):
         # iterate all branches and leaves
@@ -794,6 +815,12 @@ def plant_memory_tree(path, memory_config):
     ca_path = ConfigPath(path)
     ca_path._config = memory_config
     ca_path.grow_config_branches()
+    # raise Exception(
+    #     [
+    #         type(ca_path.children[0].children[0].children[0]._config.transform2),
+    #         type(ca_path.children[0].children[0].children[0].config.transform2),
+    #     ]
+    # )
     return ca_path
 
 
@@ -913,7 +940,7 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
         return get_table_names(source)
     elif source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
         xl_io = el.fetch_excel_io(source.url)
-        return xl_io.sheet_names
+        return xl_io.child_names
     elif source.type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
         # return root file name without path and suffix
         res = [Path(source.url).stem]

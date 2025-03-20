@@ -69,38 +69,54 @@ class ToExcel(BaseModel, extra="allow"):
     pass
 
 
-class Stack(BaseModel, extra="forbid"):
+class Transform2(BaseModel, extra="allow"):
+    pass
+
+
+class StackDynamic(Transform2):
     fixed_columns: int
     stack_header: int = 0
     stack_name: str = "stack_column"
 
 
-class Melt(BaseModel, extra="forbid"):
+class Melt(Transform2):
     id_vars: list[str]
     value_vars: Optional[list[str]] = None
     value_name: str = "value"
     var_name: str = "variable"
 
 
-class Pivot(BaseModel, extra="forbid"):
+class Pivot(Transform2):
     columns: Optional[Union[str, list[str]]] = None
     values: Optional[Union[str, list[str]]] = None
     index: Optional[Union[str, list[str]]] = None
 
 
-class AsType(BaseModel, extra="forbid"):
+class AsType(Transform2):
     dtype: dict[str, str]
 
 
-class AddColumns(BaseModel, extra="allow"):
+class AddColumns(Transform2, extra="allow"):
     additionalProperties: Optional[
         Union[DynamicPathValue, DynamicColumnValue, DynamicCellValue, str, int, float]  # type: ignore
     ] = None
 
 
+class PrqlTransform(Transform2):
+    prql: str
+
+
+class FilterTransform(Transform2):
+    filter: str
+
+
+class SplitOnColumn(BaseModel):
+    column_name: str
+
+
 class Transform(BaseModel):
     melt: Optional[Melt] = None
-    stack: Optional[Stack] = None
+    stack_dynamic: Optional[StackDynamic] = None
     pivot: Optional[Pivot] = None
     astype: Optional[AsType] = None
     prql: Optional[str] = None
@@ -252,8 +268,8 @@ class Frame(BaseModel):
 
     @df_dict.setter
     def df_dict(self, _dict):
-        el.fetch_df_dict_io(_dict)
         self.url = f"dict://{id(_dict)}"
+        el.fetch_df_dict_io(_dict)
 
     url: Optional[str] = None
     # type: Optional[str] = None
@@ -337,7 +353,7 @@ class Target(Frame):
         ):  # TODO: add other file types supported by Calamine
             # check if sheet exists
             xl_io = el.fetch_excel_io(self.url)
-            sheet_names = xl_io.sheet_names
+            sheet_names = xl_io.child_names
             res = self.sheet_name in sheet_names
         elif self.type == "dict":
             if (
@@ -431,7 +447,12 @@ class Config(BaseModel):
     source: Source = Source()
     target: Target = Target()
     add_cols: AddColumns = AddColumns()
-    transform: Optional[Union[Transform, list[Transform]]] = None
+    transform: Optional[Union[Transform]] = None
+    transform2: Optional[
+        Union[
+            FilterTransform, SplitOnColumn, list[Union[FilterTransform, SplitOnColumn]]
+        ]
+    ] = None
     children: Union[dict[str, Optional["Config"]], list[str], str, None] = None
 
     def schema_pop_children(s):

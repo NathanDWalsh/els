@@ -6,12 +6,13 @@ import els.core as el
 
 
 class DataFrameIO(NodeMixin):
-    def __init__(self, df, parent, name, mode="r"):
+    # def __init__(self, df, parent, name, mode="r"):
+    def __init__(self, df, name, mode="r"):
         self.df = df
         self.df_id = el.fetch_df_id(df)
         self.mode = mode
 
-        self.parent = parent
+        # self.parent = parent
         self.name = name
 
     @property
@@ -100,24 +101,34 @@ class DataFrameContainerMixinIO(NodeMixin):
     def create_or_replace(self):
         return self.replace
 
-    @cached_property
+    @property
     def mode(self):
-        if len(self.children) == 0:
-            return "r"
-        elif self.create_or_replace:
+        if self.create_or_replace:
             return "w"
+        elif len(self.children) == 0:
+            return "r"
         else:
             for c in self.children:
                 if c.mode in ("a", "w"):
                     return "a"
         return "r"
 
+    def fetch_df_io(self, df_name, df):
+        if not self.has_child(df_name):
+            self.add_child(self.child_class(df=df, name=df_name, mode="w"))
+        return self.get_child(df_name)
+
+    @property
+    def child_names(self):
+        return [child.name for child in self.children]
+
 
 class DataFrameDictIO(DataFrameContainerMixinIO):
     def __init__(self, df_dict, replace=False):
+        self.child_class = DataFrameIO
         self._df_dict = df_dict
         self.replace = replace
-        self.children = self._get_df_ios()
+        self.children = [] if self.mode == "w" else self._children_init()
 
     @property
     def df_dict(self):
@@ -129,23 +140,18 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
     def df_dict(self, v):
         self._df_dict = v
 
-    def _get_df_ios(self) -> dict:
-        if self.replace:
-            return []
-        else:
-            res = [
-                DataFrameIO(df=v, parent=self, name=k) for k, v in self._df_dict.items()
-            ]
-            return res
+    def _children_init(self) -> dict:
+        return [
+            DataFrameIO(
+                df=df,
+                name=name,
+            )
+            for name, df in self._df_dict.items()
+        ]
 
     def persist(self):
         for df_io in self.children:
             self.df_dict[df_io.name] = df_io.open_df
-
-    def fetch_df_io(self, df_name, df) -> DataFrameIO:
-        if not self.has_child(df_name):
-            self.add_child(DataFrameIO(df=df, parent=self, name=df_name, mode="w"))
-        return self.get_child(df_name)
 
     def set_df(self, df_name, df, if_exists):
         df_io = self.fetch_df_io(df_name, df)

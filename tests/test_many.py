@@ -43,7 +43,25 @@ def test_for_callings(tmp_path, test_name, test_args, func):
         th.truncate_single,
         th.truncate_double,
         th.replace,
+        th.split_on_column_explicit_table,
     ],
 )
 def test_for_push_pull(tmp_path, test_name, push, pull, func):
     func(push=push, pull=pull, tmp_path=tmp_path)
+
+
+# @pytest.mark.parametrize(
+#     "test_name,push,pull",
+#     [
+#         ("test_pandas", tp.push, None),
+#         # ("test_excel", tx.push, tx.pull),
+#     ],
+# )
+# @pytest.mark.parametrize(
+#     "func",
+#     [
+#         th.split_on_column_explicit_table2,
+#     ],
+# )
+# def test_for_push_pull2(tmp_path, test_name, push, pull, func):
+#     func(push=push, pull=pull, tmp_path=tmp_path)

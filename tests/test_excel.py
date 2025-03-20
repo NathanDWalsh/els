@@ -8,33 +8,35 @@ from els.config import Config, Source, Target
 from . import helpers as th
 
 
-def push(tmp_path, target=None):
+def push(tmp_path, target=None, source=None):
     os.chdir(tmp_path)
-    el_config_o = Config()
-    el_config_o.source.df_dict = th.outbound
+    config = Config()
 
-    el_config_o.target.url = f"{tmp_path.name}.xlsx"
+    if source:
+        config.source = Source.model_validate(source)
     if target:
-        el_config_o.target = Target.model_validate(
-            el_config_o.target.model_dump(exclude_none=True) | target
-        )
+        config.target = Target.model_validate(target)
 
-    tree(el_config_o)
-    execute(el_config_o)
+    config.source.df_dict = th.outbound
+
+    config.target.url = f"{tmp_path.name}.xlsx"
+
+    tree(config)
+    execute(config)
 
 
 def pull(tmp_path, source=None):
     th.inbound.clear()
-    el_config_i = Config()
-    el_config_i.source.url = f"{tmp_path.name}.xlsx"
-    el_config_i.target.df_dict = th.inbound
+    config = Config()
+    config.source.url = f"{tmp_path.name}.xlsx"
+    config.target.df_dict = th.inbound
     if source:
-        el_config_i.source = Source.model_validate(
-            el_config_i.source.model_dump(exclude_none=True) | source
+        config.source = Source.model_validate(
+            config.source.model_dump(exclude_none=True) | source
         )
 
-    tree(el_config_i)
-    execute(el_config_i)
+    tree(config)
+    execute(config)
 
 
 def test_skiprows(tmp_path):

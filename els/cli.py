@@ -89,11 +89,15 @@ class TaskFlow:
         else:
             ca_path = get_ca_path("./__dynamic__.els.yml")
             tree = plant_memory_tree(ca_path, self.config_like)
+        # raise Exception(
+        #     type(tree.children[0].children[0].children[0].config.transform2)
+        # )
 
         if self.force_pandas_target:
             tree.set_pandas_target(force=True)
         else:
             tree.set_pandas_target(force=False)
+
         if self.nrows:
             tree.set_nrows(self.nrows)
         if tree:
