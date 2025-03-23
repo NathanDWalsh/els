@@ -4,7 +4,7 @@ import re
 from copy import deepcopy
 from enum import Enum
 from functools import cached_property
-from typing import Optional, Union
+from typing import NewType, Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pyodbc
@@ -473,37 +473,27 @@ class Source(Frame, extra="forbid"):
     extract_pages_pdf: Optional[ExtractPagesPdf] = None
 
 
+TransformType = NewType(
+    "TransformType",
+    Union[
+        SplitOnColumn,
+        FilterTransform,
+        PrqlTransform,
+        Pivot,
+        AsType,
+        Melt,
+        StackDynamic,
+        AddColumns,
+    ],
+)
+
+
 class Config(BaseModel):
-    # KEEP config_path AROUND JUST IN CASE, used when priting yamls for debugging
+    # KEEP config_path AROUND JUST IN CASE, can be used when priting yamls for debugging
     config_path: Optional[str] = None
     source: Source = Source()
     target: Target = Target()
-    # BEWARE, AddColumns must be first in the list
-    # Otherwise AddColumns object can be improperly set
-    transform: Optional[
-        Union[
-            AddColumns,
-            SplitOnColumn,
-            PrqlTransform,
-            FilterTransform,
-            Pivot,
-            AsType,
-            Melt,
-            StackDynamic,
-            list[
-                Union[
-                    AddColumns,
-                    SplitOnColumn,
-                    PrqlTransform,
-                    FilterTransform,
-                    Pivot,
-                    AsType,
-                    Melt,
-                    StackDynamic,
-                ]
-            ],
-        ]
-    ] = None
+    transform: Optional[Union[TransformType, list[TransformType]]] = None  # type: ignore
     children: Union[dict[str, Optional["Config"]], list[str], str, None] = None
 
     @property

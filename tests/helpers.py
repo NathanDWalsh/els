@@ -550,6 +550,57 @@ def prql_then_split_then_pivot(push, pull=None, tmp_path=None):
     assert_expected(expected)
 
 
+def prql_col_then_split_then_pivot(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "split_col": ["t1", "t1", "t2", "t2", "t3", "t3"],
+            "a": [1, 2, 1, 2, 1, 2],
+            "b": [10, 20, 30, 40, 50, 60],
+        }
+    )
+
+    transform = [
+        ec.PrqlTransform(
+            prql="""
+            from df
+            filter b < 50
+            derive {new_split = f"{split_col}_2"}
+            """
+        ),
+        ec.SplitOnColumn(
+            column_name="new_split",
+        ),
+        ec.Pivot(
+            columns="split_col",
+            values="b",
+            index="a",
+        ),
+    ]
+    source = ec.Source(table="dfo")
+
+    print(transform)
+
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["t1_2"] = pd.DataFrame(
+        {
+            "t1": [10, 20],
+        }
+    )
+    expected["t2_2"] = pd.DataFrame(
+        {
+            "t2": [30, 40],
+        }
+    )
+
+    assert_expected(expected)
+
+
 def astype(push, pull=None, tmp_path=None):
     clear_runways()
     outbound["dfo"] = pd.DataFrame(

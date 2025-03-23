@@ -362,24 +362,24 @@ test_classes = {
 
 
 for testset in (
-    # (TestCSV, get_1r1c_tests_csv, "csv", None),
+    (TestCSV, get_1r1c_tests_csv, "csv", None),
     (TestExcel, get_1r1c_tests_excel, "xlsx", None),
-    # (TestMSSQL, get_1r1c_tests_sql, "mssql", None),
-    # (TestMSSQL_TDS, get_1r1c_tests_sql, "mssql+pymssql", None),
-    # (
-    #     TestMSSQL_ODBC17,
-    #     get_1r1c_tests_sql,
-    #     "mssql+pyodbc",
-    #     "driver=odbc driver 17 for sql server",
-    # ),
-    # (
-    #     TestMSSQL_ODBC18,
-    #     get_1r1c_tests_sql,
-    #     "mssql+pyodbc",
-    #     "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
-    # ),
-    # (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
-    # (TestDuckDb, get_1r1c_tests_sql, "duckdb", None),
+    (TestMSSQL, get_1r1c_tests_sql, "mssql", None),
+    (TestMSSQL_TDS, get_1r1c_tests_sql, "mssql+pymssql", None),
+    (
+        TestMSSQL_ODBC17,
+        get_1r1c_tests_sql,
+        "mssql+pyodbc",
+        "driver=odbc driver 17 for sql server",
+    ),
+    (
+        TestMSSQL_ODBC18,
+        get_1r1c_tests_sql,
+        "mssql+pyodbc",
+        "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
+    ),
+    (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
+    (TestDuckDb, get_1r1c_tests_sql, "duckdb", None),
 ):
     for class_name, get_frames_func in test_classes.items():
         setattr(

@@ -40,19 +40,20 @@ def test_for_callings(tmp_path, test_name, test_args, func):
 @pytest.mark.parametrize(
     "func",
     [
-        th.truncate_single,
-        th.truncate_double,
-        th.replace,
         th.split_on_column_explicit_table,
+        th.filter,
         th.prql,
         th.prql_then_split,
-        th.filter,
+        th.add_columns,
         th.pivot,
         th.prql_then_split_then_pivot,
+        th.prql_col_then_split_then_pivot,
         th.astype,
         th.melt,
         th.stack_dynamic,
-        th.add_columns,
+        th.truncate_single,
+        th.truncate_double,
+        th.replace,
     ],
 )
 def test_for_push_pull(tmp_path, test_name, push, pull, func):
