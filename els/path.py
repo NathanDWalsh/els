@@ -99,7 +99,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         walk_dir: Optional[bool] = False,
     ):
         if self.is_dir():
-            self._config = self.dir_config
+            self.config_local = self.dir_config
 
             if walk_dir:
                 self.grow_dir_branches()
@@ -108,11 +108,14 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                     self.parent = None
 
         elif self.is_config_file:
-            self._config = {"source": {"url": self.adjacent_file_path}}
+            self.config_local = ec.Config(source=ec.Source(url=self.adjacent_file_path))
             self.grow_config_branches()
-
         else:
             raise Exception("Unknown node cannot be configured.")
+
+    @property
+    def children(self) -> tuple["ConfigPath"]:
+        return super().children
 
     def grow_dir_branches(self):
         for subpath in self.glob("*"):
@@ -155,124 +158,122 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 configs.append(ymls[0])
             # if both root and dir config found, merge
             if len(configs) > 0:
-                return ConfigPath.merge_configs(*configs)
+                return ec.merge_configs(*configs)
             else:
-                return {}
+                return ec.Config()
         else:
             raise Exception("dir_config called on a non-directory node.")
 
     @property
-    def paired_config(self):
+    def paired_config(self) -> list[ec.Config]:
         if self.node_type != NodeType.CONFIG_VIRTUAL:
             docs = get_yml_docs(self)
 
             # adjacent can have an explicit url if it matches adjacent
             # (TODO test all documents instead of just the first)
+            first_config = ec.Config.model_validate(docs[0])
             if (
                 self.node_type == NodeType.CONFIG_ADJACENT
-                and "source" in docs[0]
-                and "url" in docs[0]["source"]
-                and docs[0]["source"]["url"] != self.adjacent_file_path
+                and first_config.source.url
+                and first_config.source.url != self.adjacent_file_path
             ):
                 raise Exception(
-                    f"adjacent config {self} has url: {docs[0]['source']['url']} "
+                    f"adjacent config {self} has url: {first_config.source.url} "
                     "different than its adjacent data file: "
                     f"{self.adjacent_file_path}"
                 )
 
-            return docs
-        elif self._config:
-            return [self._config]
+            return [ec.Config.model_validate(c) for c in docs]
+        elif self.config_local:
+            return [self.config_local]
         else:  # NodeType.CONFIG_VIRTUAL has no explicit config
-            return [dict()]
+            return [ec.Config()]
+
+    def get_table_docs(
+        self, source: ec.Source, url_parent: "ConfigPath", config: ec.Config
+    ) -> dict[str, ec.Config]:
+        table_docs = dict()
+        if self.node_type in (
+            NodeType.CONFIG_ADJACENT,
+            NodeType.CONFIG_VIRTUAL,
+        ) or (source.type_is_db and not source.table):
+            leafs_names = get_content_leaf_names(url_parent.config.source)
+            if leafs_names:
+                for content_table in get_content_leaf_names(url_parent.config.source):
+                    if not source.table or source.table == content_table:
+                        config = config.merge_with(
+                            ec.Config(source=ec.Source(table=content_table)),
+                        )
+                        table_docs[content_table] = config
+            else:
+                raise Exception(
+                    f"No leafs found ({leafs_names}) in {url_parent.config.source}."
+                )
+        else:
+            # if no source table defined explicitly, assumes to be last element in url
+            # (after last / and (before first .))
+            # TODO: consider relocating to config
+            if not source.table:
+                source.table = source.url.split("/")[-1].split(".")[0]
+            table_docs[source.table] = config
+        return table_docs
+
+    def transform_splits(self, config: ec.Config, ca_path: "ConfigPath"):
+        if config.transforms_affect_target_count:
+            transforms = config.transforms_to_determine_target
+            remaining_transforms = config.transform_list[
+                len(transforms) - len(config.transform_list) :
+            ]
+
+            df = ee.pull_frame(config.source)
+            df_dict = None
+            if len(transforms) > 1:
+                df = ee.apply_transforms(df, transform=transforms[:-1])
+                df_dict = dict(transformed=df)
+            split_on_column = transforms[-1].column_name
+            sub_tables = list(df[split_on_column].drop_duplicates())
+            print(sub_tables)
+            for sub_table in sub_tables:
+                if isinstance(sub_table, str):
+                    column_eq = f"'{sub_table}'"
+                    table_name = sub_table
+                else:
+                    column_eq = sub_table
+                    table_name = f"{split_on_column}_{sub_table}"
+                filter = f"{split_on_column} == {column_eq}"
+                sub_table_path = ca_path / filter
+                sub_table_path.parent = ca_path
+                sub_table_path.config_local = ec.Config(
+                    target=ec.Target(table=table_name),
+                    transform=[ec.FilterTransform(filter=filter)]
+                    + remaining_transforms,
+                )
+                if df_dict:
+                    sub_table_path.config_local.source.table = "transformed"
+                    sub_table_path.config_local.source.df_dict = df_dict
 
     def grow_config_branches(self):
         previous_url = ""
-        # raise Exception(self.paired_config)
-        for doc in self.paired_config:
-            merged_doc = ConfigPath.merge_configs(self.config, doc)
+        for config in self.paired_config:
+            merged_doc = self.config.merge_with(config)
             source = merged_doc.source
 
             if source.url and source.url != previous_url:
                 previous_url = source.url
                 url_parent = ConfigPath(Path(previous_url))
                 url_parent.parent = self
-                url_parent._config = doc
+                url_parent.config_local = config
 
             if previous_url == "":
                 raise Exception("expected to have a url for child config doc")
 
-            table_docs = dict()
-            if self.node_type in (
-                NodeType.CONFIG_ADJACENT,
-                NodeType.CONFIG_VIRTUAL,
-            ) or (source.type_is_db and not source.table):
-                leafs_names = get_content_leaf_names(url_parent.config.source)
-                if leafs_names:
-                    for content_table in get_content_leaf_names(
-                        url_parent.config.source
-                    ):
-                        if not source.table or source.table == content_table:
-                            doc = ConfigPath.merge_configs(
-                                doc, {"source": {"table": content_table}}
-                            )
-                            table_docs[content_table] = doc
-                else:
-                    raise Exception(
-                        f"No leafs found ({leafs_names}) in {url_parent.config.source}."
-                    )
-            else:
-                # if no source table defined explicitly, assumes to be last element in url
-                # (after last / and (before first .))
-                # TODO: consider relocating to config
-                if not source.table:
-                    source.table = source.url.split("/")[-1].split(".")[0]
-                table_docs[source.table] = doc
+            table_docs = self.get_table_docs(source, url_parent, config)
 
-            for tab, doc in table_docs.items():
+            for tab, config in table_docs.items():
                 ca_path = ConfigPath(Path(previous_url) / tab)
                 ca_path.parent = url_parent
-                ca_path._config = doc
-                if (
-                    not isinstance(doc, dict)
-                    and doc.source
-                    and doc.source.split_on_column
-                ) or (
-                    isinstance(doc, dict)
-                    and "source" in doc
-                    and "split_on_column" in doc["source"]
-                ):
-                    sub_tables = get_distinct_column_values(source)
-                    for sub_table in sub_tables:
-                        if isinstance(sub_table, str):
-                            column_eq = f"'{sub_table}'"
-                            table_name = sub_table
-                        else:
-                            column_eq = sub_table
-                            table_name = f"{source.split_on_column}_{sub_table}"
-                        filter = f"{source.split_on_column} == {column_eq}"
-                        st_path = ca_path / filter
-                        st_path.parent = ca_path
-                        st_path._config = ec.Config(
-                            target=ec.Target(table=table_name),
-                            source=ec.Source(filter=filter),
-                            transform2=ec.FilterTransform(filter=filter),
-                        )
-                        # raise Exception(type(st_path._config.transform2))
-                        # st_path._config = {
-                        #     "target": {"table": table_name},
-                        #     "source": {"filter": filter},
-                        #     "transform2": ec.FilterTransform(filter=filter),
-                        # }
-                        # raise Exception(
-                        #     [
-                        #         id(self),
-                        #         id(st_path),
-                        #         id(st_path.parent),
-                        #         id(st_path.parent.parent),
-                        #         id(st_path.parent.parent.parent),
-                        #     ]
-                        # )
+                ca_path.config_local = config
+                self.transform_splits(config, ca_path)
 
     @property
     def node_type(self) -> NodeType:
@@ -294,18 +295,24 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             return NodeType.DATA_TABLE
 
     @property
-    # def get_leaf_tables(self) -> list[Self]:
-    def get_leaf_tables(self):
+    def leaves(self) -> tuple["ConfigPath"]:
+        return super().leaves
+
+    @property
+    def get_leaf_tables(self) -> list["ConfigPath"]:
         leaf_tables = []
         for leaf in self.leaves:
             if leaf.node_type == NodeType.DATA_TABLE:
                 leaf_tables.append(leaf)
-        # print(leaf_tables)
         return leaf_tables
 
     @property
     def has_leaf_table(self) -> bool:
-        return self.get_leaf_tables != []
+        return not self.get_leaf_tables
+
+    @property
+    def ancestors_to_self(self) -> tuple["ConfigPath"]:
+        return self.ancestors + (self,)
 
     @property
     def config_file_path(self) -> Optional[str]:
@@ -330,15 +337,16 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         # if root els config is mandatory, this "default dump line" is not required
         config_line.append(ec.Config().model_dump(exclude_none=True))
 
-        for node in self.ancestors + (self,):
-            if node._config:
-                if isinstance(node._config, ec.Config):
-                    config_line.append(node._config.model_dump(exclude_none=True))
+        for node in self.ancestors_to_self:
+            if node.config_local:
+                if isinstance(node.config_local, ec.Config):
+                    config_line.append(node.config_local.model_dump(exclude_none=True))
                 else:
-                    config_line.append(node._config)
+                    config_line.append(node.config_local)
 
-        config_merged = ConfigPath.merge_configs(*config_line)
+        config_merged = ec.merge_configs(*config_line)
         config_copied = config_merged.model_copy(deep=True)
+        # Used when printing/debugging yamlsw
         if add_config_file_path:
             config_copied.config_path = self.config_file_path
 
@@ -358,6 +366,10 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 config_evaled.target.table = self.name
 
         return config_evaled
+
+    @config.setter
+    def config(self, config):
+        self.config_local = config
 
     def get_path_props_find_replace(self) -> dict:
         res = {}
@@ -409,40 +421,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 dictionary[key] = find_replace_dict[value]
             # elif key == "url" and "*" in value:
             #     dictionary[key] = value.replace("*", find_replace_dict["_leaf_name"])
-
-    @staticmethod
-    def merge_configs(*configs: list[Union[ec.Config, dict]]) -> ec.Config:
-        dicts: list[dict] = []
-        for config in configs:
-            if isinstance(config, ec.Config):
-                dicts.append(config.model_dump(exclude={"children"}))
-            elif isinstance(config, dict):
-                # append all except children
-                config_to_append = config.copy()
-                if "children" in config_to_append:
-                    config_to_append.pop("children")
-                dicts.append(config_to_append)
-            else:
-                raise Exception("configs should be a list of Configs or dicts")
-        dict_result = ConfigPath.merge_dicts_by_top_level_keys(*dicts)
-        res = ec.Config(**dict_result)  # type: ignore
-        return res
-
-    @staticmethod
-    def merge_dicts_by_top_level_keys(*dicts: dict) -> dict:
-        merged_dict: dict = {}
-        for dict_ in dicts:
-            for key, value in dict_.items():
-                if (
-                    key in merged_dict
-                    and isinstance(value, dict)
-                    and (merged_dict[key] is not None)
-                ):
-                    merged_dict[key].update(value)
-                elif value is not None:
-                    # Add a new key-value pair to the merged dictionary
-                    merged_dict[key] = value
-        return merged_dict
 
     @property
     def is_root_dir(self):
@@ -527,29 +505,14 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         else:
             return self
 
-    # @property
-    def is_data_table(self) -> bool:
-        # """
-        # Check if the path points to a content inside a file.
-        # A naive check is to see if the parent exists as a file.
-        # """
-        # if self.is_root or not self.parent:
-        #     return False
-        # else:
-        #     return self.parent.is_file()
-        return self.node_type == NodeType.DATA_TABLE
-
     def is_config_file(self) -> bool:
         return str(self).endswith(CONFIG_FILE_EXT)
 
+    # TODO, dead code, consider ressurecting support for wildcards
     @property
     def subdir_patterns(self) -> list[str]:
         # TODO patterns may overlap
-        children = (
-            self._config["children"]
-            if self._config and "children" in self._config
-            else None
-        )
+        children = self.config_local.children
         if children is None or children == {}:
             res = ["*"]
         elif isinstance(children, str):
@@ -587,23 +550,20 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return False
 
     @property
-    # def abs(self) -> Self:
-    def abs(self):
+    def abs(self) -> "ConfigPath":
         return ConfigPath(self.absolute())
 
     @property  # fs = filesystem, can return a File or Dir but not content
-    # def fs(self) -> Optional[Self]:
-    def fs(self):
-        if self.is_data_table():
+    def fs(self) -> "ConfigPath":
+        if self.node_type == NodeType.DATA_TABLE:
             res = self.parent
         else:
             res = self
         return res
 
     @property
-    # def dir(self) -> Optional[Self]:
-    def dir(self):
-        if self.is_data_table() and self.parent:
+    def dir(self) -> "ConfigPath":
+        if self.node_type == NodeType.DATA_TABLE and self.parent:
             res = self.parent.dir
         elif self.is_file():
             if self.parent:
@@ -615,9 +575,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @property
-    # def file(self) -> Optional[Self]:
-    def file(self):
-        if self.is_data_table():
+    def file(self) -> "ConfigPath":
+        if self.node_type == NodeType.DATA_TABLE:
             res = self.parent
         elif self.is_file():
             res = self
@@ -699,10 +658,10 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     def get_els_yml_preview(self, diff: bool = True) -> list[dict]:
         ymls = []
         # for path, node in self.index.items():
-        for node in [node for node in PreOrderIter(self)]:
+        for node in [node for node in self.then_descendants]:
             if node.node_type != NodeType.CONFIG_VIRTUAL:
                 node_config = node.config_raw(True).model_dump(
-                    # TODO: excluding load_parallel for demo purposes
+                    # TODO: excluding load_parallel for demo
                     exclude_none=True,
                     exclude={"source": {"load_parallel"}},
                 )
@@ -720,7 +679,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                     save_yml_dict = dict_diff(parent_config, node_config)
                 else:
                     save_yml_dict = node_config
-                # if save_yml_dict and node.is_leaf:
                 if save_yml_dict:
                     ymls.append(save_yml_dict)
         return ymls
@@ -728,40 +686,22 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         # with save_path.open("w", encoding="utf-8") as file:
         #     yaml.safe_dump_all(ymls, file, sort_keys=False, allow_unicode=True)
 
+    @property
+    def then_descendants(self) -> tuple["ConfigPath"]:
+        return PreOrderIter(self)
+
     def set_pandas_target(self, force=False):
         # iterate all branches and leaves
-        for node in PreOrderIter(self):
+        for node in self.then_descendants:
             # remove target from config
-            if type(node._config) is not ec.Config:
-                node._config = ec.Config.model_validate(node._config)
-            # if type(node._config) is ec.Config:
+            if type(node.config_local) is not ec.Config:
+                node.config_local = ec.Config.model_validate(node.config_local)
             if force or not node.config.target.url:
-                node._config.target.df_dict = el.default_target
-            # elif (
-            #     "target" in node._config
-            #     and "url" in node._config["target"]
-            #     and node._config["target"]["url"]
-            #     and force
-            #     or not (
-            #         "target" in node._config
-            #         and "url" in node._config["target"]
-            #         and node._config["target"]["url"]
-            #     )
-            # ):
-            #     el.fetch_df_dict_io(el.default_target)
-            #     if "target" not in node._config:
-            #         node._config["target"] = {}
-            #     print("setting here" + f"dict://{id(el.default_target)}")
-            #     node._config["target"]["url"] = f"dict://{id(el.default_target)}"
+                node.config_local.target.df_dict = el.default_target
 
     def set_nrows(self, nrows: int):
-        # iterate all branches and leaves
-        for node in PreOrderIter(self):
-            # remove target from config
-            if type(node._config) is ec.Config:
-                node._config.source.nrows = nrows
-            elif "source" in node._config and "nrows" in node._config["source"]:
-                node._config["source"]["nrows"] = None
+        for node in self.then_descendants:
+            node.config_local.source.nrows = nrows
 
 
 def get_root_inheritance(start_dir: Path) -> Union[list[Path], None]:
@@ -813,14 +753,8 @@ def get_root_inheritance(start_dir: Path) -> Union[list[Path], None]:
 
 def plant_memory_tree(path, memory_config):
     ca_path = ConfigPath(path)
-    ca_path._config = memory_config
+    ca_path.config_local = memory_config
     ca_path.grow_config_branches()
-    # raise Exception(
-    #     [
-    #         type(ca_path.children[0].children[0].children[0]._config.transform2),
-    #         type(ca_path.children[0].children[0].children[0].config.transform2),
-    #     ]
-    # )
     return ca_path
 
 
@@ -847,10 +781,7 @@ def plant_tree(path: ConfigPath) -> Optional[ConfigPath]:
                 ca_path.configure_node()
                 parent = ca_path
             else:  # For the last item always process configs
-                # ca_path = ContentAwarePath(path_)
-                # ca_path.parent = parent
                 ca_path.configure_node(walk_dir=True)
-                # raise Exception(ca_path.children[0].children[0].children)
         else:
             raise Exception("Invalid file in explicit path: " + str(path_))
     logging.info("Tree Created")
@@ -935,7 +866,6 @@ def config_path_valid(path: ConfigPath) -> bool:
 
 
 def get_content_leaf_names(source: ec.Source) -> list[str]:
-    # raise Exception()
     if source.type_is_db:
         return get_table_names(source)
     elif source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
@@ -959,10 +889,3 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
             return list(source.df_dict)
     else:
         return [source.url]
-
-
-def get_distinct_column_values(source: ec.Source) -> list[str]:
-    # TODO this can be made more efficient, just taking the single column
-    # and made even more efficient using custom pullers per source type.
-    source_df = ee.pull_frame(source)
-    return list(source_df[source.split_on_column].drop_duplicates())

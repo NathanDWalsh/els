@@ -130,7 +130,6 @@ $defs:
     title: DynamicCellValue
     type: string
   DynamicColumnValue:
-    const: _row_index
     enum:
     - _row_index
     title: DynamicColumnValue
@@ -187,6 +186,16 @@ $defs:
         default: null
         title: Password
     title: ExtractPagesPdf
+    type: object
+  FilterTransform:
+    additionalProperties: false
+    properties:
+      filter:
+        title: Filter
+        type: string
+    required:
+    - filter
+    title: FilterTransform
     type: object
   LAParams:
     properties:
@@ -293,6 +302,16 @@ $defs:
         default: null
         title: Values
     title: Pivot
+    type: object
+  PrqlTransform:
+    additionalProperties: false
+    properties:
+      prql:
+        title: Prql
+        type: string
+    required:
+    - prql
+    title: PrqlTransform
     type: object
   ReadCsv:
     additionalProperties: true
@@ -428,7 +447,16 @@ $defs:
         title: Url
     title: Source
     type: object
-  Stack:
+  SplitOnColumn:
+    properties:
+      column_name:
+        title: Column Name
+        type: string
+    required:
+    - column_name
+    title: SplitOnColumn
+    type: object
+  StackDynamic:
     additionalProperties: false
     properties:
       fixed_columns:
@@ -444,14 +472,13 @@ $defs:
         type: string
     required:
     - fixed_columns
-    title: Stack
+    title: StackDynamic
     type: object
   Target:
     additionalProperties: false
     properties:
       consistency:
-        allOf:
-        - $ref: '#/$defs/TargetConsistencyValue'
+        $ref: '#/$defs/TargetConsistencyValue'
         default: strict
       dbschema:
         anyOf:
@@ -529,49 +556,8 @@ $defs:
         title: Chunksize
     title: ToSql
     type: object
-  Transform:
-    additionalProperties: false
-    oneOf:
-    - required:
-      - melt
-    - required:
-      - stack
-    properties:
-      astype:
-        anyOf:
-        - $ref: '#/$defs/AsType'
-        - type: 'null'
-        default: null
-      melt:
-        anyOf:
-        - $ref: '#/$defs/Melt'
-        - type: 'null'
-        default: null
-      pivot:
-        anyOf:
-        - $ref: '#/$defs/Pivot'
-        - type: 'null'
-        default: null
-      prql:
-        anyOf:
-        - type: string
-        - type: 'null'
-        default: null
-        title: Prql
-      stack:
-        anyOf:
-        - $ref: '#/$defs/Stack'
-        - type: 'null'
-        default: null
-    title: Transform
-    type: object
 additionalProperties: false
 properties:
-  add_cols:
-    allOf:
-    - $ref: '#/$defs/AddColumns'
-    default:
-      additionalProperties: null
   config_path:
     anyOf:
     - type: string
@@ -579,8 +565,7 @@ properties:
     default: null
     title: Config Path
   source:
-    allOf:
-    - $ref: '#/$defs/Source'
+    $ref: '#/$defs/Source'
     default:
       dbschema: null
       dtype: null
@@ -596,8 +581,7 @@ properties:
       table: null
       url: null
   target:
-    allOf:
-    - $ref: '#/$defs/Target'
+    $ref: '#/$defs/Target'
     default:
       consistency: strict
       dbschema: null
@@ -609,8 +593,27 @@ properties:
       url: null
   transform:
     anyOf:
-    - $ref: '#/$defs/Transform'
+    - $ref: '#/$defs/AddColumns'
+    - $ref: '#/$defs/SplitOnColumn'
+    - $ref: '#/$defs/PrqlTransform'
+    - $ref: '#/$defs/FilterTransform'
+    - $ref: '#/$defs/Pivot'
+    - $ref: '#/$defs/AsType'
+    - $ref: '#/$defs/Melt'
+    - $ref: '#/$defs/StackDynamic'
+    - items:
+        anyOf:
+        - $ref: '#/$defs/AddColumns'
+        - $ref: '#/$defs/SplitOnColumn'
+        - $ref: '#/$defs/PrqlTransform'
+        - $ref: '#/$defs/FilterTransform'
+        - $ref: '#/$defs/Pivot'
+        - $ref: '#/$defs/AsType'
+        - $ref: '#/$defs/Melt'
+        - $ref: '#/$defs/StackDynamic'
+      type: array
     - type: 'null'
     default: null
+    title: Transform
 title: Config
 type: object

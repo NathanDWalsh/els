@@ -4,12 +4,11 @@ import random
 
 import pandas as pd
 import pytest
+import yaml
 from faker import Faker
 
 from els.cli import execute
 from els.config import Config
-
-# import yaml
 
 _Test = collections.namedtuple("_Test", ["name", "df", "kwargs"])
 
@@ -268,15 +267,15 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
     if inbound_config.source.type_is_db:
         inbound_config.source.table = test_name
 
-    # test_els = "__.els.yml"
-    # yaml.dump(
-    #     df_config.model_dump(exclude_none=True),
-    #     open(test_els, "w"),
-    #     sort_keys=False,
-    #     allow_unicode=True,
-    # )
+    test_els = "__.els.yml"
+    yaml.dump(
+        inbound_config.model_dump(exclude_none=True),
+        open(test_els, "w"),
+        sort_keys=False,
+        allow_unicode=True,
+    )
 
-    execute(inbound_config)
+    execute(test_els)
 
     if test_type == "xlsx":
         df2 = inbound[kwargs["sheet_name"]]

@@ -47,7 +47,7 @@ def to_call_list(for_calling):
     return res
 
 
-def parse_func_and_kwargs(for_calling, global_kwargs):
+def parse_func_and_kwargs(for_calling, global_kwargs: dict):
     for_calling = to_call_list(for_calling)
 
     res = []
@@ -130,7 +130,7 @@ def append_together(for_calling, tmp_path=None):
     expected = {}
     expected["df"] = pd.DataFrame({"a": [1, 2, 3, 10, 20, 30]})
 
-    target = {"table": "df", "if_exists": "append"}
+    target = ec.Target(table="df", if_exists="append")
     call_io_funcs(for_calling, **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
@@ -145,7 +145,7 @@ def append_separate(for_calling, tmp_path=None):
     expected = {}
     expected["df"] = pd.DataFrame({"a": [1, 2, 3, 10, 20, 30]})
 
-    target = {"if_exists": "append"}
+    target = ec.Target(if_exists="append")
     call_io_funcs(for_calling, **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
@@ -172,7 +172,7 @@ def append_mixed(for_calling, tmp_path=None):
         }
     )
 
-    target = {"if_exists": "append", "table": "df"}
+    target = ec.Target(table="df", if_exists="append")
     call_io_funcs(for_calling, **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
@@ -200,7 +200,7 @@ def append_plus(for_calling, tmp_path=None):
         }
     )
 
-    target = {"if_exists": "append", "table": "df", "consistency": "ignore"}
+    target = ec.Target(table="df", if_exists="append", consistency="ignore")
     call_io_funcs(for_calling, **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
@@ -227,7 +227,7 @@ def append_minus(for_calling, tmp_path=None):
         }
     )
 
-    target = {"if_exists": "append", "table": "df", "consistency": "ignore"}
+    target = ec.Target(table="df", if_exists="append", consistency="ignore")
     call_io_funcs(for_calling, **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
@@ -257,7 +257,7 @@ def truncate_single(push, pull=None, tmp_path=None):
             "b": [30, 40],
         }
     )
-    target = {"if_exists": "truncate", "consistency": "ignore"}
+    target = ec.Target(if_exists="truncate", consistency="ignore")
     call_io_funcs([push, pull], **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
@@ -291,7 +291,7 @@ def truncate_double(push, pull=None, tmp_path=None):
             "b": [50, 60, 70, 80],
         }
     )
-    target = {"if_exists": "truncate", "table": "df", "consistency": "ignore"}
+    target = ec.Target(if_exists="truncate", consistency="ignore", table="df")
     call_io_funcs([push, pull], **dict(tmp_path=tmp_path, target=target))
     assert_expected(expected)
 
@@ -314,7 +314,7 @@ def replace(push, pull=None, tmp_path=None):
     expected["a"] = pd.DataFrame({"a": [1, 2, 3]})
     expected["b"] = pd.DataFrame({"bb": [44, 55, 66]})
 
-    target = {"if_exists": "replace"}
+    target = ec.Target(if_exists="replace")
     call_io_funcs([push], **dict(tmp_path=tmp_path, target=target))
 
     if pull:
@@ -334,47 +334,9 @@ def split_on_column_explicit_table(push, pull=None, tmp_path=None):
             "b": [10, 20, 30, 40],
         }
     )
-    source = {"split_on_column": "split_col", "table": "dfo"}
-    # expected = outbound.copy()
-    global inbound
-    inbound = outbound
-
-    push(tmp_path, source=source)
-
-    if pull:
-        pull(tmp_path)
-
-    expected = {}
-    expected["t1"] = pd.DataFrame(
-        {
-            "split_col": ["t1", "t1"],
-            "a": [1, 2],
-            "b": [10, 20],
-        }
-    )
-    expected["t2"] = pd.DataFrame(
-        {
-            "split_col": ["t2", "t2"],
-            "a": [3, 4],
-            "b": [30, 40],
-        }
-    )
-
-    assert_expected(expected)
-
-
-def split_on_column_explicit_table2(push, pull=None, tmp_path=None):
-    clear_runways()
-    outbound["dfo"] = pd.DataFrame(
-        {
-            "split_col": ["t1", "t1", "t2", "t2"],
-            "a": [1, 2, 3, 4],
-            "b": [10, 20, 30, 40],
-        }
-    )
     transform = ec.SplitOnColumn(column_name="split_col")
     # transform.
-    source = {"table": "dfo"}
+    source = ec.Source(table="dfo")
     # expected = outbound.copy()
     global inbound
     inbound = outbound
@@ -399,5 +361,316 @@ def split_on_column_explicit_table2(push, pull=None, tmp_path=None):
             "b": [30, 40],
         }
     )
+
+    assert_expected(expected)
+
+
+def prql_then_split(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "split_col": ["t1", "t1", "t2", "t2", "t3", "t3"],
+            "a": [1, 2, 3, 4, 5, 6],
+            "b": [10, 20, 30, 40, 50, 60],
+        }
+    )
+
+    transform = []
+    transform.append(
+        ec.PrqlTransform(
+            prql="""
+            from df
+            filter a < 5
+            """
+        )
+    )
+    transform.append(ec.SplitOnColumn(column_name="split_col"))
+    source = ec.Source(table="dfo")
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["t1"] = pd.DataFrame(
+        {
+            "split_col": ["t1", "t1"],
+            "a": [1, 2],
+            "b": [10, 20],
+        }
+    )
+    expected["t2"] = pd.DataFrame(
+        {
+            "split_col": ["t2", "t2"],
+            "a": [3, 4],
+            "b": [30, 40],
+        }
+    )
+
+    assert_expected(expected)
+
+
+def prql(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "a": [1, 2, 3, 4],
+            "b": [10, 20, 30, 40],
+        }
+    )
+
+    # TODO transform on push and pull, now only push
+    transform = ec.PrqlTransform(
+        prql="""
+            from df
+            filter a < 3
+            """
+    )
+    source = ec.Source(table="dfo")
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["dfo"] = pd.DataFrame(
+        {
+            "a": [1, 2],
+            "b": [10, 20],
+        }
+    )
+
+    assert_expected(expected)
+
+
+def filter(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "a": [1, 2, 3, 4],
+            "b": [10, 20, 30, 40],
+        }
+    )
+
+    # TODO transform on push and pull, now only push
+    transform = ec.FilterTransform(filter="a < 3")
+    source = ec.Source(table="dfo")
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["dfo"] = pd.DataFrame(
+        {
+            "a": [1, 2],
+            "b": [10, 20],
+        }
+    )
+
+    assert_expected(expected)
+
+
+def pivot(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "split_col": ["t1", "t1", "t2", "t2", "t3", "t3"],
+            "a": [1, 2, 1, 2, 1, 2],
+            "b": [10, 20, 30, 40, 50, 60],
+        }
+    )
+
+    transform = ec.Pivot(columns="split_col", values="b", index="a")
+    source = ec.Source(table="dfo")
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["dfo"] = pd.DataFrame(
+        {
+            "t1": [10, 20],
+            "t2": [30, 40],
+            "t3": [50, 60],
+        }
+    )
+
+    assert_expected(expected)
+
+
+def prql_then_split_then_pivot(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "split_col": ["t1", "t1", "t2", "t2", "t3", "t3"],
+            "a": [1, 2, 1, 2, 1, 2],
+            "b": [10, 20, 30, 40, 50, 60],
+        }
+    )
+
+    transform = [
+        ec.PrqlTransform(
+            prql="""
+            from df
+            filter b < 50
+            """
+        ),
+        ec.SplitOnColumn(
+            column_name="split_col",
+        ),
+        ec.Pivot(
+            columns="split_col",
+            values="b",
+            index="a",
+        ),
+    ]
+    source = ec.Source(table="dfo")
+
+    print(transform)
+
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["t1"] = pd.DataFrame(
+        {
+            "t1": [10, 20],
+        }
+    )
+    expected["t2"] = pd.DataFrame(
+        {
+            "t2": [30, 40],
+        }
+    )
+
+    assert_expected(expected)
+
+
+def astype(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "a": [1, 2],
+            "b": [10, 20],
+        }
+    )
+
+    source = ec.Source(table="dfo")
+    transform = ec.AsType(dtype=dict(a="float"))
+
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path, transform=transform)
+
+    expected = {}
+    expected["dfo"] = pd.DataFrame(
+        {
+            "a": [1.0, 2.0],
+            "b": [10, 20],
+        }
+    )
+
+    assert_expected(expected)
+
+
+def melt(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "A": ["a", "b", "c"],
+            "B": [1, 3, 5],
+            "C": [2, 4, 6],
+        }
+    )
+
+    source = ec.Source(table="dfo")
+    transform = ec.Melt(
+        id_vars=["A"],
+        value_vars=["B"],
+        var_name="col",
+        value_name="val",
+    )
+
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["dfo"] = pd.DataFrame(
+        {
+            "A": ["a", "b", "c"],
+            "col": ["B", "B", "B"],
+            "val": [1, 3, 5],
+        }
+    )
+
+    assert_expected(expected)
+
+
+def stack_dynamic(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        # columns=pd.MultiIndex.from_product([["A", "B"], ["c", "d", "e"]]),
+        columns=pd.MultiIndex.from_tuples(
+            [
+                ("Fixed1", None),
+                ("Fixed2", None),
+                ("Group A", "One"),
+                ("Group A", "Two"),
+                ("Group B", "One"),
+                ("Group B", "Two"),
+            ]
+        ),
+        data=[[1, 2, 3, 4, 5, 6]],
+    )
+
+    source = ec.Source(table="dfo")
+    transform = ec.StackDynamic(fixed_columns=2, stack_name="col")
+
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["dfo"] = pd.DataFrame(
+        {
+            "Fixed1": [1, 1],
+            "Fixed2": [2, 2],
+            "col": ["Group A", "Group B"],
+            "One": [3, 5],
+            "Two": [4, 6],
+        }
+    )
+
+    assert_expected(expected)
+
+
+def add_columns(push, pull=None, tmp_path=None):
+    clear_runways()
+    outbound["dfo"] = pd.DataFrame(
+        {
+            "a": [1, 2],
+            "b": [10, 20],
+        }
+    )
+
+    source = ec.Source(table="dfo")
+    transform = ec.AddColumns()
+    transform.test = 100
+
+    push(tmp_path, source=source, transform=transform)
+
+    if pull:
+        pull(tmp_path)
+
+    expected = {}
+    expected["dfo"] = pd.DataFrame({"a": [1, 2], "b": [10, 20], "test": [100, 100]})
 
     assert_expected(expected)

@@ -2,38 +2,45 @@ import os
 
 import pandas as pd
 
+import els.config as ec
 from els.cli import execute, tree
-from els.config import Config, Source, Target
 
 from . import helpers as th
 
 
-def push(tmp_path, target=None, source=None):
+def push(
+    tmp_path,
+    target=ec.Target(),
+    source=ec.Source(),
+    transform=None,
+):
     os.chdir(tmp_path)
-    config = Config()
+    config = ec.Config(target=target)
 
-    if source:
-        config.source = Source.model_validate(source)
-    if target:
-        config.target = Target.model_validate(target)
-
-    config.source.df_dict = th.outbound
+    config.source = source
+    config.target = ec.Target.model_validate(target)
+    config.transform = transform
 
     config.target.url = f"{tmp_path.name}.xlsx"
+    config.source.df_dict = th.outbound
 
     tree(config)
     execute(config)
 
 
-def pull(tmp_path, source=None):
+def pull(
+    tmp_path,
+    source=ec.Source(),
+    transform=None,
+):
     th.inbound.clear()
-    config = Config()
+    config = ec.Config()
+
+    config.source = ec.Source.model_validate(source)
+    config.transform = transform
+
     config.source.url = f"{tmp_path.name}.xlsx"
     config.target.df_dict = th.inbound
-    if source:
-        config.source = Source.model_validate(
-            config.source.model_dump(exclude_none=True) | source
-        )
 
     tree(config)
     execute(config)
@@ -42,8 +49,18 @@ def pull(tmp_path, source=None):
 def test_skiprows(tmp_path):
     th.single(
         [
-            (push, {"target": {"to_excel": {"startrow": 2}}}),
-            (pull, {"source": {"read_excel": {"skiprows": 2}}}),
+            (
+                push,
+                {
+                    "target": ec.Target(to_excel=ec.ToExcel(startrow=2)).model_dump(
+                        exclude_unset=True
+                    )
+                },
+            ),
+            (
+                pull,
+                {"source": ec.Source(read_excel=ec.ReadExcel(skiprows=2)).model_dump()},
+            ),
         ],
         tmp_path,
     )
@@ -67,7 +84,7 @@ def test_sheet_skipfooter(tmp_path):
     assert len(df1) == 6
     th.assert_dfs_equal(df0f, df1)
 
-    pull(tmp_path, {"read_excel": {"skipfooter": 3}})
+    pull(tmp_path, {"read_excel": ec.ReadExcel(skipfooter=3).model_dump()})
     df1 = th.inbound["df1"]
     th.assert_dfs_equal(df0, df1)
 
@@ -88,3 +105,19 @@ def test_replace_file(tmp_path):
     df0a = th.inbound["df1"]
     assert len(th.inbound) == 1
     th.assert_dfs_equal(df0b, df0a)
+
+
+def test_multiindex_column(tmp_path):
+    th.outbound.clear()
+    th.outbound["dfx"] = pd.DataFrame(
+        columns=pd.MultiIndex.from_product([["A", "B"], ["c", "d", "e"]]),
+        data=[[1, 2, 3, 4, 5, 6]],
+    )
+    push(tmp_path)
+    pull(tmp_path)
+    expected = {
+        "dfx": pd.DataFrame(
+            {"A_c": [1], "A_d": [2], "A_e": [3], "B_c": [4], "B_d": [5], "B_e": [6]}
+        )
+    }
+    th.assert_expected(expected)

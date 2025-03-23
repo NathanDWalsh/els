@@ -156,6 +156,9 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                         kwargs = to_excel.model_dump(exclude_none=True)
                     else:
                         kwargs = {}
+                    # TODO integrate better into write method?
+                    if isinstance(df.columns, pd.MultiIndex):
+                        df = epd.multiindex_to_singleindex(df)
                     df.to_excel(writer, index=False, sheet_name=df_io.name, **kwargs)
                 for sheet in writer.sheets.values():
                     sheet.autofit(500)
@@ -183,6 +186,9 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                                 kwargs = to_excel.model_dump(exclude_none=True)
                             else:
                                 kwargs = {}
+                            # TODO integrate better into write method?
+                            if isinstance(df.columns, pd.MultiIndex):
+                                df = epd.multiindex_to_singleindex(df)
                             df.to_excel(
                                 writer,
                                 index=False,

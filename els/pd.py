@@ -5,6 +5,11 @@ from anytree import NodeMixin
 import els.core as el
 
 
+def multiindex_to_singleindex(df, separator="_"):
+    df.columns = [separator.join(map(str, col)).strip() for col in df.columns.values]
+    return df
+
+
 class DataFrameIO(NodeMixin):
     # def __init__(self, df, parent, name, mode="r"):
     def __init__(self, df, name, mode="r"):
@@ -86,11 +91,18 @@ class DataFrameContainerMixinIO(NodeMixin):
                     return True
         return False
 
+    @property
+    def childrens(self) -> tuple[DataFrameIO]:
+        return super().children
+
+    def persist():
+        raise Exception("persist must be set in derived classes")
+
     def write(self):
         if self.mode != "r":
             if self.any_empty_frames:
                 raise Exception("Cannot write empty dataframe")
-            for df_io in self.children:
+            for df_io in self.childrens:
                 df_io.write()
             self.persist()
 

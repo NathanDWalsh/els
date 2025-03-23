@@ -16,6 +16,7 @@ import els.core as el
 from els.config import Config, TargetIfExistsValue
 from els.path import (
     CONFIG_FILE_EXT,
+    ConfigPath,
     NodeType,
     get_root_config_name,
     get_root_inheritance,
@@ -89,9 +90,6 @@ class TaskFlow:
         else:
             ca_path = get_ca_path("./__dynamic__.els.yml")
             tree = plant_memory_tree(ca_path, self.config_like)
-        # raise Exception(
-        #     type(tree.children[0].children[0].children[0].config.transform2)
-        # )
 
         if self.force_pandas_target:
             tree.set_pandas_target(force=True)
@@ -108,12 +106,12 @@ class TaskFlow:
 
 
 # remove node and assign children grandparent
-def remove_node_and_adopt_orphans(node):
+def remove_node_and_adopt_orphans(node: ConfigPath):
     parent = node.parent
     if parent is not None:
         for child in node.children:
             # retain existing config chain
-            child._config = child.config
+            child.config_local = child.config
             child.parent = parent
         node.parent = None  # Detach the node from the tree
 

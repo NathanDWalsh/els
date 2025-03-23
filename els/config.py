@@ -69,65 +69,56 @@ class ToExcel(BaseModel, extra="allow"):
     pass
 
 
-class Transform2(BaseModel, extra="allow"):
+class Transform(BaseModel, extra="forbid"):
+    # THIS MAY BE USEFUL FOR CONTROLLING YAML INPUTS?
+    # THE CODE BELOW WAS USED WHEN TRANSFORM CLASS HAD PROPERTIES INSTEAD OF A LIST
+    # IT ONLY ALLOED EITHER MELT OR STACK TO BE SET (NOT BOTH)
+    # model_config = ConfigDict(
+    #     extra="forbid",
+    #     json_schema_extra={"oneOf": [{"required": ["melt"]}, {"required": ["stack"]}]},
+    # )
     pass
 
 
-class StackDynamic(Transform2):
+class StackDynamic(Transform):
     fixed_columns: int
     stack_header: int = 0
     stack_name: str = "stack_column"
 
 
-class Melt(Transform2):
+class Melt(Transform):
     id_vars: list[str]
     value_vars: Optional[list[str]] = None
     value_name: str = "value"
     var_name: str = "variable"
 
 
-class Pivot(Transform2):
+class Pivot(Transform):
     columns: Optional[Union[str, list[str]]] = None
     values: Optional[Union[str, list[str]]] = None
     index: Optional[Union[str, list[str]]] = None
 
 
-class AsType(Transform2):
+class AsType(Transform):
     dtype: dict[str, str]
 
 
-class AddColumns(Transform2, extra="allow"):
+class AddColumns(Transform, extra="allow"):
     additionalProperties: Optional[
         Union[DynamicPathValue, DynamicColumnValue, DynamicCellValue, str, int, float]  # type: ignore
     ] = None
 
 
-class PrqlTransform(Transform2):
+class PrqlTransform(Transform):
     prql: str
 
 
-class FilterTransform(Transform2):
+class FilterTransform(Transform):
     filter: str
 
 
 class SplitOnColumn(BaseModel):
     column_name: str
-
-
-class Transform(BaseModel):
-    melt: Optional[Melt] = None
-    stack_dynamic: Optional[StackDynamic] = None
-    pivot: Optional[Pivot] = None
-    astype: Optional[AsType] = None
-    prql: Optional[str] = None
-    add_columns: Optional[AddColumns] = None
-    filter: Optional[str] = None
-    split_on_column: Optional[str] = None
-
-    model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={"oneOf": [{"required": ["melt"]}, {"required": ["stack"]}]},
-    )
 
 
 supported_mssql_odbc_drivers = {
@@ -156,6 +147,46 @@ def lcase_dict_keys(_dict):
 def lcase_query_keys(query):
     query_parsed = parse_qs(query)
     return lcase_dict_keys(query_parsed)
+
+
+def merge_configs(*configs: list[Union["Config", dict]]) -> "Config":
+    dicts: list[dict] = []
+    for config in configs:
+        if isinstance(config, Config):
+            dicts.append(
+                config.model_dump(
+                    exclude={"children"},
+                    exclude_unset=True,
+                )
+            )
+        elif isinstance(config, dict):
+            # append all except children
+            config_to_append = config.copy()
+            if "children" in config_to_append:
+                config_to_append.pop("children")
+            dicts.append(config_to_append)
+        else:
+            raise Exception("configs should be a list of Configs or dicts")
+    dict_result = merge_dicts_by_top_level_keys(*dicts)
+    res = Config.model_validate(dict_result)  # type: ignore
+    return res
+
+
+def merge_dicts_by_top_level_keys(*dicts: dict) -> dict:
+    merged_dict: dict = {}
+    for dict_ in dicts:
+        for key, value in dict_.items():
+            if (
+                key in merged_dict
+                and isinstance(value, dict)
+                and (merged_dict[key] is not None)
+                and not isinstance(merged_dict[key], list)
+            ):
+                merged_dict[key].update(value)
+            elif value is not None:
+                # Add a new key-value pair to the merged dictionary
+                merged_dict[key] = value
+    return merged_dict
 
 
 class Frame(BaseModel):
@@ -443,17 +474,65 @@ class Source(Frame, extra="forbid"):
 
 
 class Config(BaseModel):
+    # KEEP config_path AROUND JUST IN CASE, used when priting yamls for debugging
     config_path: Optional[str] = None
     source: Source = Source()
     target: Target = Target()
-    add_cols: AddColumns = AddColumns()
-    transform: Optional[Union[Transform]] = None
-    transform2: Optional[
+    # BEWARE, AddColumns must be first in the list
+    # Otherwise AddColumns object can be improperly set
+    transform: Optional[
         Union[
-            FilterTransform, SplitOnColumn, list[Union[FilterTransform, SplitOnColumn]]
+            AddColumns,
+            SplitOnColumn,
+            PrqlTransform,
+            FilterTransform,
+            Pivot,
+            AsType,
+            Melt,
+            StackDynamic,
+            list[
+                Union[
+                    AddColumns,
+                    SplitOnColumn,
+                    PrqlTransform,
+                    FilterTransform,
+                    Pivot,
+                    AsType,
+                    Melt,
+                    StackDynamic,
+                ]
+            ],
         ]
     ] = None
     children: Union[dict[str, Optional["Config"]], list[str], str, None] = None
+
+    @property
+    def transform_list(self) -> list[Transform]:
+        if isinstance(self.transform, list):
+            return self.transform
+        else:
+            return [self.transform]
+
+    @property
+    def transforms_affect_target_count(self) -> bool:
+        split_transform_count = 0
+        for t in self.transform_list:
+            if isinstance(t, SplitOnColumn):
+                split_transform_count += 1
+        if split_transform_count > 1:
+            raise Exception("More then one split per source table not supported")
+        elif split_transform_count == 1:
+            return True
+        else:
+            return False
+
+    @property
+    def transforms_to_determine_target(self) -> list[Transform]:
+        res = []
+        for t in reversed(self.transform_list):
+            if isinstance(t, SplitOnColumn) or res:
+                res.append(t)
+        return list(reversed(res))
 
     def schema_pop_children(s):
         s["properties"].pop("children")
@@ -479,6 +558,13 @@ class Config(BaseModel):
         else:
             res = None
         return res
+
+    def merge_with(self, config: "Config", in_place=False):
+        merged = merge_configs(self, config)
+        if in_place:
+            self = merged
+            return self
+        return merged
 
 
 def main():

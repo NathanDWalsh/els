@@ -44,6 +44,15 @@ def test_for_callings(tmp_path, test_name, test_args, func):
         th.truncate_double,
         th.replace,
         th.split_on_column_explicit_table,
+        th.prql,
+        th.prql_then_split,
+        th.filter,
+        th.pivot,
+        th.prql_then_split_then_pivot,
+        th.astype,
+        th.melt,
+        th.stack_dynamic,
+        th.add_columns,
     ],
 )
 def test_for_push_pull(tmp_path, test_name, push, pull, func):
@@ -54,13 +63,12 @@ def test_for_push_pull(tmp_path, test_name, push, pull, func):
 #     "test_name,push,pull",
 #     [
 #         ("test_pandas", tp.push, None),
-#         # ("test_excel", tx.push, tx.pull),
+#         ("test_excel", tx.push, tx.pull),
 #     ],
 # )
 # @pytest.mark.parametrize(
 #     "func",
 #     [
-#         th.split_on_column_explicit_table2,
 #     ],
 # )
 # def test_for_push_pull2(tmp_path, test_name, push, pull, func):

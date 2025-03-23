@@ -1,19 +1,22 @@
 import csv
+import io
 import logging
 import os
 from typing import Optional, Union
 
+import duckdb
+import numpy as np
 import pandas as pd
+import prqlc
 import sqlalchemy as sa
 from pdfminer.high_level import LAParams, extract_pages
 from pdfminer.layout import LTChar, LTTextBox
 
 import els.config as ec
 import els.core as el
-import els.xl as xl
 
 
-def push_frame(df: pd.DataFrame, target: ec.Target, add_cols: dict) -> bool:
+def push_frame(df: pd.DataFrame, target: ec.Target) -> bool:
     res = False
     if df is not None:
         if not target or not target.type:
@@ -117,7 +120,7 @@ def pull_sql(frame: ec.Frame, nrows=None, **kwargs) -> pd.DataFrame:
     return df
 
 
-def build_sql(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
+def build_sql(df: pd.DataFrame, target: ec.Frame, id_field: str = None) -> bool:
     if not target.db_connection_string:
         raise Exception("invalid db_connection_string")
     if not target.sqn:
@@ -134,18 +137,16 @@ def build_sql(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
         # Delete the temporary row from the table
         sqeng.execute(sa.text(f"DELETE FROM {target.sqn}"))
 
-        if add_cols:
-            for col_name, col_val in add_cols.items():
-                if col_val == ec.DynamicColumnValue.ROW_INDEX.value:
-                    # Add an identity column to the table
-                    sqeng.execute(
-                        sa.text(
-                            (
-                                f"ALTER TABLE {target.sqn} ADD {col_name}"
-                                " int identity(1,1) PRIMARY KEY "
-                            )
-                        )
+        # TODO: TEST
+        if id_field:
+            sqeng.execute(
+                sa.text(
+                    (
+                        f"ALTER TABLE {target.sqn} ADD {id_field}"
+                        " int identity(1,1) PRIMARY KEY "
                     )
+                )
+            )
 
         sqeng.connection.commit()
     return True
@@ -161,9 +162,9 @@ def build_csv(df: pd.DataFrame, target: ec.Frame) -> bool:
     return True
 
 
-def build_target(df: pd.DataFrame, target: ec.Frame, add_cols: dict) -> bool:
+def build_target(df: pd.DataFrame, target: ec.Frame) -> bool:
     if target.type_is_db:
-        res = build_sql(df, target, add_cols)
+        res = build_sql(df, target)
     elif target.type in (".csv"):
         create_directory_if_not_exists(target.url)
         res = build_csv(df, target)
@@ -246,67 +247,118 @@ def truncate_sql(target: ec.Target) -> bool:
 
 # TODO: add tests for this:
 def config_frames_consistent(config: ec.Config) -> bool:
-    target, source, add_cols, transform = get_configs(config)
-    # print(f"t.md: {transform.model_dump()}")
+    target, source, transform = get_configs(config)
 
-    ignore_cols = []
-    if add_cols:
-        for k, v in add_cols.items():
-            if v == ec.DynamicColumnValue.ROW_INDEX.value:
-                ignore_cols.append(k)
+    # THIS LOGIC MAY NEED TO BE RESSURECTED
+    # IT IS IGNORING IDENTITY/PRIMARY KEY FIELDS IN DATABASE,
+    # ASSUMING THEY SHOULD NOT BE WRITTEN TO AND WILL NOT ALIGN WITH SOURCE
+    # ignore_cols = []
+    # if add_cols:
+    #     for k, v in add_cols.items():
+    #         if v == ec.DynamicColumnValue.ROW_INDEX.value:
+    #             ignore_cols.append(k)
 
-    # source_df = pull_frame(source, 100, add_cols, transform)
-    source_df = pull_frame(source, 100, add_cols)
-    source_df = apply_transforms(source_df, transform, source)
-    source_df = add_columns(source_df, add_cols)
+    source_df = pull_frame(source, 100)
+    source_df = apply_transforms(source_df, transform)
     target_df = pull_frame(target, 100)
-    return data_frames_consistent(source_df, target_df, ignore_cols)
+    return data_frames_consistent(source_df, target_df)
 
 
-def apply_transforms(df, transform, frame):
-    # if isinstance(df.columns, pd.MultiIndex):
-    #     if transform and transform.stack:
-    #         df = stack_columns(df, transform.stack)
-    #     else:
-    #         # TODO move this line just before persisting if target does not support multicolindex
-    #         df = multiindex_to_singleindex(df)
-    # print(f"applying transforms {[type(transform)]}")
-    if isinstance(transform, ec.FilterTransform):
-        # print("applying filters")
-        df = df.query(transform.filter)
-    # else:
-    #     raise Exception("here")
-    # if isinstance(frame, ec.Source) and frame.filter:
-    #     df = df.query(frame.filter)
-    # if transform and transform.melt:
-    #     df = pd.melt(
-    #         df,
-    #         id_vars=transform.melt.id_vars,
-    #         value_vars=transform.melt.value_vars,
-    #         value_name=transform.melt.value_name,
-    #         var_name=transform.melt.var_name,
-    #     )
-    # if transform and transform.prql:
-    #     with io.open(transform.prql) as file:
-    #         prql = file.read()
-    #     prqlo = prqlc.CompileOptions(target="sql.duckdb")
-    #     dsql = prqlc.compile(prql, options=prqlo)
-    #     df = duckdb.sql(dsql).df()
-    # if transform and transform.pivot:
-    #     df = df.pivot(
-    #         columns=transform.pivot.columns,
-    #         values=transform.pivot.values,
-    #         index=transform.pivot.index,
-    #     )
-    #     df.columns.name = None
-    #     df.index.name = None
-    # if transform and transform.astype:
-    #     df = df.astype(transform.astype.dtype)
-    # if hasattr(frame, "dtype") and frame.dtype:
-    #     for k, v in frame.dtype.items():
-    #         if v == "date" and not isinstance(type(df[k]), np.dtypes.DateTime64DType):
-    #             df[k] = pd.to_datetime(df[k])
+def apply_transforms(df, transform):
+    for tx in transform:
+        if isinstance(tx, ec.FilterTransform):
+            df = df.query(tx.filter)
+
+        elif isinstance(tx, ec.PrqlTransform):
+            if os.path.isfile(tx.prql):
+                with io.open(tx.prql) as file:
+                    prql = file.read()
+            else:
+                prql = tx.prql
+            prqlo = prqlc.CompileOptions(target="sql.duckdb")
+            dsql = prqlc.compile(prql, options=prqlo)
+            df = duckdb.sql(dsql).df()
+
+        elif isinstance(tx, ec.SplitOnColumn):
+            # this transform is converted to a filter transform in the path module
+            # it may need to moved here
+            # should be here in the case of multiple splits, the path one only considers the final one
+            # for now multiple splits are not supported
+            # raise Exception("Multiple splits are not supported")
+            pass
+
+        elif isinstance(tx, ec.Pivot):
+            df = df.pivot(
+                columns=tx.columns,
+                values=tx.values,
+                index=tx.index,
+            )
+            df.columns.name = None
+            df.index.name = None
+
+        elif isinstance(tx, ec.AsType):
+            df = df.astype(tx.dtype)
+
+        elif isinstance(tx, ec.Melt):
+            df = pd.melt(
+                df,
+                id_vars=tx.id_vars,
+                value_vars=tx.value_vars,
+                value_name=tx.value_name,
+                var_name=tx.var_name,
+            )
+
+        elif isinstance(tx, ec.StackDynamic):
+            df = stack_columns(df, tx)
+
+        elif isinstance(tx, ec.AddColumns):
+            add_columns(df, tx.model_dump(exclude="additionalProperties"))
+
     return df
+
+
+# CAN BE RESSURECTED FOR CSV AND EXCEL DYNAMIC CELL RESOLVING
+# def get_csv_dynamic_cell_value(frame: ec.Source, add_cols):
+#     # read first 10 rows of csv file with python csv reader into a list of rows
+#     kwargs=frame.read_csv
+#     with open(frame.url, "r", encoding="utf-8-sig") as f:
+#         row_scan_max = 10
+#         # get row count and update line_number for each line read
+#         row_scan = sum(
+#             1 for line_number, row in enumerate(f, 1) if line_number <= row_scan_max
+#         )
+#         f.seek(0)
+#         # take min of row count and 10
+#         # row_scan = 2
+#         reader = csv.reader(f, delimiter=kwargs["sep"])
+#         rows_n = [next(reader) for _ in range(row_scan)]
+#     for k, v in add_cols.items():
+#         # check if the value is a DynamicCellValue
+#         if (
+#             v
+#             and isinstance(v, str)
+#             and v[1:].upper() in ec.DynamicCellValue.__members__.keys()
+#         ):
+#             row, col = v[1:].upper().strip("R").split("C")
+#             row = int(row)
+#             col = int(col)
+#             # if v == "_r1c1":
+#             # get the cell value corresponding to the rxcx
+#             add_cols[k] = rows_n[row][col]
+#
+# def get_xl_dynamic_cell_value(frame: ec.Source, add_cols):
+#     for k, v in add_cols.items():
+#         # check if the value is a DynamicCellValue
+#         if (
+#             v
+#             and isinstance(v, str)
+#             and v[1:].upper() in ec.DynamicCellValue.__members__.keys()
+#         ):
+#             row, col = v[1:].upper().strip("R").split("C")
+#             row = int(row)
+#             col = int(col)
+#             # get the cell value corresponding to the row/col
+#             add_cols[k] = xl.get_sheet_row(xl_io.file_io, frame.sheet_name, row)[col]
 
 
 def data_frames_consistent(
@@ -519,8 +571,6 @@ def get_target_kwargs(to_x, frame: ec.Target, nrows: Optional[int] = None):
 def pull_frame(
     frame: Union[ec.Source, ec.Target],
     nrows: Optional[int] = None,
-    add_cols: dict = {},
-    # transform: Optional[Union[ec.Transform, list[ec.Transform]]] = None,
 ) -> pd.DataFrame:
     # logging.info(f"pulling frame {frame.file_path_dynamic}")
     if frame.type_is_db:
@@ -529,9 +579,7 @@ def pull_frame(
     elif frame.type in (".csv", ".tsv"):
         if isinstance(frame, ec.Source):
             clean_last_column = True
-            # kwargs = get_source_kwargs(frame.read_csv, nrows, dtype)
             kwargs = get_source_kwargs(frame.read_csv, frame, nrows)
-            # print(kwargs)
             if frame.type == ".tsv":
                 kwargs["sep"] = "\t"
         else:
@@ -540,33 +588,6 @@ def pull_frame(
         if "sep" not in kwargs.keys():
             kwargs["sep"] = ","
         df = pull_csv(frame.url, clean_last_column, **kwargs)
-
-        # read first 10 rows of csv file with python csv reader into a list of rows
-        with open(frame.url, "r", encoding="utf-8-sig") as f:
-            row_scan_max = 10
-            # get row count and update line_number for each line read
-            row_scan = sum(
-                1 for line_number, row in enumerate(f, 1) if line_number <= row_scan_max
-            )
-            f.seek(0)
-            # take min of row count and 10
-            # row_scan = 2
-            reader = csv.reader(f, delimiter=kwargs["sep"])
-            rows_n = [next(reader) for _ in range(row_scan)]
-
-        for k, v in add_cols.items():
-            # check if the value is a DynamicCellValue
-            if (
-                v
-                and isinstance(v, str)
-                and v[1:].upper() in ec.DynamicCellValue.__members__.keys()
-            ):
-                row, col = v[1:].upper().strip("R").split("C")
-                row = int(row)
-                col = int(col)
-                # if v == "_r1c1":
-                # get the cell value corresponding to the rxcx
-                add_cols[k] = rows_n[row][col]
 
     elif frame.type and frame.type in (".xlsx", ".xls", ".xlsm", ".xlsb"):
         if isinstance(frame, ec.Source):
@@ -581,21 +602,6 @@ def pull_frame(
         else:
             kwargs = {}
         xl_io = el.fetch_excel_io(frame.url)
-
-        for k, v in add_cols.items():
-            # check if the value is a DynamicCellValue
-            if (
-                v
-                and isinstance(v, str)
-                and v[1:].upper() in ec.DynamicCellValue.__members__.keys()
-            ):
-                row, col = v[1:].upper().strip("R").split("C")
-                row = int(row)
-                col = int(col)
-                # get the cell value corresponding to the row/col
-                add_cols[k] = xl.get_sheet_row(xl_io.file_io, frame.sheet_name, row)[
-                    col
-                ]
 
         df = xl_io.pull_sheet(kwargs)
     elif frame.type == ".fwf":
@@ -626,15 +632,14 @@ def pull_frame(
             df = df.head(nrows)
     elif frame.type in ("dict"):
         df_dict_io = frame.df_dict_io
-        # if not df_dict_io.get_child(frame.table):
-        #     raise Exception([frame.table, df_dict_io.children])
-        # if "df" not in df_dict_io.ios[frame.table]:
-        #     raise Exception([frame.table, df_dict_io.ios[frame.table]])
-        # df = df_dict_io.children[frame.table].df
         df = df_dict_io.get_child(frame.table).df
     else:
         raise Exception("unable to pull df")
 
+    if frame and hasattr(frame, "dtype") and frame.dtype:
+        for k, v in frame.dtype.items():
+            if v == "date" and not isinstance(type(df[k]), np.dtypes.DateTime64DType):
+                df[k] = pd.to_datetime(df[k])
     return pd.DataFrame(df)
 
 
@@ -658,7 +663,7 @@ def stack_columns(df, stack: ec.StackDynamic):
     df.index.rename(index_name_mapping, inplace=True)
 
     # Stack the DataFrame based on the top-level columns
-    df = df.stack(level=stack.stack_header)
+    df = df.stack(level=stack.stack_header, future_stack=True)
 
     # Rename the new index created by the stacking operation
     df.index.rename({None: stack.stack_name}, inplace=True)
@@ -669,18 +674,12 @@ def stack_columns(df, stack: ec.StackDynamic):
     return df
 
 
-def multiindex_to_singleindex(df, separator="_"):
-    df.columns = [separator.join(map(str, col)).strip() for col in df.columns.values]
-    return df
-
-
-def get_configs(config):
+def get_configs(config: ec.Config):
     target = config.target
     source = config.source
-    add_cols = config.add_cols.model_dump()
-    transform = config.transform2
+    transform = config.transform_list
 
-    return target, source, add_cols, transform
+    return target, source, transform
 
 
 def add_columns(df: pd.DataFrame, add_cols: dict) -> pd.DataFrame:
@@ -695,7 +694,7 @@ def add_columns(df: pd.DataFrame, add_cols: dict) -> pd.DataFrame:
 
 
 def ingest(config: ec.Config) -> bool:
-    target, source, add_cols, transform = get_configs(config)
+    target, source, transform = get_configs(config)
     consistent = config_frames_consistent(config)
     if (
         not target
@@ -703,26 +702,22 @@ def ingest(config: ec.Config) -> bool:
         or consistent
         or target.consistency == ec.TargetConsistencyValue.IGNORE.value
     ):
-        # source_df = pull_frame(source, config.nrows, add_cols, transform)
-        source_df = pull_frame(source, config.nrows, add_cols)
-        source_df = apply_transforms(source_df, transform, source)
-        source_df = add_columns(source_df, add_cols)
-        return push_frame(source_df, target, add_cols)
+        source_df = pull_frame(source, config.nrows)
+        source_df = apply_transforms(source_df, transform)
+        return push_frame(source_df, target)
     else:
         raise Exception(f"{target.table}: Inconsistent, not saved.")
 
 
 def build(config: ec.Config) -> bool:
-    target, source, add_cols, transform = get_configs(config)
+    target, source, transform = get_configs(config)
     if target and target.build_action != "no_action":
         action = target.build_action
         if action in ("create_replace", "create_replace_file"):
             # TODO, use caching to avoid pulling the same data twice
-            df = pull_frame(source, 100, add_cols)
-            # df = pull_frame(source, 100, add_cols, transform)
-            df = apply_transforms(df, transform, source)
-            df = add_columns(df, add_cols)
-            res = build_target(df, target, add_cols)
+            df = pull_frame(source, 100)
+            df = apply_transforms(df, transform)
+            res = build_target(df, target)
         elif action == "truncate":
             res = truncate_target(target)
         elif action == "fail":
@@ -733,12 +728,3 @@ def build(config: ec.Config) -> bool:
     else:
         res = True
     return res
-
-
-# def detect(config: ec.Config) -> bool:
-#     _, source, _, _ = get_configs(config)
-#     source = source.model_copy()
-#     source.nrows = 100
-
-#     df = pull_frame(source)
-#     return True
