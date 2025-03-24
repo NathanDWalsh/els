@@ -77,7 +77,17 @@ class Transform(BaseModel, extra="forbid"):
     #     extra="forbid",
     #     json_schema_extra={"oneOf": [{"required": ["melt"]}, {"required": ["stack"]}]},
     # )
-    pass
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._executed = False
+
+    @property
+    def executed(self):
+        return self._executed
+
+    @executed.setter
+    def executed(self, v: bool):
+        self._executed = v
 
 
 class StackDynamic(Transform):
@@ -117,7 +127,7 @@ class FilterTransform(Transform):
     filter: str
 
 
-class SplitOnColumn(BaseModel):
+class SplitOnColumn(Transform):
     column_name: str
 
 
@@ -461,8 +471,6 @@ class ReadXml(BaseModel, extra="allow"):
 
 
 class Source(Frame, extra="forbid"):
-    filter: Optional[str] = None
-    split_on_column: Optional[str] = None
     load_parallel: bool = False
     nrows: Optional[int] = None
     dtype: Optional[dict] = None
@@ -470,7 +478,7 @@ class Source(Frame, extra="forbid"):
     read_excel: Optional[ReadExcel] = None
     read_fwf: Optional[ReadFwf] = None
     read_xml: Optional[ReadXml] = None
-    extract_pages_pdf: Optional[ExtractPagesPdf] = None
+    extract_pages_pdf: Optional[Union[ExtractPagesPdf, list[ExtractPagesPdf]]] = None
 
 
 TransformType = NewType(
@@ -491,6 +499,7 @@ TransformType = NewType(
 class Config(BaseModel):
     # KEEP config_path AROUND JUST IN CASE, can be used when priting yamls for debugging
     config_path: Optional[str] = None
+    # source: Union[Source,list[Source]] = Source()
     source: Source = Source()
     target: Target = Target()
     transform: Optional[Union[TransformType, list[TransformType]]] = None  # type: ignore
@@ -522,7 +531,8 @@ class Config(BaseModel):
         for t in reversed(self.transform_list):
             if isinstance(t, SplitOnColumn) or res:
                 res.append(t)
-        return list(reversed(res))
+        res = list(reversed(res))
+        return res
 
     def schema_pop_children(s):
         s["properties"].pop("children")

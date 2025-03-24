@@ -94,3 +94,7 @@ def append_into(dfs):
     # appends subsequent dfs into the first df, keeping only the columns from the first
     ncols = len(dfs[0].columns)
     return pd.concat(dfs, ignore_index=True).iloc[:, 0:ncols]
+
+
+def listify(v):
+    return v if isinstance(v, (list, tuple)) else [v]

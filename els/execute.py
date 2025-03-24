@@ -259,61 +259,63 @@ def config_frames_consistent(config: ec.Config) -> bool:
     #             ignore_cols.append(k)
 
     source_df = pull_frame(source, 100)
-    source_df = apply_transforms(source_df, transform)
+    source_df = apply_transforms(source_df, transform, mark_as_executed=False)
     target_df = pull_frame(target, 100)
     return data_frames_consistent(source_df, target_df)
 
 
-def apply_transforms(df, transform):
-    for tx in transform:
-        if isinstance(tx, ec.FilterTransform):
-            df = df.query(tx.filter)
+def apply_transforms(df, transform, mark_as_executed: bool = True):
+    if not transform == [None]:
+        for tx in transform:
+            if not tx.executed:
+                if isinstance(tx, ec.FilterTransform):
+                    df = df.query(tx.filter)
 
-        elif isinstance(tx, ec.PrqlTransform):
-            if os.path.isfile(tx.prql):
-                with io.open(tx.prql) as file:
-                    prql = file.read()
-            else:
-                prql = tx.prql
-            prqlo = prqlc.CompileOptions(target="sql.duckdb")
-            dsql = prqlc.compile(prql, options=prqlo)
-            df = duckdb.sql(dsql).df()
+                elif isinstance(tx, ec.PrqlTransform):
+                    if os.path.isfile(tx.prql):
+                        with io.open(tx.prql) as file:
+                            prql = file.read()
+                    else:
+                        prql = tx.prql
+                    prqlo = prqlc.CompileOptions(target="sql.duckdb")
+                    dsql = prqlc.compile(prql, options=prqlo)
+                    df = duckdb.sql(dsql).df()
 
-        elif isinstance(tx, ec.SplitOnColumn):
-            # this transform is converted to a filter transform in the path module
-            # it may need to moved here
-            # should be here in the case of multiple splits, the path one only considers the final one
-            # for now multiple splits are not supported
-            # raise Exception("Multiple splits are not supported")
-            pass
+                elif isinstance(tx, ec.SplitOnColumn):
+                    # this transform is converted to a filter transform in the path module
+                    # it may need to moved here
+                    # should be here in the case of multiple splits, the path one only considers the final one
+                    # for now multiple splits are not supported
+                    # raise Exception("Multiple splits are not supported")
+                    pass
 
-        elif isinstance(tx, ec.Pivot):
-            df = df.pivot(
-                columns=tx.columns,
-                values=tx.values,
-                index=tx.index,
-            )
-            df.columns.name = None
-            df.index.name = None
+                elif isinstance(tx, ec.Pivot):
+                    df = df.pivot(
+                        columns=tx.columns,
+                        values=tx.values,
+                        index=tx.index,
+                    )
+                    df.columns.name = None
+                    df.index.name = None
 
-        elif isinstance(tx, ec.AsType):
-            df = df.astype(tx.dtype)
+                elif isinstance(tx, ec.AsType):
+                    df = df.astype(tx.dtype)
 
-        elif isinstance(tx, ec.Melt):
-            df = pd.melt(
-                df,
-                id_vars=tx.id_vars,
-                value_vars=tx.value_vars,
-                value_name=tx.value_name,
-                var_name=tx.var_name,
-            )
+                elif isinstance(tx, ec.Melt):
+                    df = pd.melt(
+                        df,
+                        id_vars=tx.id_vars,
+                        value_vars=tx.value_vars,
+                        value_name=tx.value_name,
+                        var_name=tx.var_name,
+                    )
 
-        elif isinstance(tx, ec.StackDynamic):
-            df = stack_columns(df, tx)
+                elif isinstance(tx, ec.StackDynamic):
+                    df = stack_columns(df, tx)
 
-        elif isinstance(tx, ec.AddColumns):
-            add_columns(df, tx.model_dump(exclude="additionalProperties"))
-
+                elif isinstance(tx, ec.AddColumns):
+                    add_columns(df, tx.model_dump(exclude="additionalProperties"))
+                tx.executed = mark_as_executed
     return df
 
 
@@ -612,14 +614,20 @@ def pull_frame(
 
         df = pull_fwf(frame.url, **kwargs)
     elif frame.type == ".pdf":
-        if isinstance(frame, ec.Source) and frame.extract_pages_pdf:
-            kwargs = frame.extract_pages_pdf.model_dump(exclude_none=True)
-            laparams = None
-            if "laparams" in kwargs:
-                laparams = kwargs.pop("laparams")
-        else:
-            kwargs = {}
-        df = pull_pdf(frame.url, laparams=laparams, **kwargs)
+        # TODO parallelize, break job into page chunks
+        df = None
+        for extract_props in el.listify(frame.extract_pages_pdf):
+            if isinstance(frame, ec.Source) and extract_props:
+                kwargs = extract_props.model_dump(exclude_none=True)
+                laparams = None
+                if "laparams" in kwargs:
+                    laparams = kwargs.pop("laparams")
+            else:
+                kwargs = {}
+            if df is None:
+                df = pull_pdf(frame.url, laparams=laparams, **kwargs)
+            else:
+                df = pd.concat([df, pull_pdf(frame.url, laparams=laparams, **kwargs)])
     elif frame.type == ".xml":
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_xml, frame)
@@ -703,7 +711,9 @@ def ingest(config: ec.Config) -> bool:
         or target.consistency == ec.TargetConsistencyValue.IGNORE.value
     ):
         source_df = pull_frame(source, config.nrows)
+        print(f"AAAAAA: {source_df}")
         source_df = apply_transforms(source_df, transform)
+        print(f"RRRRRR: {source_df}")
         return push_frame(source_df, target)
     else:
         raise Exception(f"{target.table}: Inconsistent, not saved.")
@@ -716,7 +726,7 @@ def build(config: ec.Config) -> bool:
         if action in ("create_replace", "create_replace_file"):
             # TODO, use caching to avoid pulling the same data twice
             df = pull_frame(source, 100)
-            df = apply_transforms(df, transform)
+            df = apply_transforms(df, transform, mark_as_executed=False)
             res = build_target(df, target)
         elif action == "truncate":
             res = truncate_target(target)

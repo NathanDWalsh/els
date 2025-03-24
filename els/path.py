@@ -221,9 +221,14 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     def transform_splits(self, config: ec.Config, ca_path: "ConfigPath"):
         if config.transforms_affect_target_count:
             transforms = config.transforms_to_determine_target
-            remaining_transforms = config.transform_list[
-                len(transforms) - len(config.transform_list) :
-            ]
+
+            remaining_transforms_count = len(transforms) - len(config.transform_list)
+            if remaining_transforms_count < 0:
+                remaining_transforms = config.transform_list[
+                    remaining_transforms_count:
+                ]
+            else:
+                remaining_transforms = []
 
             df = ee.pull_frame(config.source)
             df_dict = None
@@ -231,8 +236,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 df = ee.apply_transforms(df, transform=transforms[:-1])
                 df_dict = dict(transformed=df)
             split_on_column = transforms[-1].column_name
+            transforms[-1].executed = True
             sub_tables = list(df[split_on_column].drop_duplicates())
-            print(sub_tables)
             for sub_table in sub_tables:
                 if isinstance(sub_table, str):
                     column_eq = f"'{sub_table}'"
@@ -728,7 +733,6 @@ def get_root_inheritance(start_dir: Path) -> Union[list[Path], None]:
         dirs.append(current_dir)
         file_found = True
     if file_found:
-        # print(dirs)
         return dirs
     else:
         glob_pattern = "**/*" + get_root_config_name()

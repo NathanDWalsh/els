@@ -60,17 +60,18 @@ def test_for_push_pull(tmp_path, test_name, push, pull, func):
     func(push=push, pull=pull, tmp_path=tmp_path)
 
 
-# @pytest.mark.parametrize(
-#     "test_name,push,pull",
-#     [
-#         ("test_pandas", tp.push, None),
-#         ("test_excel", tx.push, tx.pull),
-#     ],
-# )
-# @pytest.mark.parametrize(
-#     "func",
-#     [
-#     ],
-# )
-# def test_for_push_pull2(tmp_path, test_name, push, pull, func):
-#     func(push=push, pull=pull, tmp_path=tmp_path)
+@pytest.mark.parametrize(
+    "test_name,push,pull",
+    [
+        ("test_pandas", tp.push, None),
+        ("test_excel", tx.push, tx.pull),
+    ],
+)
+@pytest.mark.parametrize(
+    "func",
+    [
+        th.prql_col_then_split,
+    ],
+)
+def test_for_push_pull2(tmp_path, test_name, push, pull, func):
+    func(push=push, pull=pull, tmp_path=tmp_path)
