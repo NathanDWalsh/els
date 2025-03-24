@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.5.0 (2025-03-24)
+
+### Features
+
+- **pdf**: Allow multiple param sets on single file
+  ([`1b0837c`](https://github.com/NathanDWalsh/els/commit/1b0837c5dfe3143cf31f4c6bd1128f2a2cfa8616))
+
+
 ## v0.4.1 (2025-03-03)
 
 ### Performance Improvements
