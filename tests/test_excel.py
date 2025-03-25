@@ -6,6 +6,7 @@ import els.config as ec
 from els.cli import execute, tree
 
 from . import helpers as th
+from . import templates as tt
 
 
 def push(
@@ -47,7 +48,7 @@ def pull(
 
 
 def test_skiprows(tmp_path):
-    th.single(
+    tt.single(
         [
             (
                 push,

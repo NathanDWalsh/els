@@ -1,6 +1,6 @@
 import pytest
 
-from . import helpers as th
+from . import templates as tt
 from . import test_excel as tx
 from . import test_pandas as tp
 
@@ -15,14 +15,14 @@ from . import test_pandas as tp
 @pytest.mark.parametrize(
     "func",
     [
-        th.single,
-        th.double_together,
-        th.double_separate,
-        th.append_together,
-        th.append_separate,
-        th.append_mixed,
-        th.append_plus,
-        th.append_minus,
+        tt.single,
+        tt.double_together,
+        tt.double_separate,
+        tt.append_together,
+        tt.append_separate,
+        tt.append_mixed,
+        tt.append_plus,
+        tt.append_minus,
     ],
 )
 def test_for_callings(tmp_path, test_name, test_args, func):
@@ -40,20 +40,20 @@ def test_for_callings(tmp_path, test_name, test_args, func):
 @pytest.mark.parametrize(
     "func",
     [
-        th.split_on_column_explicit_table,
-        th.filter,
-        th.prql,
-        th.prql_then_split,
-        th.add_columns,
-        th.pivot,
-        th.prql_then_split_then_pivot,
-        th.prql_col_then_split_then_pivot,
-        th.astype,
-        th.melt,
-        th.stack_dynamic,
-        th.truncate_single,
-        th.truncate_double,
-        th.replace,
+        tt.split_on_column_explicit_table,
+        tt.filter,
+        tt.prql,
+        tt.prql_then_split,
+        tt.add_columns,
+        tt.pivot,
+        tt.prql_then_split_then_pivot,
+        tt.prql_col_then_split_then_pivot,
+        tt.astype,
+        tt.melt,
+        tt.stack_dynamic,
+        tt.truncate_single,
+        tt.truncate_double,
+        tt.replace,
     ],
 )
 def test_for_push_pull(tmp_path, test_name, push, pull, func):
@@ -70,7 +70,7 @@ def test_for_push_pull(tmp_path, test_name, push, pull, func):
 @pytest.mark.parametrize(
     "func",
     [
-        th.prql_col_then_split,
+        tt.prql_col_then_split,
     ],
 )
 def test_for_push_pull2(tmp_path, test_name, push, pull, func):
