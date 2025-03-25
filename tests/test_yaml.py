@@ -362,8 +362,8 @@ test_classes = {
 
 
 for testset in (
-    (TestCSV, get_1r1c_tests_csv, "csv", None),
     (TestExcel, get_1r1c_tests_excel, "xlsx", None),
+    (TestCSV, get_1r1c_tests_csv, "csv", None),
     (TestMSSQL, get_1r1c_tests_sql, "mssql", None),
     (TestMSSQL_TDS, get_1r1c_tests_sql, "mssql+pymssql", None),
     (

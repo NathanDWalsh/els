@@ -16,13 +16,13 @@ $defs:
   AsType:
     additionalProperties: false
     properties:
-      dtype:
+      as_dtypes:
         additionalProperties:
           type: string
-        title: Dtype
+        title: As Dtypes
         type: object
     required:
-    - dtype
+    - as_dtypes
     title: AsType
     type: object
   DynamicCellValue:
@@ -246,35 +246,35 @@ $defs:
   Melt:
     additionalProperties: false
     properties:
-      id_vars:
+      melt_id_vars:
         items:
           type: string
-        title: Id Vars
+        title: Melt Id Vars
         type: array
-      value_name:
+      melt_value_name:
         default: value
-        title: Value Name
+        title: Melt Value Name
         type: string
-      value_vars:
+      melt_value_vars:
         anyOf:
         - items:
             type: string
           type: array
         - type: 'null'
         default: null
-        title: Value Vars
-      var_name:
+        title: Melt Value Vars
+      melt_var_name:
         default: variable
-        title: Var Name
+        title: Melt Var Name
         type: string
     required:
-    - id_vars
+    - melt_id_vars
     title: Melt
     type: object
   Pivot:
     additionalProperties: false
     properties:
-      columns:
+      pivot_columns:
         anyOf:
         - type: string
         - items:
@@ -282,8 +282,8 @@ $defs:
           type: array
         - type: 'null'
         default: null
-        title: Columns
-      index:
+        title: Pivot Columns
+      pivot_index:
         anyOf:
         - type: string
         - items:
@@ -291,8 +291,8 @@ $defs:
           type: array
         - type: 'null'
         default: null
-        title: Index
-      values:
+        title: Pivot Index
+      pivot_values:
         anyOf:
         - type: string
         - items:
@@ -300,7 +300,7 @@ $defs:
           type: array
         - type: 'null'
         default: null
-        title: Values
+        title: Pivot Values
     title: Pivot
     type: object
   PrqlTransform:
@@ -389,14 +389,12 @@ $defs:
       extract_pages_pdf:
         anyOf:
         - $ref: '#/$defs/ExtractPagesPdf'
+        - items:
+            $ref: '#/$defs/ExtractPagesPdf'
+          type: array
         - type: 'null'
         default: null
-      filter:
-        anyOf:
-        - type: string
-        - type: 'null'
-        default: null
-        title: Filter
+        title: Extract Pages Pdf
       load_parallel:
         default: false
         title: Load Parallel
@@ -427,12 +425,6 @@ $defs:
         - $ref: '#/$defs/ReadXml'
         - type: 'null'
         default: null
-      split_on_column:
-        anyOf:
-        - type: string
-        - type: 'null'
-        default: null
-        title: Split On Column
       table:
         anyOf:
         - type: string
@@ -448,19 +440,20 @@ $defs:
     title: Source
     type: object
   SplitOnColumn:
+    additionalProperties: false
     properties:
-      column_name:
-        title: Column Name
+      split_on_column:
+        title: Split On Column
         type: string
     required:
-    - column_name
+    - split_on_column
     title: SplitOnColumn
     type: object
   StackDynamic:
     additionalProperties: false
     properties:
-      fixed_columns:
-        title: Fixed Columns
+      stack_fixed_columns:
+        title: Stack Fixed Columns
         type: integer
       stack_header:
         default: 0
@@ -471,7 +464,7 @@ $defs:
         title: Stack Name
         type: string
     required:
-    - fixed_columns
+    - stack_fixed_columns
     title: StackDynamic
     type: object
   Target:
@@ -570,14 +563,12 @@ properties:
       dbschema: null
       dtype: null
       extract_pages_pdf: null
-      filter: null
       load_parallel: false
       nrows: null
       read_csv: null
       read_excel: null
       read_fwf: null
       read_xml: null
-      split_on_column: null
       table: null
       url: null
   target:
@@ -593,24 +584,24 @@ properties:
       url: null
   transform:
     anyOf:
-    - $ref: '#/$defs/AddColumns'
     - $ref: '#/$defs/SplitOnColumn'
-    - $ref: '#/$defs/PrqlTransform'
     - $ref: '#/$defs/FilterTransform'
+    - $ref: '#/$defs/PrqlTransform'
     - $ref: '#/$defs/Pivot'
     - $ref: '#/$defs/AsType'
     - $ref: '#/$defs/Melt'
     - $ref: '#/$defs/StackDynamic'
+    - $ref: '#/$defs/AddColumns'
     - items:
         anyOf:
-        - $ref: '#/$defs/AddColumns'
         - $ref: '#/$defs/SplitOnColumn'
-        - $ref: '#/$defs/PrqlTransform'
         - $ref: '#/$defs/FilterTransform'
+        - $ref: '#/$defs/PrqlTransform'
         - $ref: '#/$defs/Pivot'
         - $ref: '#/$defs/AsType'
         - $ref: '#/$defs/Melt'
         - $ref: '#/$defs/StackDynamic'
+        - $ref: '#/$defs/AddColumns'
       type: array
     - type: 'null'
     default: null

@@ -91,26 +91,26 @@ class Transform(BaseModel, extra="forbid"):
 
 
 class StackDynamic(Transform):
-    fixed_columns: int
+    stack_fixed_columns: int
     stack_header: int = 0
     stack_name: str = "stack_column"
 
 
 class Melt(Transform):
-    id_vars: list[str]
-    value_vars: Optional[list[str]] = None
-    value_name: str = "value"
-    var_name: str = "variable"
+    melt_id_vars: list[str]
+    melt_value_vars: Optional[list[str]] = None
+    melt_value_name: str = "value"
+    melt_var_name: str = "variable"
 
 
 class Pivot(Transform):
-    columns: Optional[Union[str, list[str]]] = None
-    values: Optional[Union[str, list[str]]] = None
-    index: Optional[Union[str, list[str]]] = None
+    pivot_columns: Optional[Union[str, list[str]]] = None
+    pivot_values: Optional[Union[str, list[str]]] = None
+    pivot_index: Optional[Union[str, list[str]]] = None
 
 
 class AsType(Transform):
-    dtype: dict[str, str]
+    as_dtypes: dict[str, str]
 
 
 class AddColumns(Transform, extra="allow"):
@@ -128,7 +128,7 @@ class FilterTransform(Transform):
 
 
 class SplitOnColumn(Transform):
-    column_name: str
+    split_on_column: str
 
 
 supported_mssql_odbc_drivers = {
@@ -295,7 +295,11 @@ class Frame(BaseModel):
     def df_dict_io(self):
         if self.type == "dict":
             dict_id = int(urlparse(self.url)[1])
-            return el.fetch_df_dict_io(dict_id)
+            res = el.fetch_df_dict_io(dict_id)
+            if res:
+                return res
+            else:
+                raise Exception(f"dict_id {dict_id} not stored in collection.")
         else:
             raise Exception(
                 f"not a dict frame type, but a {self.type} type and {self.url} url"

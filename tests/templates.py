@@ -1,3 +1,5 @@
+from functools import wraps
+
 import pandas as pd
 
 import els.config as ec
@@ -5,13 +7,23 @@ import els.config as ec
 from . import helpers as th
 
 
+def template(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        th.clear_runways()
+        expected = func(*args, **kwargs)
+        th.assert_expected(expected)
+
+    return wrapper
+
+
+@template
 def single(for_calling, tmp_path=None):
-    th.clear_runways()
     th.outbound["df"] = pd.DataFrame({"a": [1, 2, 3]})
     expected = th.outbound.copy()
 
     th.call_io_funcs(for_calling, **dict(tmp_path=tmp_path))
-    th.assert_expected(expected)
+    return expected
 
 
 def double_together(for_calling, tmp_path=None):
@@ -242,7 +254,7 @@ def replace(push, pull=None, tmp_path=None):
 # TODO: split_on_column_implicit_table
 
 
-def split_on_column_explicit_table(push, pull=None, tmp_path=None):
+def split_on_col_explicit_tab(push, pull=None, tmp_path=None):
     th.clear_runways()
     th.outbound["dfo"] = pd.DataFrame(
         {
@@ -251,7 +263,7 @@ def split_on_column_explicit_table(push, pull=None, tmp_path=None):
             "b": [10, 20, 30, 40],
         }
     )
-    transform = ec.SplitOnColumn(column_name="split_col")
+    transform = ec.SplitOnColumn(split_on_column="split_col")
     # transform.
     source = ec.Source(table="dfo")
     # expected = th.outbound.copy()
@@ -282,7 +294,7 @@ def split_on_column_explicit_table(push, pull=None, tmp_path=None):
     th.assert_expected(expected)
 
 
-def prql_then_split(push, pull=None, tmp_path=None):
+def prql_split(push, pull=None, tmp_path=None):
     th.clear_runways()
     th.outbound["dfo"] = pd.DataFrame(
         {
@@ -301,7 +313,7 @@ def prql_then_split(push, pull=None, tmp_path=None):
             """
         )
     )
-    transform.append(ec.SplitOnColumn(column_name="split_col"))
+    transform.append(ec.SplitOnColumn(split_on_column="split_col"))
     source = ec.Source(table="dfo")
     push(tmp_path, source=source, transform=transform)
 
@@ -398,7 +410,7 @@ def pivot(push, pull=None, tmp_path=None):
         }
     )
 
-    transform = ec.Pivot(columns="split_col", values="b", index="a")
+    transform = ec.Pivot(pivot_columns="split_col", pivot_values="b", pivot_index="a")
     source = ec.Source(table="dfo")
     push(tmp_path, source=source, transform=transform)
 
@@ -417,7 +429,7 @@ def pivot(push, pull=None, tmp_path=None):
     th.assert_expected(expected)
 
 
-def prql_then_split_then_pivot(push, pull=None, tmp_path=None):
+def prql_split_pivot(push, pull=None, tmp_path=None):
     th.clear_runways()
     th.outbound["dfo"] = pd.DataFrame(
         {
@@ -435,12 +447,12 @@ def prql_then_split_then_pivot(push, pull=None, tmp_path=None):
             """
         ),
         ec.SplitOnColumn(
-            column_name="split_col",
+            split_on_column="split_col",
         ),
         ec.Pivot(
-            columns="split_col",
-            values="b",
-            index="a",
+            pivot_columns="split_col",
+            pivot_values="b",
+            pivot_index="a",
         ),
     ]
     source = ec.Source(table="dfo")
@@ -467,7 +479,7 @@ def prql_then_split_then_pivot(push, pull=None, tmp_path=None):
     th.assert_expected(expected)
 
 
-def prql_col_then_split_then_pivot(push, pull=None, tmp_path=None):
+def prql_col_split_pivot(push, pull=None, tmp_path=None):
     th.clear_runways()
     th.outbound["dfo"] = pd.DataFrame(
         {
@@ -486,12 +498,12 @@ def prql_col_then_split_then_pivot(push, pull=None, tmp_path=None):
             """
         ),
         ec.SplitOnColumn(
-            column_name="new_split",
+            split_on_column="new_split",
         ),
         ec.Pivot(
-            columns="split_col",
-            values="b",
-            index="a",
+            pivot_columns="split_col",
+            pivot_values="b",
+            pivot_index="a",
         ),
     ]
     source = ec.Source(table="dfo")
@@ -518,7 +530,7 @@ def prql_col_then_split_then_pivot(push, pull=None, tmp_path=None):
     th.assert_expected(expected)
 
 
-def prql_col_then_split(push, pull=None, tmp_path=None):
+def prql_col_split(push, pull=None, tmp_path=None):
     th.clear_runways()
     th.outbound["dfo"] = pd.DataFrame(
         {
@@ -537,7 +549,7 @@ def prql_col_then_split(push, pull=None, tmp_path=None):
             """
         ),
         ec.SplitOnColumn(
-            column_name="new_split",
+            split_on_column="new_split",
         ),
     ]
     source = ec.Source(table="dfo")
@@ -581,7 +593,7 @@ def astype(push, pull=None, tmp_path=None):
     )
 
     source = ec.Source(table="dfo")
-    transform = ec.AsType(dtype=dict(a="float"))
+    transform = ec.AsType(as_dtypes=dict(a="float"))
 
     push(tmp_path, source=source, transform=transform)
 
@@ -611,10 +623,10 @@ def melt(push, pull=None, tmp_path=None):
 
     source = ec.Source(table="dfo")
     transform = ec.Melt(
-        id_vars=["A"],
-        value_vars=["B"],
-        var_name="col",
-        value_name="val",
+        melt_id_vars=["A"],
+        melt_value_vars=["B"],
+        melt_var_name="col",
+        melt_value_name="val",
     )
 
     push(tmp_path, source=source, transform=transform)
@@ -652,7 +664,7 @@ def stack_dynamic(push, pull=None, tmp_path=None):
     )
 
     source = ec.Source(table="dfo")
-    transform = ec.StackDynamic(fixed_columns=2, stack_name="col")
+    transform = ec.StackDynamic(stack_fixed_columns=2, stack_name="col")
 
     push(tmp_path, source=source, transform=transform)
 

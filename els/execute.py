@@ -291,23 +291,23 @@ def apply_transforms(df, transform, mark_as_executed: bool = True):
 
                 elif isinstance(tx, ec.Pivot):
                     df = df.pivot(
-                        columns=tx.columns,
-                        values=tx.values,
-                        index=tx.index,
+                        columns=tx.pivot_columns,
+                        values=tx.pivot_values,
+                        index=tx.pivot_index,
                     )
                     df.columns.name = None
                     df.index.name = None
 
                 elif isinstance(tx, ec.AsType):
-                    df = df.astype(tx.dtype)
+                    df = df.astype(tx.as_dtypes)
 
                 elif isinstance(tx, ec.Melt):
                     df = pd.melt(
                         df,
-                        id_vars=tx.id_vars,
-                        value_vars=tx.value_vars,
-                        value_name=tx.value_name,
-                        var_name=tx.var_name,
+                        id_vars=tx.melt_id_vars,
+                        value_vars=tx.melt_value_vars,
+                        value_name=tx.melt_value_name,
+                        var_name=tx.melt_var_name,
                     )
 
                 elif isinstance(tx, ec.StackDynamic):
@@ -653,7 +653,7 @@ def pull_frame(
 
 def stack_columns(df, stack: ec.StackDynamic):
     # Define the primary column headers based on the first columns
-    primary_headers = list(df.columns[: stack.fixed_columns])
+    primary_headers = list(df.columns[: stack.stack_fixed_columns])
 
     # Extract the top-level column names from the primary headers
     top_level_headers, _ = zip(*primary_headers)
@@ -662,7 +662,7 @@ def stack_columns(df, stack: ec.StackDynamic):
     df = df.set_index(primary_headers)
 
     # Get the names of the newly set indices
-    current_index_names = list(df.index.names[: stack.fixed_columns])
+    current_index_names = list(df.index.names[: stack.stack_fixed_columns])
 
     # Create a dictionary to map the current index names to the top-level headers
     index_name_mapping = dict(zip(current_index_names, top_level_headers))
@@ -711,9 +711,7 @@ def ingest(config: ec.Config) -> bool:
         or target.consistency == ec.TargetConsistencyValue.IGNORE.value
     ):
         source_df = pull_frame(source, config.nrows)
-        print(f"AAAAAA: {source_df}")
         source_df = apply_transforms(source_df, transform)
-        print(f"RRRRRR: {source_df}")
         return push_frame(source_df, target)
     else:
         raise Exception(f"{target.table}: Inconsistent, not saved.")

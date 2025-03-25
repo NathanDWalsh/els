@@ -74,7 +74,7 @@ class DataFrameContainerMixinIO(NodeMixin):
         for c in self.children:
             if c.name == child_name:
                 return c
-        return None
+        raise Exception(f"{child_name} not found")
 
     def has_child(self, child_name):
         for c in self.children:

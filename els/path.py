@@ -193,13 +193,17 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         self, source: ec.Source, url_parent: "ConfigPath", config: ec.Config
     ) -> dict[str, ec.Config]:
         table_docs = dict()
-        if self.node_type in (
-            NodeType.CONFIG_ADJACENT,
-            NodeType.CONFIG_VIRTUAL,
-        ) or (source.type_is_db and not source.table):
+        if (
+            self.node_type
+            in (
+                NodeType.CONFIG_ADJACENT,
+                NodeType.CONFIG_VIRTUAL,
+            )
+            or not source.table
+        ):
             leafs_names = get_content_leaf_names(url_parent.config.source)
             if leafs_names:
-                for content_table in get_content_leaf_names(url_parent.config.source):
+                for content_table in leafs_names:
                     if not source.table or source.table == content_table:
                         config = config.merge_with(
                             ec.Config(source=ec.Source(table=content_table)),
@@ -235,7 +239,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             if len(transforms) > 1:
                 df = ee.apply_transforms(df, transform=transforms[:-1])
                 df_dict = dict(transformed=df)
-            split_on_column = transforms[-1].column_name
+            split_transform: ec.SplitOnColumn = transforms[-1]
+            split_on_column = split_transform.split_on_column
             transforms[-1].executed = True
             sub_tables = list(df[split_on_column].drop_duplicates())
             for sub_table in sub_tables:

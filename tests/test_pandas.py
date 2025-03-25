@@ -1,5 +1,7 @@
+import yaml
+
+import els.cli as ei
 import els.config as ec
-from els.cli import execute, tree
 
 from . import helpers as th
 
@@ -19,7 +21,16 @@ def push(
     config.source.df_dict = th.outbound
     config.target.df_dict = th.inbound
 
-    print(config.model_dump(exclude_unset=True))
+    test_els = "__.els.yml"
+    yaml.dump(
+        config.model_dump(exclude_none=True),
+        open(test_els, "w"),
+        sort_keys=False,
+        allow_unicode=True,
+    )
 
-    tree(config)
-    execute(config)
+    # ei.tree(config)
+    ei.tree(test_els)
+    ei.execute(test_els)
+
+    # ei.execute(config)

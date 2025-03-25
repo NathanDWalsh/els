@@ -1,6 +1,7 @@
 import os
 
 import pandas as pd
+import yaml
 
 import els.config as ec
 from els.cli import execute, tree
@@ -25,8 +26,26 @@ def push(
     config.target.url = f"{tmp_path.name}.xlsx"
     config.source.df_dict = th.outbound
 
-    tree(config)
-    execute(config)
+    test_els = "__.els.yml"
+    yaml.dump(
+        config.model_dump(exclude_none=True),
+        open(test_els, "w"),
+        sort_keys=False,
+        allow_unicode=True,
+    )
+
+    yaml.dump(
+        config.model_dump(exclude_none=True),
+        open("__.bkp", "w"),
+        sort_keys=False,
+        allow_unicode=True,
+    )
+
+    tree(test_els)
+    execute(test_els)
+
+    # tree(config)
+    # execute(config)
 
 
 def pull(
@@ -43,8 +62,19 @@ def pull(
     config.source.url = f"{tmp_path.name}.xlsx"
     config.target.df_dict = th.inbound
 
-    tree(config)
-    execute(config)
+    test_els = "__.els.yml"
+    yaml.dump(
+        config.model_dump(exclude_none=True),
+        open(test_els, "w"),
+        sort_keys=False,
+        allow_unicode=True,
+    )
+
+    tree(test_els)
+    execute(test_els)
+
+    # tree(config)
+    # execute(config)
 
 
 def test_skiprows(tmp_path):
