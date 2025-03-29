@@ -42,10 +42,12 @@ def push_sql(source_df: pd.DataFrame, target: ec.Target) -> bool:
         raise Exception("invalid db_connection_string")
     if not target.table:
         raise Exception("invalid to_sql")
-    kwargs = {}
+    kwargs_connect = {}
     if target.type in ("mssql") and len(ec.supported_available_odbc_drivers()):
-        kwargs["fast_executemany"] = True
-    with sa.create_engine(target.db_connection_string, **kwargs).connect() as sqeng:
+        kwargs_connect["fast_executemany"] = True
+    with sa.create_engine(
+        target.db_connection_string, **kwargs_connect
+    ).connect() as sqeng:
         if target.to_sql:
             kwargs = target.to_sql.model_dump()
         else:
@@ -61,6 +63,24 @@ def push_sql(source_df: pd.DataFrame, target: ec.Target) -> bool:
         )
         sqeng.connection.commit()
         return True
+    # if not target.url:
+    #     raise Exception("missing url")
+
+    # if target.build_action == "create_replace_file":
+    #     replace_file = True
+    # else:
+    #     replace_file = False
+
+    # sa_cn = el.fetch_sa_cn(target.db_connection_string)
+
+    # xl_io.set_sheet_df(
+    #     target.sheet_name,
+    #     source_df,
+    #     target.if_exists,
+    #     target.to_excel,
+    # )
+
+    # return True
 
 
 def push_csv(source_df: pd.DataFrame, target: ec.Target) -> bool:
@@ -591,7 +611,7 @@ def pull_frame(
             kwargs["sep"] = ","
         df = pull_csv(frame.url, clean_last_column, **kwargs)
 
-    elif frame.type and frame.type in (".xlsx", ".xls", ".xlsm", ".xlsb"):
+    elif frame.type and frame.type_is_excel:
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_excel, frame, nrows)
 

@@ -322,7 +322,7 @@ class Frame(BaseModel):
     # database: Optional[str] = None
     dbschema: Optional[str] = None
     # table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
-    table: Optional[str] = None
+    table: Optional[Union[str, list[str]]] = None
 
     @cached_property
     def type(self):
@@ -349,19 +349,30 @@ class Frame(BaseModel):
         return False
 
     @cached_property
+    def type_is_excel(self):
+        if self.type in (
+            ".xlsx",
+            ".xls",
+            ".xlsb",
+            ".xlsm",
+        ):
+            return True
+        return False
+
+    @cached_property
     def url_scheme(self):
         if self.url:
             url_parse_scheme = urlparse(self.url, scheme="file").scheme
             drive_letter_pattern = re.compile(r"^[a-zA-Z]$")
             if drive_letter_pattern.match(url_parse_scheme):
                 return "file"
-            return url_parse_scheme
+            return url_parse_scheme.lower()
         else:
             return None
 
     @cached_property
     def sheet_name(self):
-        if self.type in (".xlsx", ".xls", ".xlsb", ".xlsm"):
+        if self.type_is_excel:
             res = self.table or "Sheet1"
             res = re.sub(re.compile(r"[\\*?:/\[\]]", re.UNICODE), "_", res)
             return res[:31].strip()
@@ -395,7 +406,7 @@ class Target(Frame):
             res = self.file_exists
         elif (
             self.type in (".xlsx") and self.file_exists
-        ):  # TODO: add other file types supported by Calamine
+        ):  # TODO: add other file types supported by Calamine, be careful not to support legacy excel
             # check if sheet exists
             xl_io = el.fetch_excel_io(self.url)
             sheet_names = xl_io.child_names

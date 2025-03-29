@@ -1,7 +1,13 @@
-import pandas as pd
+import os
+from typing import Union
 
-outbound = {}
-inbound = {}
+import pandas as pd
+import yaml
+
+import els.cli as ei
+import els.config as ec
+
+inflight = {}
 
 
 def assert_dfs_equal(df0: pd.DataFrame, df1: pd.DataFrame):
@@ -15,9 +21,7 @@ def assert_dfs_equal(df0: pd.DataFrame, df1: pd.DataFrame):
     assert df0.equals(df1)
 
 
-def assert_expected(expected, actual=None):
-    if actual is None and inbound:
-        actual = inbound
+def assert_expected(expected, actual):
     assert id(expected) != id(actual)
     assert len(expected) > 0
     for k in expected.keys():
@@ -25,17 +29,16 @@ def assert_expected(expected, actual=None):
             raise Exception([expected, actual])
         assert k in actual
         assert_dfs_equal(expected[k], actual[k])
-    outbound.clear()
 
 
-def to_list(x):
+def listify(x):
     if not isinstance(x, list):
         x = [x]
     return x
 
 
 def to_call_list(for_calling):
-    for_calling = to_list(for_calling)
+    for_calling = listify(for_calling)
     res = []
     for i in for_calling:
         if isinstance(i, tuple):
@@ -79,8 +82,30 @@ def call_io_funcs(for_calling, **kwargs):
         func[0](**func[1])
 
 
-def clear_runways():
-    global inbound
-    inbound = {}
-    global outbound
-    outbound = {}
+def filename_from_dir(extension=None):
+    dirpath = os.getcwd()
+    foldername = os.path.basename(dirpath)
+
+    return f"{foldername}{('.' + extension) if extension else ''}"
+
+
+def config_dump(config: ec.Config, file_names: Union[str, list[str]]):
+    file_names = listify(file_names)
+    for file_name in file_names:
+        yaml.dump(
+            config.model_dump(exclude_none=True),
+            open(file_name, "w"),
+            sort_keys=False,
+            allow_unicode=True,
+        )
+
+
+def config_execute(config: ec.Config, as_yaml_file_name=None):
+    if as_yaml_file_name:
+        config_dump(config, as_yaml_file_name)
+        execute = as_yaml_file_name
+    else:
+        execute = config
+
+    # ei.tree(execute)
+    ei.execute(execute)

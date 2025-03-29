@@ -219,7 +219,13 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             # TODO: consider relocating to config
             if not source.table:
                 source.table = source.url.split("/")[-1].split(".")[0]
-            table_docs[source.table] = config
+            if isinstance(source.table, str):
+                table_docs[source.table] = config
+            elif isinstance(source.table, list):
+                for t in source.table:
+                    config_copy = config.model_copy(deep=True)
+                    config_copy.source.table = t
+                    table_docs[t] = config_copy
         return table_docs
 
     def transform_splits(self, config: ec.Config, ca_path: "ConfigPath"):
@@ -877,7 +883,7 @@ def config_path_valid(path: ConfigPath) -> bool:
 def get_content_leaf_names(source: ec.Source) -> list[str]:
     if source.type_is_db:
         return get_table_names(source)
-    elif source.type in (".xlsx", ".xlsb", ".xlsm", ".xls"):
+    elif source.type_is_excel:
         xl_io = el.fetch_excel_io(source.url)
         return xl_io.child_names
     elif source.type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
