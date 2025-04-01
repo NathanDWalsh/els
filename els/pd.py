@@ -22,32 +22,45 @@ def multiindex_to_singleindex(df: pd.DataFrame, separator="_"):
 # Stores a reference to a dataframe that is currently scoped,
 # Should be a child of a DataFrameContainerMixinIO
 class DataFrameIO(NodeMixin):
+    # df_refs: dict[int, pd.DataFrame] = {}
     # __slots__ = "df"
 
     def __init__(
-        self, df: pd.DataFrame, name, parent: "DataFrameContainerMixinIO", mode="r"
+        self,
+        df: pd.DataFrame,
+        name,
+        parent: "DataFrameContainerMixinIO",
+        mode="r",
     ):
         # self.df_ref = df
         # self.df_random = df
         self.df = df
-        self.df_random = df.copy()
+        self.df_random = df
         self.parent = parent
-        self.df_id = self.parent.fetch_df_id(df)
+        # self.df_id = self.fetch_df_id(df)
         self.mode = mode
 
         # If an orphan, name could be optional
         self.name = name
+
+    # def fetch_df_id(self, df):
+    #     if df is None:
+    #         raise Exception("Cannot fetch None df")
+    #     else:
+    #         df_id = id(df)
+    #         self.df_refs[df_id] = df
+    #         return df_id
 
     # dataframe for random access
     # different from the df which is the original df reference
     @property
     def df_ref(self) -> pd.DataFrame:
         # return self.df_random
-        return self.parent.df_refs[self.df_id]
+        return self.df_random
 
     @property
     def df_id2(self):
-        return id(self.parent.df_refs[self.df_id])
+        return id(self.df_random)
 
     def close(self):
         pass
@@ -60,9 +73,10 @@ class DataFrameIO(NodeMixin):
         # else:
         #     self.parent.ram_dfs[self.df_id] = self.df
         if self.mode == "a" and not self.df_ref.empty:
-            self.parent.df_refs[self.df_id] = append_into([self.df_ref, self.df])
+            # self.df_refs[self.df_id] = append_into([self.df_ref, self.df])
+            self.df_random = append_into([self.df_ref, self.df])
         else:
-            self.parent.df_refs[self.df_id] = self.df
+            self.df_random = self.df
 
     @property
     def column_frame(self):
@@ -116,18 +130,6 @@ class DataFrameIO(NodeMixin):
 class DataFrameContainerMixinIO(NodeMixin):
     child_class: DataFrameIO
     replace: str
-    df_refs: dict[int, pd.DataFrame] = {}
-
-    def fetch_df(self, df_id):
-        return self.df_refs[df_id]
-
-    def fetch_df_id(self, df):
-        if df is None:
-            raise Exception("Cannot fetch None df")
-        else:
-            df_id = id(df)
-            self.df_refs[df_id] = df
-            return df_id
 
     def set_df(self, df_id, df):
         raise Exception("set_df must be set in derived classes")
