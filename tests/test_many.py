@@ -2,9 +2,7 @@ import os
 
 import pytest
 
-from . import templates as tt
-from . import test_excel as tx
-from . import test_pandas as tp
+from . import test_template as tt
 
 
 # these tests are considered "symmetrical config", meaning the same config can be applied on
@@ -16,8 +14,9 @@ from . import test_pandas as tp
 @pytest.mark.parametrize(
     "test_name,flight_url",
     [
-        ("test_pandas", tp.flight_url),
-        ("test_excel", tx.flight_url),
+        ("pandas", tt.flight_url_df_dict),
+        ("excel", tt.flight_url_excel),
+        # ("sqlite", tt.flight_url_sqlite),
     ],
 )
 @pytest.mark.parametrize(
@@ -30,7 +29,6 @@ from . import test_pandas as tp
         tt.append_together,
         tt.append_separate,
         tt.append_mixed,
-        tt.append_plus,
         tt.append_minus,
         tt.split_on_col_explicit_tab,
         tt.filter,
@@ -41,13 +39,14 @@ from . import test_pandas as tp
         tt.prql_split_pivot,
         tt.prql_col_split_pivot,
         tt.melt,
-        tt.truncate_single,
-        tt.truncate_double,
         tt.replace,
         tt.prql_col_split,
+        tt.truncate_single,
+        tt.truncate_double,
+        tt.append_plus,
     ],
 )
-def test_synconfig(tmp_path, test_name, flight_url, func, config_for):
+def test_symconfig(tmp_path, test_name, flight_url, func, config_for):
     os.chdir(tmp_path)
     func(flight_url=flight_url, config_for=config_for)
 
@@ -55,8 +54,8 @@ def test_synconfig(tmp_path, test_name, flight_url, func, config_for):
 @pytest.mark.parametrize(
     "test_name,flight_url",
     [
-        ("test_pandas", tp.flight_url),
-        ("test_excel", tx.flight_url),
+        ("pandas", tt.flight_url_df_dict),
+        ("excel", tt.flight_url_excel),
     ],
 )
 @pytest.mark.parametrize(
@@ -74,14 +73,14 @@ def test_for_push_or_pull(tmp_path, test_name, flight_url, func):
 @pytest.mark.parametrize(
     "test_name,flight_url",
     [
-        ("test_excel", tx.flight_url),
+        ("excel", tt.flight_url_excel),
     ],
 )
 @pytest.mark.parametrize(
     "func",
     [
-        tx.multiindex_column,
-        tx.replace_file,
+        tt.xl_multiindex_column,
+        tt.xl_replace_file,
     ],
 )
 def test_for_excel(tmp_path, test_name, flight_url, func):

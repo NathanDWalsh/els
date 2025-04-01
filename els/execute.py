@@ -16,6 +16,58 @@ import els.config as ec
 import els.core as el
 
 
+def table_exists(target: ec.Target) -> Optional[bool]:
+    if target.db_connection_string and target.table and target.dbschema:
+        with sa.create_engine(target.db_connection_string).connect() as sqeng:
+            inspector = sa.inspect(sqeng)
+            res = inspector.has_table(target.table, target.dbschema)
+    elif target.db_connection_string and target.table:
+        with sa.create_engine(target.db_connection_string).connect() as sqeng:
+            inspector = sa.inspect(sqeng)
+            res = inspector.has_table(target.table)
+    elif target.type in (".csv", ".tsv"):
+        res = target.file_exists
+    elif (
+        target.type in (".xlsx") and target.file_exists
+    ):  # TODO: add other file types supported by Calamine, be careful not to support legacy excel
+        # check if sheet exists
+        xl_io = el.fetch_excel_io(target.url)
+        sheet_names = xl_io.child_names
+        res = target.sheet_name in sheet_names
+    elif target.type == "dict":
+        df_dict_io = el.fetch_df_dict_io(target.url)
+        df_dict = df_dict_io.df_dict
+        if target.table in df_dict and not df_dict[target.table].empty:
+            res = True
+        else:
+            res = False
+    else:
+        res = None
+    return res
+
+
+def build_action(target: ec.Target) -> str:
+    if not target.if_exists:
+        res = "fail"
+    elif target.url_scheme == "file" and (
+        target.if_exists == ec.TargetIfExistsValue.REPLACE_FILE.value
+        or not target.file_exists
+    ):
+        res = "create_replace_file"
+    elif (
+        not table_exists(target)
+        or target.if_exists == ec.TargetIfExistsValue.REPLACE.value
+    ):
+        res = "create_replace"
+    elif target.if_exists == ec.TargetIfExistsValue.TRUNCATE.value:
+        res = "truncate"
+    elif target.if_exists == ec.TargetIfExistsValue.FAIL.value:
+        res = "fail"
+    else:
+        res = "no_action"
+    return res
+
+
 def push_frame(df: pd.DataFrame, target: ec.Target) -> bool:
     res = False
     if df is not None:
@@ -29,6 +81,7 @@ def push_frame(df: pd.DataFrame, target: ec.Target) -> bool:
             if target.type in (".xlsx"):
                 res = push_excel(df, target)
             elif target.type_is_db:
+                print("legacy push")
                 res = push_sql(df, target)
             elif target.type in ("dict"):
                 res = push_pandas(df, target)
@@ -38,6 +91,13 @@ def push_frame(df: pd.DataFrame, target: ec.Target) -> bool:
 
 
 def push_sql(source_df: pd.DataFrame, target: ec.Target) -> bool:
+    sql_container = el.fetch_sql_container(target.db_connection_string)
+    # print([c.name for c in sql_container.children])
+    # raise Exception()
+    # print(f"pull {frame.table}")
+    # kwargs = get_source_kwargs(None, frame, nrows)
+    # df = sql_container.pull_table(kwargs, nrows=nrows, sqn=frame.table)
+
     if not target.db_connection_string:
         raise Exception("invalid db_connection_string")
     if not target.table:
@@ -66,18 +126,18 @@ def push_sql(source_df: pd.DataFrame, target: ec.Target) -> bool:
     # if not target.url:
     #     raise Exception("missing url")
 
-    # if target.build_action == "create_replace_file":
+    # if build_action(target) == "create_replace_file":
     #     replace_file = True
     # else:
     #     replace_file = False
 
-    # sa_cn = el.fetch_sa_cn(target.db_connection_string)
-
+    # xl_io = el.fetch_excel_io(target.url, replace=replace_file)
     # xl_io.set_sheet_df(
     #     target.sheet_name,
     #     source_df,
     #     target.if_exists,
     #     target.to_excel,
+    #     build=build,
     # )
 
     # return True
@@ -99,11 +159,15 @@ def push_csv(source_df: pd.DataFrame, target: ec.Target) -> bool:
     return True
 
 
-def push_excel(source_df: pd.DataFrame, target: ec.Target) -> bool:
+def push_excel(
+    source_df: pd.DataFrame,
+    target: ec.Target,
+    build=False,
+) -> bool:
     if not target.url:
         raise Exception("missing url")
 
-    if target.build_action == "create_replace_file":
+    if build_action(target) == "create_replace_file":
         replace_file = True
     else:
         replace_file = False
@@ -114,16 +178,22 @@ def push_excel(source_df: pd.DataFrame, target: ec.Target) -> bool:
         source_df,
         target.if_exists,
         target.to_excel,
+        build=build,
     )
 
     return True
 
 
-def push_pandas(source_df: pd.DataFrame, target: ec.Target) -> bool:
+def push_pandas(
+    source_df: pd.DataFrame,
+    target: ec.Target,
+    build=False,
+) -> bool:
     if not target.table:
         raise Exception("invalid table")
-    df_dict_io = target.df_dict_io
-    df_dict_io.set_df(target.table, source_df, target.if_exists)
+    # df_dict_io = target.df_dict_io
+    df_dict_io = el.fetch_df_dict_io(target.url)
+    df_dict_io.set_df(target.table, source_df, target.if_exists, build=build)
     return True
 
 
@@ -141,6 +211,7 @@ def pull_sql(frame: ec.Frame, nrows=None, **kwargs) -> pd.DataFrame:
 
 
 def build_sql(df: pd.DataFrame, target: ec.Frame, id_field: str = None) -> bool:
+    print("legacy build")
     if not target.db_connection_string:
         raise Exception("invalid db_connection_string")
     if not target.sqn:
@@ -190,24 +261,11 @@ def build_target(df: pd.DataFrame, target: ec.Frame) -> bool:
         res = build_csv(df, target)
     elif target.type in (".xlsx"):
         create_directory_if_not_exists(target.url)
-        res = build_excel_frame(df, target)
+        res = push_excel(df, target, build=True)
     elif target.type in ("dict"):
-        res = build_pandas_frame(df, target)
+        res = push_pandas(df, target, build=True)
     else:
         raise Exception("invalid target type")
-    return res
-
-
-def build_excel_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
-    empty_frame = el.get_column_frame(df)
-    res = push_excel(empty_frame, target)
-    return res
-
-
-def build_pandas_frame(df: pd.DataFrame, target: ec.Frame) -> bool:
-    empty_frame = el.get_column_frame(df)
-
-    res = push_pandas(empty_frame, target)
     return res
 
 
@@ -596,6 +654,13 @@ def pull_frame(
 ) -> pd.DataFrame:
     # logging.info(f"pulling frame {frame.file_path_dynamic}")
     if frame.type_is_db:
+        # sql_container = el.fetch_sql_container(frame.db_connection_string)
+        # print([c.name for c in sql_container.children])
+        # # raise Exception()
+        # print(f"pull {frame.table}")
+        # kwargs = get_source_kwargs(None, frame, nrows)
+        # df = sql_container.pull_table(kwargs, nrows=nrows, sqn=frame.table)
+
         kwargs = get_source_kwargs(None, frame, nrows)
         df = pull_sql(frame, **kwargs)
     elif frame.type in (".csv", ".tsv"):
@@ -611,10 +676,9 @@ def pull_frame(
             kwargs["sep"] = ","
         df = pull_csv(frame.url, clean_last_column, **kwargs)
 
-    elif frame.type and frame.type_is_excel:
+    elif frame.type_is_excel:
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_excel, frame, nrows)
-
         elif isinstance(frame, ec.Target):
             kwargs = get_target_kwargs(frame.to_excel, frame, nrows)
             if "startrow" in kwargs:
@@ -623,8 +687,8 @@ def pull_frame(
                     kwargs["skiprows"] = startrow + 1
         else:
             kwargs = {}
-        xl_io = el.fetch_excel_io(frame.url)
 
+        xl_io = el.fetch_excel_io(frame.url)
         df = xl_io.pull_sheet(kwargs)
     elif frame.type == ".fwf":
         if isinstance(frame, ec.Source):
@@ -659,7 +723,10 @@ def pull_frame(
         if nrows:
             df = df.head(nrows)
     elif frame.type in ("dict"):
-        df_dict_io = frame.df_dict_io
+        # df_dict_io = frame.df_dict_io
+        # df = df_dict_io.get_child(frame.table).df
+
+        df_dict_io = el.fetch_df_dict_io(frame.url)
         df = df_dict_io.get_child(frame.table).df
     else:
         raise Exception("unable to pull df")
@@ -739,11 +806,14 @@ def ingest(config: ec.Config) -> bool:
 
 def build(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
-    if target and target.build_action != "no_action":
-        action = target.build_action
+    print("building")
+    if target and build_action(target) != "no_action":
+        action = build_action(target)
         if action in ("create_replace", "create_replace_file"):
             # TODO, use caching to avoid pulling the same data twice
             df = pull_frame(source, 100)
+            print("build source")
+            print("source pulled")
             df = apply_transforms(df, transform, mark_as_executed=False)
             res = build_target(df, target)
         elif action == "truncate":

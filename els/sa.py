@@ -1,25 +1,37 @@
-import os
 from functools import cached_property
 
 import pandas as pd
-from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
+import sqlalchemy as sa
 
 import els.config as ec
 import els.core as el
 import els.pd as epd
 
 
+def get_table_names(source: ec.Source) -> list[str]:
+    res = None
+    if source.type_is_db:
+        if not source.table:
+            with sa.create_engine(source.db_connection_string).connect() as sqeng:
+                inspector = sa.inspect(sqeng)
+                res = inspector.get_table_names(source.dbschema)
+        else:
+            res = [source.table]
+    return res
+
+
 class SQLTable(epd.DataFrameIO):
     def __init__(
         self,
         name,
+        parent,
         mode="r",
         df=pd.DataFrame(),
         read_sql={},
         to_sql={},
         truncate=False,
     ):
-        super().__init__(df, name, mode)
+        super().__init__(df, name, parent, mode)
         self.read_sql = read_sql
         self.to_sql: ec.ToSql = to_sql
         self.truncate = truncate
@@ -28,24 +40,33 @@ class SQLTable(epd.DataFrameIO):
         if self.df.empty:
             self.df = self.pull()
 
-    def pull(self, kwargs=None):
+    def pull(self, kwargs={}, nrows=100):
         if not kwargs:
             kwargs = self.read_sql
-        if self.mode == "r" and self.read_sql != kwargs:
-            if "engine" not in kwargs:
-                kwargs["engine"] = "calamine"
-            if "sheet_name" not in kwargs:
-                kwargs["sheet_name"] = self.name
-            self.df = pd.read_excel(self.parent.file_io, **kwargs)
+        else:
             self.read_sql = kwargs
-        return self.df
-
-        with sa.create_engine(frame.db_connection_string).connect() as sqeng:
-            stmt = sa.select(sa.text("*")).select_from(sa.text(frame.sqn)).limit(nrows)
+        if "nrows" in kwargs:
+            kwargs.pop("nrows")
+        if not self.parent.url:
+            raise Exception("invalid db_connection_string")
+        if not self.name:
+            raise Exception("invalid sqn")
+        with sa.create_engine(self.parent.url).connect() as sqeng:
+            stmt = sa.select(sa.text("*")).select_from(sa.text(self.name)).limit(nrows)
             df = pd.read_sql(stmt, con=sqeng, **kwargs)
+        return df
+
+        # if self.mode == "r" and self.read_sql != kwargs:
+        #     if "engine" not in kwargs:
+        #         kwargs["engine"] = "calamine"
+        #     if "sheet_name" not in kwargs:
+        #         kwargs["sheet_name"] = self.name
+        #     self.df = pd.read_excel(self.parent.sa_engine, **kwargs)
+        #     self.read_sql = kwargs
+        # return self.df
 
     @property
-    def parent(self) -> "SQLEngine":
+    def parent(self) -> "SQLDBContainer":
         return super().parent
 
     @parent.setter
@@ -53,7 +74,7 @@ class SQLTable(epd.DataFrameIO):
         epd.DataFrameIO.parent.fset(self, v)
 
 
-class SQLEngine(epd.DataFrameContainerMixinIO):
+class SQLDBContainer(epd.DataFrameContainerMixinIO):
     def __init__(self, url, replace=False):
         self.child_class = SQLTable
 
@@ -61,58 +82,55 @@ class SQLEngine(epd.DataFrameContainerMixinIO):
         self.replace = replace
 
         # load file and sheets
-        self.file_io = el.fetch_sa_cn(self.url)
+        self.sa_engine: sa.Engine = el.fetch_sa_engine(self.url)
         self.children = [] if self.mode == "w" else self._children_init()
+        print(f"children created: {[n.name for n in self.children]}")
 
     def _children_init(self):
-        self.file_io.seek(0)
-        with CalamineWorkbook.from_filelike(self.file_io) as workbook:
+        with self.sa_engine.connect() as sqeng:
+            inspector = sa.inspect(sqeng)
+            # inspector.get_table_names(source.dbschema)
             return [
-                ExcelSheetIO(
-                    startrow=workbook.get_sheet_by_name(sheet.name).total_height + 1,
-                    name=sheet.name,
+                SQLTable(
+                    name=n,
+                    parent=self,
                 )
-                for sheet in workbook.sheets_metadata
-                if (sheet.visible in [SheetVisibleEnum.Visible])
-                and (sheet.typ == SheetTypeEnum.WorkSheet)
+                for n in inspector.get_table_names()
             ]
 
     @cached_property
     def create_or_replace(self):
-        if self.replace or not os.path.isfile(self.url):
+        # if self.replace or not os.path.isfile(self.url):
+        # TODO: add logic which discriminates between file or server-based databases
+        # consider allowing database replacement with prompt
+        if self.replace:
             return True
         else:
             return False
 
-    def get_child(self, child_name) -> ExcelSheetIO:
+    def get_child(self, child_name) -> SQLTable:
         return super().get_child(child_name)
 
     @property
-    def childrens(self) -> tuple[ExcelSheetIO]:
+    def childrens(self) -> tuple[SQLTable]:
         return super().children
 
-    def pull_sheet(self, kwargs):
-        sheet_name = kwargs["sheet_name"]
-        if self.has_child(sheet_name):
-            sheet = self.get_child(sheet_name)
-            return sheet.pull(kwargs)
+    def pull_table(self, kwargs, nrows, sqn):
+        if self.has_child(sqn):
+            table = self.get_child(sqn)
+            return table.pull(kwargs, nrows)
         else:
-            raise Exception(f"sheet not found: {sheet_name}")
-
-    @property
-    def write_engine(self):
-        if self.mode == "a":
-            return "openpyxl"
-        else:
-            return "xlsxwriter"
+            raise Exception(
+                f"table {sqn} not found in {[n.name for n in self.children]}"
+            )
 
     def persist(self):
         if self.mode == "w":
             with pd.ExcelWriter(
-                self.file_io, engine=self.write_engine, mode=self.mode
+                self.sa_engine, engine=self.write_engine, mode=self.mode
             ) as writer:
                 for df_io in self.childrens:
-                    df = df_io.open_df
+                    df = df_io.df_ref
                     to_excel = df_io.to_excel
                     if to_excel:
                         kwargs = to_excel.model_dump(exclude_none=True)
@@ -131,14 +149,14 @@ class SQLEngine(epd.DataFrameContainerMixinIO):
                     sheet_exists.add(df_io.if_sheet_exists)
             for sheet_exist in sheet_exists:
                 with pd.ExcelWriter(
-                    self.file_io,
+                    self.sa_engine,
                     engine=self.write_engine,
                     mode=self.mode,
                     if_sheet_exists=sheet_exist,
                 ) as writer:
                     for df_io in self.childrens:
                         if df_io.mode != "r" and df_io.if_sheet_exists == sheet_exist:
-                            df = df_io.open_df
+                            df = df_io.df_ref
                             to_excel = df_io.to_excel
                             if df_io.mode == "a":
                                 header = False
@@ -161,18 +179,19 @@ class SQLEngine(epd.DataFrameContainerMixinIO):
                             )
 
         with open(self.url, "wb") as write_file:
-            self.file_io.seek(0)
-            write_file.write(self.file_io.getbuffer())
+            self.sa_engine.seek(0)
+            write_file.write(self.sa_engine.getbuffer())
 
-    def set_sheet_df(self, sheet_name, df, if_exists, kwargs):
-        df_io: ExcelSheetIO = self.fetch_df_io(df_name=sheet_name, df=df)
-        df_io.set_df(df_name=sheet_name, df=df, if_exists=if_exists)
+    def set_table_df(self, table_name, df, if_exists, kwargs):
+        df_io: SQLTable = self.fetch_df_io(df_name=table_name, df=df)
+        df_io.set_df(df_name=table_name, df=df, if_exists=if_exists)
         if if_exists == "truncate":
             df_io.truncate = True
-        df_io.to_excel = kwargs
+        df_io.to_sql = kwargs
 
     def close(self):
         for df_io in self.childrens:
             df_io.close()
-        self.file_io.close()
-        del el.open_files[self.url]
+        self.sa_engine.dispose()
+        print("engine disposed")
+        del el.open_sa_engs[self.url]

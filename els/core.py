@@ -5,48 +5,53 @@ import pandas as pd
 import sqlalchemy as sa
 
 import els.pd as pn
+import els.sa as sq
 import els.xl as xl
 
 default_target: dict[str, pd.DataFrame] = {}
 open_files: dict[str, io.BytesIO] = {}
 open_workbooks: dict[str, xl.ExcelIO] = {}
 open_dicts: dict[int, pn.DataFrameDictIO] = {}
-open_dfs: dict[int, pd.DataFrame] = {}
-open_sa_cns: dict[str, sa.Connection] = {}
+open_sa_engs: dict[str, sa.Engine] = {}
+open_sqls: dict[str, sq.SQLDBContainer] = {}
 
 
-def fetch_sa_cn(url):
+def fetch_sql_container(url: str, replace: bool = False) -> sq.SQLDBContainer:
     if url is None:
         raise Exception("Cannot fetch None url")
-    elif url in open_sa_cns:
-        res = open_files[url]
+    elif url in open_sqls:
+        print("found")
+        res = open_sqls[url]
     else:
-        res = sa.create_engine(url)
-    open_files[url] = res
+        print("create")
+        res = sq.SQLDBContainer(url, replace)
+    open_sqls[url] = res
     return res
 
 
-def fetch_df(df_id):
-    return open_dfs[df_id]
-
-
-def fetch_df_id(df):
-    if df is None:
-        raise Exception("Cannot fetch None df")
+def fetch_sa_engine(url) -> sa.Engine:
+    if url is None:
+        raise Exception("Cannot fetch None url")
+    elif url in open_sa_engs:
+        print(f"creating engine {url}")
+        res = open_sa_engs[url]
     else:
-        df_id = id(df)
-        open_dfs[df_id] = df
-        return df_id
+        print(f"opening engine {url}")
+        res = sa.create_engine(url)
+    open_sa_engs[url] = res
+    return res
 
 
-def set_df(df_id, df):
-    open_dfs[df_id] = df
+def urlize_dict(df_dict: dict):
+    fetch_df_dict_io(df_dict)
+    return f"dict://{id(df_dict)}"
 
 
 def fetch_df_dict_io(df_dict: dict, replace: bool = False):
     if isinstance(df_dict, int):
         return open_dicts[df_dict]
-
+    if isinstance(df_dict, str):
+        return open_dicts[int(df_dict.split("/")[-1])]
     if df_dict is None:
         raise Exception("Cannot fetch None dict")
     elif id(df_dict) in open_dicts:
@@ -84,18 +89,6 @@ def fetch_excel_io(url: str, replace: bool = False):
         res = xl.ExcelIO(url, replace)
     open_workbooks[url] = res
     return res
-
-
-def get_column_frame(df: pd.DataFrame):
-    column_frame = pd.DataFrame(columns=df.columns, index=None, data=None)
-    column_frame = column_frame.astype(df.dtypes)
-    return column_frame
-
-
-def append_into(dfs: list[pd.DataFrame]):
-    # appends subsequent dfs into the first df, keeping only the columns from the first
-    ncols = len(dfs[0].columns)
-    return pd.concat(dfs, ignore_index=True).iloc[:, 0:ncols]
 
 
 def listify(v):

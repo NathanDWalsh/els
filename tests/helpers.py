@@ -7,8 +7,6 @@ import yaml
 import els.cli as ei
 import els.config as ec
 
-inflight = {}
-
 
 def assert_dfs_equal(df0: pd.DataFrame, df1: pd.DataFrame):
     assert len(df0) == len(df1)
@@ -107,5 +105,9 @@ def config_execute(config: ec.Config, as_yaml_file_name=None):
     else:
         execute = config
 
+    # print("tree in")
     # ei.tree(execute)
+    # print("tree out")
+    print("execute in")
     ei.execute(execute)
+    print("execute out")

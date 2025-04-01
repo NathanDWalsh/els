@@ -266,7 +266,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 )
                 if df_dict:
                     sub_table_path.config_local.source.table = "transformed"
-                    sub_table_path.config_local.source.df_dict = df_dict
+                    sub_table_path.config_local.source.url = el.urlize_dict(df_dict)
 
     def grow_config_branches(self):
         previous_url = ""
@@ -713,7 +713,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             if type(node.config_local) is not ec.Config:
                 node.config_local = ec.Config.model_validate(node.config_local)
             if force or not node.config.target.url:
-                node.config_local.target.df_dict = el.default_target
+                node.config_local.target.url = el.urlize_dict(el.default_target)
 
     def set_nrows(self, nrows: int):
         for node in self.then_descendants:
@@ -893,14 +893,16 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
     # elif self.suffix == ".zip":
     #     return get_zip_files(str(self))
     elif source.type == "dict":  # and self._config.type =='mssql'
-        if source.table:
-            if source.df_dict:
-                return [source.table]
-            else:
-                raise Exception(
-                    f"source table {source.table} not in dict url: {source.url}"
-                )
-        else:
-            return list(source.df_dict)
+        # if source.table:
+        #     if source.XXX_df_dict:
+        #         return [source.table]
+        #     else:
+        #         raise Exception(
+        #             f"source table {source.table} not in dict url: {source.url}"
+        #         )
+        # else:
+        # TODO: fix this to account for targeting of specific tables in dict instead of all
+        df_dict_io = el.fetch_df_dict_io(source.url)
+        return list(df_dict_io.df_dict)
     else:
         return [source.url]

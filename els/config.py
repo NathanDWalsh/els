@@ -8,11 +8,9 @@ from typing import NewType, Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pyodbc
-import sqlalchemy as sa
 import yaml
 from pydantic import BaseModel, ConfigDict
 
-import els.core as el
 from els.pathprops import HumanPathPropertiesMixin
 
 
@@ -291,31 +289,6 @@ class Frame(BaseModel):
             res = None
         return res
 
-    @property
-    def df_dict_io(self):
-        if self.type == "dict":
-            dict_id = int(urlparse(self.url)[1])
-            res = el.fetch_df_dict_io(dict_id)
-            if res:
-                return res
-            else:
-                raise Exception(f"dict_id {dict_id} not stored in collection.")
-        else:
-            raise Exception(
-                f"not a dict frame type, but a {self.type} type and {self.url} url"
-            )
-
-    @property
-    def df_dict(self):
-        if self.type == "dict":
-            return self.df_dict_io.df_dict
-        return None
-
-    @df_dict.setter
-    def df_dict(self, _dict):
-        self.url = f"dict://{id(_dict)}"
-        el.fetch_df_dict_io(_dict)
-
     url: Optional[str] = None
     # type: Optional[str] = None
     # server: Optional[str] = None
@@ -391,59 +364,6 @@ class Target(Frame):
     to_sql: Optional[ToSql] = None
     to_csv: Optional[ToCsv] = None
     to_excel: Optional[ToExcel] = None
-
-    @cached_property
-    def table_exists(self) -> Optional[bool]:
-        if self.db_connection_string and self.table and self.dbschema:
-            with sa.create_engine(self.db_connection_string).connect() as sqeng:
-                inspector = sa.inspect(sqeng)
-                res = inspector.has_table(self.table, self.dbschema)
-        elif self.db_connection_string and self.table:
-            with sa.create_engine(self.db_connection_string).connect() as sqeng:
-                inspector = sa.inspect(sqeng)
-                res = inspector.has_table(self.table)
-        elif self.type in (".csv", ".tsv"):
-            res = self.file_exists
-        elif (
-            self.type in (".xlsx") and self.file_exists
-        ):  # TODO: add other file types supported by Calamine, be careful not to support legacy excel
-            # check if sheet exists
-            xl_io = el.fetch_excel_io(self.url)
-            sheet_names = xl_io.child_names
-            res = self.sheet_name in sheet_names
-        elif self.type == "dict":
-            if (
-                self.df_dict
-                and self.table in self.df_dict
-                and not self.df_dict[self.table].empty
-            ):
-                res = True
-            else:
-                res = False
-        else:
-            res = None
-        return res
-
-    @cached_property
-    def build_action(self) -> str:
-        if not self.if_exists:
-            res = "fail"
-        elif self.url_scheme == "file" and (
-            self.if_exists == TargetIfExistsValue.REPLACE_FILE.value
-            or not self.file_exists
-        ):
-            res = "create_replace_file"
-        elif (
-            not self.table_exists or self.if_exists == TargetIfExistsValue.REPLACE.value
-        ):
-            res = "create_replace"
-        elif self.if_exists == TargetIfExistsValue.TRUNCATE.value:
-            res = "truncate"
-        elif self.if_exists == TargetIfExistsValue.FAIL.value:
-            res = "fail"
-        else:
-            res = "no_action"
-        return res
 
 
 class ReadCsv(BaseModel, extra="allow"):

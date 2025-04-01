@@ -53,9 +53,12 @@ def get_sheet_row(
 
 
 class ExcelSheetIO(epd.DataFrameIO):
+    # __slots__ = "df"
+
     def __init__(
         self,
         name,
+        parent,
         mode="r",
         df=pd.DataFrame(),
         startrow=0,
@@ -63,7 +66,7 @@ class ExcelSheetIO(epd.DataFrameIO):
         to_excel={},
         truncate=False,
     ):
-        super().__init__(df, name, mode)
+        super().__init__(df, name, parent, mode)
         self._startrow = startrow
         self.read_excel = read_excel
         self.to_excel: ec.ToExcel = to_excel
@@ -132,6 +135,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                 ExcelSheetIO(
                     startrow=workbook.get_sheet_by_name(sheet.name).total_height + 1,
                     name=sheet.name,
+                    parent=self,
                 )
                 for sheet in workbook.sheets_metadata
                 if (sheet.visible in [SheetVisibleEnum.Visible])
@@ -173,7 +177,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                 self.file_io, engine=self.write_engine, mode=self.mode
             ) as writer:
                 for df_io in self.childrens:
-                    df = df_io.open_df
+                    df = df_io.df_ref
                     to_excel = df_io.to_excel
                     if to_excel:
                         kwargs = to_excel.model_dump(exclude_none=True)
@@ -199,7 +203,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                 ) as writer:
                     for df_io in self.childrens:
                         if df_io.mode != "r" and df_io.if_sheet_exists == sheet_exist:
-                            df = df_io.open_df
+                            df = df_io.df_ref
                             to_excel = df_io.to_excel
                             if df_io.mode == "a":
                                 header = False
@@ -225,9 +229,25 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
             self.file_io.seek(0)
             write_file.write(self.file_io.getbuffer())
 
-    def set_sheet_df(self, sheet_name, df, if_exists, kwargs):
-        df_io: ExcelSheetIO = self.fetch_df_io(df_name=sheet_name, df=df)
-        df_io.set_df(df_name=sheet_name, df=df, if_exists=if_exists)
+    def set_sheet_df(
+        self,
+        sheet_name,
+        df,
+        if_exists,
+        kwargs,
+        build=False,
+    ):
+        if build:
+            df = epd.get_column_frame(df)
+        df_io: ExcelSheetIO = self.fetch_df_io(
+            df_name=sheet_name,
+            df=df,
+        )
+        df_io.set_df(
+            df_name=sheet_name,
+            df=df,
+            if_exists=if_exists,
+        )
         if if_exists == "truncate":
             df_io.truncate = True
         df_io.to_excel = kwargs

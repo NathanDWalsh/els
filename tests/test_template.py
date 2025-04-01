@@ -1,10 +1,78 @@
+import os
 from functools import wraps
 
 import pandas as pd
 
 import els.config as ec
+import els.core as el
 
 from . import helpers as th
+
+inflight = {}
+
+
+def flight_url_df_dict():
+    el.fetch_df_dict_io(inflight)
+    return f"dict://{id(inflight)}"
+
+
+def flight_url_excel():
+    return th.filename_from_dir("xlsx")
+
+
+def flight_url_sqlite():
+    return f"sqlite:///{th.filename_from_dir('db')}"
+
+
+def test_xl_skiprows(tmp_path):
+    os.chdir(tmp_path)
+    outbound = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
+    expected = outbound
+    config = ec.Config(
+        target=ec.Target(
+            to_excel=ec.ToExcel(startrow=2),
+        )
+    )
+    push(
+        flight_url=flight_url_excel,
+        config=config,
+        outbound=outbound,
+    )
+    inbound = pull(
+        flight_url=flight_url_excel,
+        config=ec.Config(
+            source=ec.Source(
+                read_excel=ec.ReadExcel(skiprows=2),
+            ),
+        ),
+    )
+    th.assert_expected(expected, inbound)
+
+    inbound = pull(flight_url=flight_url_excel)
+    df1 = inbound["df"]
+    assert len(df1) == 5
+
+
+def test_xl_sheet_skipfooter(tmp_path):
+    os.chdir(tmp_path)
+    df0 = pd.DataFrame({"a": [1, 2, 3]})
+    df0f = pd.DataFrame({"a": [1, 2, 3, None, None, "Footer"]})
+
+    outbound = dict(df1=df0f)
+
+    push(flight_url=flight_url_excel, outbound=outbound)
+
+    inbound = pull(flight_url=flight_url_excel)
+    df1 = inbound["df1"]
+    assert len(df1) == 6
+    th.assert_dfs_equal(df0f, df1)
+
+    inbound = pull(
+        flight_url=flight_url_excel,
+        config=ec.Config(source=ec.Source(read_excel=ec.ReadExcel(skipfooter=3))),
+    )
+    df1 = inbound["df1"]
+    th.assert_dfs_equal(df0, df1)
 
 
 def configify(config):
@@ -19,7 +87,7 @@ def configify(config):
 
 
 def oneway_config(flight_url, config_for, outbound, expected, config):
-    th.inflight = {}
+    inflight.clear()
     if config_for == "push":
         for cc in configify(config):
             push(flight_url=flight_url, config=cc, outbound=outbound)
@@ -64,7 +132,7 @@ def config_push(func):
 @config_symmetrical
 def single():
     outbound = dict(
-        df=pd.DataFrame({"a": [1, 2, 3]}),
+        df_single=pd.DataFrame({"a": [1, 2, 3]}),
     )
     expected = outbound
     config = ec.Config()
@@ -738,9 +806,10 @@ def push(
     outbound,
     config=ec.Config(),
 ):
-    config.source.df_dict = outbound
+    config.source.url = el.urlize_dict(outbound)
     config.target.url = flight_url()
 
+    print(f"pushing {config.source.url} as {outbound}")
     th.config_execute(config, "push.els.yml")
 
 
@@ -752,7 +821,42 @@ def pull(
     if inbound is None:
         inbound = {}
     config.source.url = flight_url()
-    config.target.df_dict = inbound
+    config.target.url = el.urlize_dict(inbound)
 
+    print("pulling")
     th.config_execute(config, "pull.els.yml")
     return inbound
+
+
+@config_push
+def xl_replace_file():
+    outbound = dict(
+        df1=pd.DataFrame({"a": [1, 2, 3]}), df2=pd.DataFrame({"b": [4, 5, 6]})
+    )
+    expected = dict(df2=pd.DataFrame({"b": [4, 5, 6]}))
+
+    config = [
+        ec.Config(),
+        ec.Config(
+            source=ec.Source(table="df2"),
+            target=ec.Target(if_exists="replace_file"),
+        ),
+    ]
+    return outbound, expected, config
+
+
+@config_push
+def xl_multiindex_column():
+    outbound = dict(
+        dfx=pd.DataFrame(
+            columns=pd.MultiIndex.from_product([["A", "B"], ["c", "d", "e"]]),
+            data=[[1, 2, 3, 4, 5, 6]],
+        )
+    )
+    expected = dict(
+        dfx=pd.DataFrame(
+            {"A_c": [1], "A_d": [2], "A_e": [3], "B_c": [4], "B_d": [5], "B_e": [6]}
+        )
+    )
+    config = ec.Config()
+    return outbound, expected, config
