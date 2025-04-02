@@ -130,7 +130,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
                 self.sa_engine, engine=self.write_engine, mode=self.mode
             ) as writer:
                 for df_io in self.childrens:
-                    df = df_io.df_ref
+                    df = df_io.df_target
                     to_excel = df_io.to_excel
                     if to_excel:
                         kwargs = to_excel.model_dump(exclude_none=True)
@@ -156,7 +156,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
                 ) as writer:
                     for df_io in self.childrens:
                         if df_io.mode != "r" and df_io.if_sheet_exists == sheet_exist:
-                            df = df_io.df_ref
+                            df = df_io.df_target
                             to_excel = df_io.to_excel
                             if df_io.mode == "a":
                                 header = False
@@ -183,7 +183,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
             write_file.write(self.sa_engine.getbuffer())
 
     def set_table_df(self, table_name, df, if_exists, kwargs):
-        df_io: SQLTable = self.fetch_df_io(df_name=table_name, df=df)
+        df_io: SQLTable = self.fetch_child(df_name=table_name, df=df)
         df_io.set_df(df_name=table_name, df=df, if_exists=if_exists)
         if if_exists == "truncate":
             df_io.truncate = True

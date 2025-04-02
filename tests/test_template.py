@@ -801,33 +801,6 @@ def add_columns():
     return outbound, expected, config
 
 
-def push(
-    flight_url,
-    outbound,
-    config=ec.Config(),
-):
-    config.source.url = el.urlize_dict(outbound)
-    config.target.url = flight_url()
-
-    print(f"pushing {config.source.url} as {outbound}")
-    th.config_execute(config, "push.els.yml")
-
-
-def pull(
-    flight_url,
-    inbound=None,
-    config=ec.Config(),
-):
-    if inbound is None:
-        inbound = {}
-    config.source.url = flight_url()
-    config.target.url = el.urlize_dict(inbound)
-
-    print("pulling")
-    th.config_execute(config, "pull.els.yml")
-    return inbound
-
-
 @config_push
 def xl_replace_file():
     outbound = dict(
@@ -860,3 +833,31 @@ def xl_multiindex_column():
     )
     config = ec.Config()
     return outbound, expected, config
+
+
+def push(
+    flight_url,
+    outbound,
+    config=ec.Config(),
+):
+    config.source.url = el.urlize_dict(outbound)
+    config.target.url = flight_url()
+
+    print(f"pushing {config.source.url} as {outbound}")
+    print(f"outbound: {outbound}")
+    th.config_execute(config, "push.els.yml")
+
+
+def pull(
+    flight_url,
+    inbound=None,
+    config=ec.Config(),
+):
+    if inbound is None:
+        inbound = {}
+    config.source.url = flight_url()
+    config.target.url = el.urlize_dict(inbound)
+
+    print("pulling")
+    th.config_execute(config, "pull.els.yml")
+    return inbound

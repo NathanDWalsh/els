@@ -22,61 +22,34 @@ def multiindex_to_singleindex(df: pd.DataFrame, separator="_"):
 # Stores a reference to a dataframe that is currently scoped,
 # Should be a child of a DataFrameContainerMixinIO
 class DataFrameIO(NodeMixin):
-    # df_refs: dict[int, pd.DataFrame] = {}
-    # __slots__ = "df"
-
     def __init__(
         self,
-        df: pd.DataFrame,
         name,
         parent: "DataFrameContainerMixinIO",
-        mode="r",
+        mode="s",
+        df: pd.DataFrame = pd.DataFrame(),
+        # (s)oftread: only load the name
+        # (r)ead    : nothing yet to be written
+        # (a)ppend  : append df to df_target
+        # (w)rite   : overwrite df_target with df
     ):
-        # self.df_ref = df
-        # self.df_random = df
+        # df target is where results will be written/appended to on self.write()
+        self.df_target = df
+        # df is where intermediate operations (truncate, append, etc) are performed
         self.df = df
-        self.df_random = df
         self.parent = parent
-        # self.df_id = self.fetch_df_id(df)
         self.mode = mode
 
         # If an orphan, name could be optional
         self.name = name
 
-    # def fetch_df_id(self, df):
-    #     if df is None:
-    #         raise Exception("Cannot fetch None df")
-    #     else:
-    #         df_id = id(df)
-    #         self.df_refs[df_id] = df
-    #         return df_id
-
-    # dataframe for random access
-    # different from the df which is the original df reference
-    @property
-    def df_ref(self) -> pd.DataFrame:
-        # return self.df_random
-        return self.df_random
-
-    @property
-    def df_id2(self):
-        return id(self.df_random)
-
-    def close(self):
-        pass
-        # if self.df_id in self.parent.ram_dfs:
-        #     del self.parent.ram_dfs[self.df_id]
-
     def write(self):
-        # if self.mode == "a" and not self.df_random.empty:
-        #     df = append_into([self.df_random, self.df])
-        # else:
-        #     self.parent.ram_dfs[self.df_id] = self.df
-        if self.mode == "a" and not self.df_ref.empty:
-            # self.df_refs[self.df_id] = append_into([self.df_ref, self.df])
-            self.df_random = append_into([self.df_ref, self.df])
+        if self.mode in ("r", "s"):
+            return None
+        if self.mode == "a" and not self.df_target.empty:
+            self.df_target = append_into([self.df_target, self.df])
         else:
-            self.df_random = self.df
+            self.df_target = self.df
 
     @property
     def column_frame(self):
@@ -93,15 +66,15 @@ class DataFrameIO(NodeMixin):
         df_name,
         df,
         if_exists,
-        # build=False,
     ):
-        if self.mode == "r":  # if in read mode, code below is first write
+        if self.mode in ("r", "s"):  # if in read mode, code below is first write
             if if_exists == "fail":
                 raise Exception(
                     f"Failing: dataframe {df_name} already exists with mode {self.mode}"
                 )
             elif if_exists == "append":
                 # ensures alignment of columns with target
+                # TODO: might be better to subclass df and have df.truncate.append() ?
                 self.append(df, truncate_first=True)
 
                 # this dataframe contains only the appended rows
@@ -129,15 +102,16 @@ class DataFrameIO(NodeMixin):
 
 class DataFrameContainerMixinIO(NodeMixin):
     child_class: DataFrameIO
-    replace: str
-
-    def set_df(self, df_id, df):
-        raise Exception("set_df must be set in derived classes")
-        # self.open_dfs[df_id] = df
+    replace: bool
+    df_dict: dict[str, pd.DataFrame]
 
     def get_child(self, child_name):
         for c in self.childrens:
             if c.name == child_name:
+                if c.mode == "s":
+                    print(f"before pull child {[c.name, c.df]}")
+                    c = self.pull_child(c, c.name)
+                    print(f"after pull child {c.name, c.df}")
                 return c
         raise Exception(f"{child_name} not found")
 
@@ -147,22 +121,39 @@ class DataFrameContainerMixinIO(NodeMixin):
                 return True
         return False
 
+    def pull_child(self, child: DataFrameIO, df_name):
+        if child.mode == "s":
+            child.df = self.df_dict[df_name]
+            child.df_target = self.df_dict[df_name]
+            child.mode = "r"
+        return child
+
+    def fetch_child(self, df_name, df):
+        if not self.has_child(df_name):
+            self.add_child(
+                self.child_class(
+                    df=df,
+                    name=df_name,
+                    parent=self,
+                    # fetched+added children are always for writing
+                    mode="w",
+                )
+            )
+
+        return self.get_child(df_name)
+
     @property
     def any_empty_frames(self):
         for df_io in self.childrens:
-            if df_io.mode not in "r":
+            if df_io.mode not in ("r", "s"):
                 if df_io.df.empty:
-                    print(f"cannot write empty dataframe; {df_io.name}: {df_io.df}")
+                    print(f"empty dataframe found: {df_io.name}: {df_io.df}")
                     return True
         return False
 
     @property
     def childrens(self) -> tuple[DataFrameIO]:
         return super().children
-
-    def persist():
-        # persist dataframes to data store
-        raise Exception("persist must be set in derived classes")
 
     def write(self):
         # write to target dataframe and then persist to data store
@@ -172,10 +163,6 @@ class DataFrameContainerMixinIO(NodeMixin):
             for df_io in self.childrens:
                 df_io.write()
             self.persist()
-
-    def close(self):
-        for df_io in self.childrens:
-            df_io.close()
 
     def add_child(self, child: DataFrameIO):
         child.parent = self
@@ -188,29 +175,30 @@ class DataFrameContainerMixinIO(NodeMixin):
     def mode(self):
         if self.create_or_replace:
             return "w"
-        elif len(self.children) == 0:
-            return "r"
         else:
             for c in self.childrens:
                 if c.mode in ("a", "w"):
                     return "a"
         return "r"
 
-    def fetch_df_io(self, df_name, df):
-        if not self.has_child(df_name):
-            self.add_child(
-                self.child_class(
-                    df=df,
-                    name=df_name,
-                    parent=self,
-                    mode="w",
-                )
-            )
-        return self.get_child(df_name)
-
     @property
     def child_names(self):
         return [child.name for child in self.childrens]
+
+    def _children_init():
+        raise Exception("_children_init must be set in derived classes")
+
+    def set_df():
+        # set the initial/subsequent dataframe?
+        raise Exception("set_df must be set in derived classes")
+
+    def persist():
+        # persist dataframes to data store
+        raise Exception("persist must be set in derived classes")
+
+    def close():
+        # perform closing operations on container (file, connection, etc)
+        raise Exception("close must be set in derived classes")
 
 
 class DataFrameDictIO(DataFrameContainerMixinIO):
@@ -220,40 +208,20 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
         replace=False,
     ):
         self.child_class = DataFrameIO
-        self._df_dict = df_dict
+        self.df_dict = df_dict
         self.replace = replace
-        if self.mode == "w":
-            self.children = []
-        else:
+        if not self.create_or_replace:
             self._children_init()
 
     def __repr__(self):
         return f"DataFrameDictIO({(self.df_dict, self.replace)})"
 
-    @property
-    def df_dict(self):
-        for c in self.childrens:
-            self._df_dict[c.name] = c.df_ref
-            # self.open_dfs[c.df_id]
-        return self._df_dict
-
-    @df_dict.setter
-    def df_dict(self, v):
-        self._df_dict = v
-
     def _children_init(self) -> dict:
-        return [
+        for name, df in self.df_dict.items():
             DataFrameIO(
-                df=df,
                 name=name,
                 parent=self,
             )
-            for name, df in self._df_dict.items()
-        ]
-
-    def persist(self):
-        for df_io in self.childrens:
-            self.df_dict[df_io.name] = df_io.df_ref
 
     def set_df(
         self,
@@ -264,9 +232,19 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
     ):
         if build:
             df = get_column_frame(df)
-        df_io = self.fetch_df_io(df_name, df)
+        # TODO: add consistency check to fetch_child()?
+        df_io = self.fetch_child(df_name, df=df)
         df_io.set_df(
             df_name,
             df,
             if_exists,
         )
+
+    def persist(self):
+        for df_io in self.childrens:
+            if df_io.mode in ("a", "w"):
+                self.df_dict[df_io.name] = df_io.df_target
+
+    def close():
+        pass
+        # no closing operations required for dataframe

@@ -806,14 +806,11 @@ def ingest(config: ec.Config) -> bool:
 
 def build(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
-    print("building")
     if target and build_action(target) != "no_action":
         action = build_action(target)
         if action in ("create_replace", "create_replace_file"):
             # TODO, use caching to avoid pulling the same data twice
             df = pull_frame(source, 100)
-            print("build source")
-            print("source pulled")
             df = apply_transforms(df, transform, mark_as_executed=False)
             res = build_target(df, target)
         elif action == "truncate":

@@ -35,7 +35,7 @@ def test_df_id():
 def test_df_id3():
     df_dict, df = get_test_df_dict()
     df_dict_io = el.fetch_df_dict_io(df_dict)
-    df_io = df_dict_io.get_child("dfname").df_ref
+    df_io = df_dict_io.get_child("dfname").df_target
     assert id(df_io) == id(df)
 
 
@@ -49,11 +49,11 @@ def test_df_id4():
         ),
         if_exists="append",
     )
-    df_ref = df_dict_io.get_child("dfname").df_ref
+    df_ref = df_dict_io.get_child("dfname").df_target
     assert id(df_ref) == id(df)
     df_dict_io.write()
 
-    df_ref = df_dict_io.get_child("dfname").df_ref
+    df_ref = df_dict_io.get_child("dfname").df_target
     assert id(df_ref) != id(df)
     # open_df = df_dict_io.get_child("dfname").ram_df
     # assert id(open_df) == id(df)

@@ -53,8 +53,6 @@ def get_sheet_row(
 
 
 class ExcelSheetIO(epd.DataFrameIO):
-    # __slots__ = "df"
-
     def __init__(
         self,
         name,
@@ -62,14 +60,20 @@ class ExcelSheetIO(epd.DataFrameIO):
         mode="r",
         df=pd.DataFrame(),
         startrow=0,
-        read_excel={},
-        to_excel={},
+        kw_for_pull={},
+        kw_for_push={},
+        # why is truncate required?
         truncate=False,
     ):
-        super().__init__(df, name, parent, mode)
+        super().__init__(
+            df=df,
+            name=name,
+            parent=parent,
+            mode=mode,
+        )
         self._startrow = startrow
-        self.read_excel = read_excel
-        self.to_excel: ec.ToExcel = to_excel
+        self.read_excel = kw_for_pull
+        self.to_excel: ec.ToExcel = kw_for_push
         self.truncate = truncate
 
         # TODO not efficient to pull sheet if not being used
@@ -177,7 +181,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                 self.file_io, engine=self.write_engine, mode=self.mode
             ) as writer:
                 for df_io in self.childrens:
-                    df = df_io.df_ref
+                    df = df_io.df_target
                     to_excel = df_io.to_excel
                     if to_excel:
                         kwargs = to_excel.model_dump(exclude_none=True)
@@ -203,7 +207,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                 ) as writer:
                     for df_io in self.childrens:
                         if df_io.mode != "r" and df_io.if_sheet_exists == sheet_exist:
-                            df = df_io.df_ref
+                            df = df_io.df_target
                             to_excel = df_io.to_excel
                             if df_io.mode == "a":
                                 header = False
@@ -239,7 +243,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
     ):
         if build:
             df = epd.get_column_frame(df)
-        df_io: ExcelSheetIO = self.fetch_df_io(
+        df_io: ExcelSheetIO = self.fetch_child(
             df_name=sheet_name,
             df=df,
         )
@@ -253,7 +257,5 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
         df_io.to_excel = kwargs
 
     def close(self):
-        for df_io in self.childrens:
-            df_io.close()
         self.file_io.close()
         del el.open_files[self.url]

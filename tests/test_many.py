@@ -9,7 +9,10 @@ from . import test_template as tt
 # either the push or pull operations with the same results
 @pytest.mark.parametrize(
     "config_for",
-    ["push", "pull"],
+    [
+        "push",
+        "pull",
+    ],
 )
 @pytest.mark.parametrize(
     "test_name,flight_url",

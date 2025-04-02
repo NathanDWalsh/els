@@ -105,9 +105,5 @@ def config_execute(config: ec.Config, as_yaml_file_name=None):
     else:
         execute = config
 
-    # print("tree in")
-    # ei.tree(execute)
-    # print("tree out")
-    print("execute in")
+    ei.tree(execute)
     ei.execute(execute)
-    print("execute out")
