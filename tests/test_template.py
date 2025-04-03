@@ -1,3 +1,4 @@
+import datetime
 import os
 from functools import wraps
 
@@ -27,7 +28,7 @@ def flight_url_sqlite():
 def test_xl_skiprows(tmp_path):
     os.chdir(tmp_path)
     outbound = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
-    expected = outbound
+    expected = outbound.copy()
     config = ec.Config(
         target=ec.Target(
             to_excel=ec.ToExcel(startrow=2),
@@ -38,14 +39,17 @@ def test_xl_skiprows(tmp_path):
         config=config,
         outbound=outbound,
     )
+
+    config = ec.Config(
+        source=ec.Source(
+            read_excel=ec.ReadExcel(skiprows=2),
+        )
+    )
     inbound = pull(
         flight_url=flight_url_excel,
-        config=ec.Config(
-            source=ec.Source(
-                read_excel=ec.ReadExcel(skiprows=2),
-            ),
-        ),
+        config=config,
     )
+
     th.assert_expected(expected, inbound)
 
     inbound = pull(flight_url=flight_url_excel)
@@ -835,6 +839,11 @@ def xl_multiindex_column():
     return outbound, expected, config
 
 
+def get_time_str() -> str:
+    now = datetime.datetime.now()
+    return now.strftime("%Y%m%d-%H%M%S-%f")
+
+
 def push(
     flight_url,
     outbound,
@@ -845,7 +854,7 @@ def push(
 
     print(f"pushing {config.source.url} as {outbound}")
     print(f"outbound: {outbound}")
-    th.config_execute(config, "push.els.yml")
+    th.config_execute(config, f"{get_time_str()}_push.els.yml")
 
 
 def pull(
@@ -859,5 +868,5 @@ def pull(
     config.target.url = el.urlize_dict(inbound)
 
     print("pulling")
-    th.config_execute(config, "pull.els.yml")
+    th.config_execute(config, f"{get_time_str()}_pull.els.yml")
     return inbound

@@ -252,7 +252,7 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
         outbound_config.target.table = kwargs["sheet_name"]
     if outbound_config.target.type_is_db:
         outbound_config.target.if_exists = "replace"
-    outbound_config.source.url = el.urlize_dict(dict(test_name=df))
+    outbound_config.source.url = el.urlize_dict({test_name: df})
 
     # ensuring there is only one staged_frame allows for an implicit pickup of table name
     # note above and line below negates this requirement: t_config.source.table = test_name
@@ -379,7 +379,7 @@ for testset in (
     #     "mssql+pyodbc",
     #     "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
     # ),
-    # (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
+    (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
     # (TestDuckDb, get_1r1c_tests_sql, "duckdb", None),
 ):
     for class_name, get_frames_func in test_classes.items():

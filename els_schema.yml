@@ -474,8 +474,12 @@ $defs:
     additionalProperties: false
     properties:
       consistency:
-        $ref: '#/$defs/TargetConsistencyValue'
         default: strict
+        enum:
+        - strict
+        - ignore
+        title: Consistency
+        type: string
       dbschema:
         anyOf:
         - type: string
@@ -484,9 +488,16 @@ $defs:
         title: Dbschema
       if_exists:
         anyOf:
-        - $ref: '#/$defs/TargetIfExistsValue'
+        - enum:
+          - fail
+          - truncate
+          - append
+          - replace
+          - replace_file
+          type: string
         - type: 'null'
         default: null
+        title: If Exists
       table:
         anyOf:
         - type: string
@@ -519,21 +530,6 @@ $defs:
         title: Url
     title: Target
     type: object
-  TargetConsistencyValue:
-    enum:
-    - strict
-    - ignore
-    title: TargetConsistencyValue
-    type: string
-  TargetIfExistsValue:
-    enum:
-    - fail
-    - replace
-    - append
-    - truncate
-    - replace_file
-    title: TargetIfExistsValue
-    type: string
   ToCsv:
     additionalProperties: true
     properties: {}

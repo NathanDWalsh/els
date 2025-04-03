@@ -19,7 +19,7 @@ from . import test_template as tt
     [
         ("pandas", tt.flight_url_df_dict),
         ("excel", tt.flight_url_excel),
-        # ("sqlite", tt.flight_url_sqlite),
+        ("sqlite", tt.flight_url_sqlite),
     ],
 )
 @pytest.mark.parametrize(

@@ -376,7 +376,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
         if self.node_type == NodeType.DATA_TABLE:
             if not config_evaled.target.if_exists:
-                config_evaled.target.if_exists = ec.TargetIfExistsValue.FAIL
+                config_evaled.target.if_exists = "fail"
 
             if not config_evaled.target.table:
                 config_evaled.target.table = self.name

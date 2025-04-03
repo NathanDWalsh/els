@@ -50,18 +50,14 @@ def build_action(target: ec.Target) -> str:
     if not target.if_exists:
         res = "fail"
     elif target.url_scheme == "file" and (
-        target.if_exists == ec.TargetIfExistsValue.REPLACE_FILE.value
-        or not target.file_exists
+        target.if_exists == "replace_file" or not target.file_exists
     ):
         res = "create_replace_file"
-    elif (
-        not table_exists(target)
-        or target.if_exists == ec.TargetIfExistsValue.REPLACE.value
-    ):
+    elif not table_exists(target) or target.if_exists == "replace":
         res = "create_replace"
-    elif target.if_exists == ec.TargetIfExistsValue.TRUNCATE.value:
+    elif target.if_exists == "truncate":
         res = "truncate"
-    elif target.if_exists == ec.TargetIfExistsValue.FAIL.value:
+    elif target.if_exists == "fail":
         res = "fail"
     else:
         res = "no_action"
@@ -72,7 +68,7 @@ def push_frame(df: pd.DataFrame, target: ec.Target) -> bool:
     res = False
     if df is not None:
         if not target or not target.type:
-            logging.info("no target defined, printing first 100 rows:")
+            print("no target defined, printing first 100 rows:")
             print(df.head(100))
             res = True
         else:
@@ -81,7 +77,6 @@ def push_frame(df: pd.DataFrame, target: ec.Target) -> bool:
             if target.type in (".xlsx"):
                 res = push_excel(df, target)
             elif target.type_is_db:
-                print("legacy push")
                 res = push_sql(df, target)
             elif target.type in ("dict"):
                 res = push_pandas(df, target)
@@ -90,57 +85,26 @@ def push_frame(df: pd.DataFrame, target: ec.Target) -> bool:
     return res
 
 
-def push_sql(source_df: pd.DataFrame, target: ec.Target) -> bool:
-    sql_container = el.fetch_sql_container(target.db_connection_string)
-    # print([c.name for c in sql_container.children])
-    # raise Exception()
-    # print(f"pull {frame.table}")
-    # kwargs = get_source_kwargs(None, frame, nrows)
-    # df = sql_container.pull_table(kwargs, nrows=nrows, sqn=frame.table)
-
-    if not target.db_connection_string:
-        raise Exception("invalid db_connection_string")
-    if not target.table:
-        raise Exception("invalid to_sql")
-    kwargs_connect = {}
-    if target.type in ("mssql") and len(ec.supported_available_odbc_drivers()):
-        kwargs_connect["fast_executemany"] = True
-    with sa.create_engine(
-        target.db_connection_string, **kwargs_connect
-    ).connect() as sqeng:
-        if target.to_sql:
-            kwargs = target.to_sql.model_dump()
-        else:
-            kwargs = {}
-        source_df.to_sql(
-            target.table,
-            sqeng,
-            schema=target.dbschema,
-            index=False,
-            if_exists="append",
-            chunksize=1000,
-            **kwargs,
-        )
-        sqeng.connection.commit()
-        return True
-    # if not target.url:
-    #     raise Exception("missing url")
-
-    # if build_action(target) == "create_replace_file":
-    #     replace_file = True
-    # else:
-    #     replace_file = False
-
-    # xl_io = el.fetch_excel_io(target.url, replace=replace_file)
-    # xl_io.set_sheet_df(
-    #     target.sheet_name,
-    #     source_df,
-    #     target.if_exists,
-    #     target.to_excel,
-    #     build=build,
-    # )
-
-    # return True
+def push_sql(
+    source_df: pd.DataFrame,
+    target: ec.Target,
+    build=False,
+) -> bool:
+    sql_container = el.fetch_sql_container(
+        url=target.db_connection_string,
+        replace=False,
+    )
+    sql_table = sql_container.fetch_child(
+        df_name=target.table,
+        df=source_df,
+    )
+    sql_table.set_df(
+        df=source_df,
+        if_exists=target.if_exists,
+        build=build,
+        kw_for_push=target.to_sql,
+    )
+    return True
 
 
 def push_csv(source_df: pd.DataFrame, target: ec.Target) -> bool:
@@ -172,13 +136,19 @@ def push_excel(
     else:
         replace_file = False
 
-    xl_io = el.fetch_excel_io(target.url, replace=replace_file)
-    xl_io.set_sheet_df(
-        target.sheet_name,
+    xl_io = el.fetch_excel_io(
+        target.url,
+        replace=replace_file,
+    )
+    sheet_io = xl_io.fetch_child(
+        target.table,
         source_df,
-        target.if_exists,
-        target.to_excel,
+    )
+    sheet_io.set_df(
+        df=source_df,
+        if_exists=target.if_exists,
         build=build,
+        kw_for_push=target.to_excel,
     )
 
     return True
@@ -193,7 +163,17 @@ def push_pandas(
         raise Exception("invalid table")
     # df_dict_io = target.df_dict_io
     df_dict_io = el.fetch_df_dict_io(target.url)
-    df_dict_io.set_df(target.table, source_df, target.if_exists, build=build)
+    df_io = df_dict_io.fetch_child(
+        target.table,
+        source_df,
+    )
+    df_io.set_df(
+        # target.table,
+        df=source_df,
+        if_exists=target.if_exists,
+        build=build,
+    )
+    # df_dict_io.set_df(target.table, source_df, target.if_exists, build=build)
     return True
 
 
@@ -255,7 +235,8 @@ def build_csv(df: pd.DataFrame, target: ec.Frame) -> bool:
 
 def build_target(df: pd.DataFrame, target: ec.Frame) -> bool:
     if target.type_is_db:
-        res = build_sql(df, target)
+        # res = build_sql(df, target)
+        res = push_sql(df, target, build=True)
     elif target.type in (".csv"):
         create_directory_if_not_exists(target.url)
         res = build_csv(df, target)
@@ -277,7 +258,7 @@ def create_directory_if_not_exists(file_path: str):
 
 def truncate_target(target: ec.Target) -> bool:
     if target.type_is_db:
-        res = truncate_sql(target)
+        res = True
     elif target.type in (".csv"):
         res = truncate_csv(target)
     elif target.type in (".xlsx"):
@@ -314,13 +295,13 @@ def truncate_csv(target: ec.Target) -> bool:
     return True
 
 
-def truncate_sql(target: ec.Target) -> bool:
-    if not target.db_connection_string:
-        raise Exception("invalid db_connection_string")
-    with sa.create_engine(target.db_connection_string).connect() as sqeng:
-        sqeng.execute(sa.text(f"truncate table {target.sqn}"))
-        sqeng.connection.commit()
-    return True
+# def truncate_sql(target: ec.Target) -> bool:
+#     if not target.db_connection_string:
+#         raise Exception("invalid db_connection_string")
+#     with sa.create_engine(target.db_connection_string).connect() as sqeng:
+#         sqeng.execute(sa.text(f"truncate table {target.sqn}"))
+#         sqeng.connection.commit()
+#     return True
 
 
 # TODO: add tests for this:
@@ -652,17 +633,14 @@ def pull_frame(
     frame: Union[ec.Source, ec.Target],
     nrows: Optional[int] = None,
 ) -> pd.DataFrame:
-    # logging.info(f"pulling frame {frame.file_path_dynamic}")
     if frame.type_is_db:
-        # sql_container = el.fetch_sql_container(frame.db_connection_string)
-        # print([c.name for c in sql_container.children])
-        # # raise Exception()
-        # print(f"pull {frame.table}")
-        # kwargs = get_source_kwargs(None, frame, nrows)
-        # df = sql_container.pull_table(kwargs, nrows=nrows, sqn=frame.table)
+        print(f"pull {frame.table}")
 
         kwargs = get_source_kwargs(None, frame, nrows)
-        df = pull_sql(frame, **kwargs)
+
+        sql_io = el.fetch_sql_container(frame.url)
+        table_io = sql_io.get_child(frame.table)
+        df = table_io.read(kwargs)
     elif frame.type in (".csv", ".tsv"):
         if isinstance(frame, ec.Source):
             clean_last_column = True
@@ -689,7 +667,8 @@ def pull_frame(
             kwargs = {}
 
         xl_io = el.fetch_excel_io(frame.url)
-        df = xl_io.pull_sheet(kwargs)
+        sheet_io = xl_io.get_child(frame.table)
+        df = sheet_io.read(kwargs)
     elif frame.type == ".fwf":
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_fwf, frame, nrows)
@@ -727,7 +706,8 @@ def pull_frame(
         # df = df_dict_io.get_child(frame.table).df
 
         df_dict_io = el.fetch_df_dict_io(frame.url)
-        df = df_dict_io.get_child(frame.table).df
+        df_io = df_dict_io.get_child(frame.table)
+        df = df_io.read()
     else:
         raise Exception("unable to pull df")
 
@@ -791,12 +771,7 @@ def add_columns(df: pd.DataFrame, add_cols: dict) -> pd.DataFrame:
 def ingest(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
     consistent = config_frames_consistent(config)
-    if (
-        not target
-        or not target.table
-        or consistent
-        or target.consistency == ec.TargetConsistencyValue.IGNORE.value
-    ):
+    if not target or not target.table or consistent or target.consistency == "ignore":
         source_df = pull_frame(source, config.nrows)
         source_df = apply_transforms(source_df, transform)
         return push_frame(source_df, target)

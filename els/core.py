@@ -30,6 +30,13 @@ def fetch_sql_container(url: str, replace: bool = False) -> sq.SQLDBContainer:
 
 
 def fetch_sa_engine(url) -> sa.Engine:
+    # TODO: fix this here
+    # if target.type in ("mssql") and len(ec.supported_available_odbc_drivers()):
+    #     kwargs_connect["fast_executemany"] = True
+    # with sa.create_engine(
+    #     target.db_connection_string, **kwargs_connect
+    # ).connect() as sqeng:
+
     if url is None:
         raise Exception("Cannot fetch None url")
     elif url in open_sa_engs:

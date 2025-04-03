@@ -25,45 +25,56 @@ class SQLTable(epd.DataFrameIO):
         self,
         name,
         parent,
-        mode="r",
+        if_exists="fail",
+        mode="s",
         df=pd.DataFrame(),
-        read_sql={},
-        to_sql={},
-        truncate=False,
+        kw_for_pull={},
+        kw_for_push={},
     ):
-        super().__init__(df, name, parent, mode)
-        self.read_sql = read_sql
-        self.to_sql: ec.ToSql = to_sql
-        self.truncate = truncate
+        super().__init__(
+            df=df,
+            name=name,
+            parent=parent,
+            mode=mode,
+            if_exists=if_exists,
+        )
+        self.kw_for_pull = kw_for_pull
+        self.kw_for_push: ec.ToSql = kw_for_push
 
-        # TODO not efficient to pull table if not being used
-        if self.df.empty:
-            self.df = self.pull()
+        # # TODO not efficient to pull table if not being used
+        # if self.df.empty:
+        #     self.df = self.pull()
 
-    def pull(self, kwargs={}, nrows=100):
+    # def pull(self, kwargs={}, nrows=100):
+    def _read(self, kwargs):
+        print(f"READ kwargs:{kwargs}")
         if not kwargs:
-            kwargs = self.read_sql
+            kwargs = self.kw_for_pull
         else:
-            self.read_sql = kwargs
+            self.kw_for_pull = kwargs
         if "nrows" in kwargs:
-            kwargs.pop("nrows")
+            nrows = kwargs.pop("nrows")
+        else:
+            nrows = None
+        sample = False
+        if nrows == 100:
+            sample = True
         if not self.parent.url:
             raise Exception("invalid db_connection_string")
         if not self.name:
             raise Exception("invalid sqn")
-        with sa.create_engine(self.parent.url).connect() as sqeng:
-            stmt = sa.select(sa.text("*")).select_from(sa.text(self.name)).limit(nrows)
-            df = pd.read_sql(stmt, con=sqeng, **kwargs)
-        return df
-
-        # if self.mode == "r" and self.read_sql != kwargs:
-        #     if "engine" not in kwargs:
-        #         kwargs["engine"] = "calamine"
-        #     if "sheet_name" not in kwargs:
-        #         kwargs["sheet_name"] = self.name
-        #     self.df = pd.read_excel(self.parent.sa_engine, **kwargs)
-        #     self.read_sql = kwargs
-        # return self.df
+        with self.parent.sa_engine.connect() as sqeng:
+            stmt = (
+                sa.select(sa.text("*"))
+                .select_from(sa.text(f"[{self.name}]"))
+                .limit(nrows)
+            )
+            self.df = pd.read_sql(stmt, con=sqeng, **kwargs)
+            if sample:
+                self.df_target = epd.get_column_frame(self.df)
+            else:
+                self.df_target = self.df
+            print(f"READ result: {self.df}")
 
     @property
     def parent(self) -> "SQLDBContainer":
@@ -81,16 +92,15 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
         self.url = url
         self.replace = replace
 
-        # load file and sheets
         self.sa_engine: sa.Engine = el.fetch_sa_engine(self.url)
-        self.children = [] if self.mode == "w" else self._children_init()
+        self._children_init()
         print(f"children created: {[n.name for n in self.children]}")
 
     def _children_init(self):
         with self.sa_engine.connect() as sqeng:
             inspector = sa.inspect(sqeng)
             # inspector.get_table_names(source.dbschema)
-            return [
+            [
                 SQLTable(
                     name=n,
                     parent=self,
@@ -115,83 +125,36 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
     def childrens(self) -> tuple[SQLTable]:
         return super().children
 
-    def pull_table(self, kwargs, nrows, sqn):
-        if self.has_child(sqn):
-            table = self.get_child(sqn)
-            return table.pull(kwargs, nrows)
-        else:
-            raise Exception(
-                f"table {sqn} not found in {[n.name for n in self.children]}"
-            )
-
     def persist(self):
-        if self.mode == "w":
-            with pd.ExcelWriter(
-                self.sa_engine, engine=self.write_engine, mode=self.mode
-            ) as writer:
-                for df_io in self.childrens:
-                    df = df_io.df_target
-                    to_excel = df_io.to_excel
-                    if to_excel:
-                        kwargs = to_excel.model_dump(exclude_none=True)
-                    else:
-                        kwargs = {}
-                    # TODO integrate better into write method?
-                    if isinstance(df.columns, pd.MultiIndex):
-                        df = epd.multiindex_to_singleindex(df)
-                    df.to_excel(writer, index=False, sheet_name=df_io.name, **kwargs)
-                for sheet in writer.sheets.values():
-                    sheet.autofit(500)
-        elif self.mode == "a":
-            sheet_exists = set()
+        # print(f"children len: {len(self.children)}")
+
+        with self.sa_engine.connect() as sqeng:
             for df_io in self.childrens:
-                if df_io.mode != "r":
-                    sheet_exists.add(df_io.if_sheet_exists)
-            for sheet_exist in sheet_exists:
-                with pd.ExcelWriter(
-                    self.sa_engine,
-                    engine=self.write_engine,
-                    mode=self.mode,
-                    if_sheet_exists=sheet_exist,
-                ) as writer:
-                    for df_io in self.childrens:
-                        if df_io.mode != "r" and df_io.if_sheet_exists == sheet_exist:
-                            df = df_io.df_target
-                            to_excel = df_io.to_excel
-                            if df_io.mode == "a":
-                                header = False
-                            else:
-                                header = True
-                            if to_excel:
-                                kwargs = to_excel.model_dump(exclude_none=True)
-                            else:
-                                kwargs = {}
-                            # TODO integrate better into write method?
-                            if isinstance(df.columns, pd.MultiIndex):
-                                df = epd.multiindex_to_singleindex(df)
-                            df.to_excel(
-                                writer,
-                                index=False,
-                                sheet_name=df_io.name,
-                                header=header,
-                                startrow=df_io.startrow,
-                                **kwargs,
-                            )
+                # print(f"PERSIST: {[df_io.mode, df_io.name]}")
+                if df_io.mode in ("a", "w"):
+                    # self.df_dict[df_io.name] = df_io.df_target
 
-        with open(self.url, "wb") as write_file:
-            self.sa_engine.seek(0)
-            write_file.write(self.sa_engine.getbuffer())
-
-    def set_table_df(self, table_name, df, if_exists, kwargs):
-        df_io: SQLTable = self.fetch_child(df_name=table_name, df=df)
-        df_io.set_df(df_name=table_name, df=df, if_exists=if_exists)
-        if if_exists == "truncate":
-            df_io.truncate = True
-        df_io.to_sql = kwargs
+                    if df_io.kw_for_push:
+                        kwargs = df_io.kw_for_push
+                    else:  # TODO: else maybe not needed when default for kw_for_push
+                        kwargs = {}
+                    print(f"TO_SQL::::::: {df_io.df_target}")
+                    if df_io.if_exists == "truncate":
+                        # TODO: bring back sqn's and flavor specific truncate scenarios
+                        sqeng.execute(sa.text(f"delete from [{df_io.name}]"))
+                        df_io.if_exists = "append"
+                    df_io.df_target.to_sql(
+                        df_io.name,
+                        sqeng,
+                        # schema=target.dbschema,
+                        index=False,
+                        if_exists=df_io.if_exists,
+                        chunksize=1000,
+                        **kwargs,
+                    )
+            sqeng.connection.commit()
 
     def close(self):
-        for df_io in self.childrens:
-            df_io.close()
         self.sa_engine.dispose()
         print("engine disposed")
         del el.open_sa_engs[self.url]

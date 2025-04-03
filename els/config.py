@@ -4,7 +4,7 @@ import re
 from copy import deepcopy
 from enum import Enum
 from functools import cached_property
-from typing import NewType, Optional, Union
+from typing import Literal, NewType, Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pyodbc
@@ -40,19 +40,6 @@ DynamicPathValue = generate_enum_from_properties(
 
 class DynamicColumnValue(Enum):
     ROW_INDEX = "_row_index"
-
-
-class TargetConsistencyValue(Enum):
-    STRICT = "strict"
-    IGNORE = "ignore"
-
-
-class TargetIfExistsValue(Enum):
-    FAIL = "fail"
-    REPLACE = "replace"
-    APPEND = "append"
-    TRUNCATE = "truncate"
-    REPLACE_FILE = "replace_file"
 
 
 class ToSql(BaseModel, extra="allow"):
@@ -359,8 +346,10 @@ class Target(Frame):
         extra="forbid", use_enum_values=True, validate_default=True
     )
 
-    consistency: TargetConsistencyValue = TargetConsistencyValue.STRICT
-    if_exists: Optional[TargetIfExistsValue] = None
+    consistency: Literal["strict", "ignore"] = "strict"
+    if_exists: Optional[
+        Literal["fail", "truncate", "append", "replace", "replace_file"]
+    ] = None
     to_sql: Optional[ToSql] = None
     to_csv: Optional[ToCsv] = None
     to_excel: Optional[ToExcel] = None

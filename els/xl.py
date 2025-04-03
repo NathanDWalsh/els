@@ -1,6 +1,5 @@
 import io
 import os
-from functools import cached_property
 
 import pandas as pd
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
@@ -57,28 +56,23 @@ class ExcelSheetIO(epd.DataFrameIO):
         self,
         name,
         parent,
-        mode="r",
+        if_exists="fail",
+        mode="s",
         df=pd.DataFrame(),
         startrow=0,
         kw_for_pull={},
         kw_for_push={},
-        # why is truncate required?
-        truncate=False,
     ):
         super().__init__(
             df=df,
             name=name,
             parent=parent,
             mode=mode,
+            if_exists=if_exists,
         )
         self._startrow = startrow
-        self.read_excel = kw_for_pull
-        self.to_excel: ec.ToExcel = kw_for_push
-        self.truncate = truncate
-
-        # TODO not efficient to pull sheet if not being used
-        if self.df.empty:
-            self.df = self.pull()
+        self.kw_for_pull = kw_for_pull
+        self.kw_for_push: ec.ToExcel = kw_for_push
 
     @property
     def if_sheet_exists(self):
@@ -91,7 +85,10 @@ class ExcelSheetIO(epd.DataFrameIO):
 
     @property
     def startrow(self):
-        if self.truncate or self.mode == "w":
+        if self.if_exists == "truncate" or self.mode == "w":
+            # consider changing 0 to skiprows value if exists?
+            # kw_for_push['skiprows']
+            # TODO: test skiprow and truncate combinations
             return 0
         else:
             return self._startrow
@@ -100,18 +97,6 @@ class ExcelSheetIO(epd.DataFrameIO):
     def startrow(self, v):
         self._startrow = v
 
-    def pull(self, kwargs=None):
-        if not kwargs:
-            kwargs = self.read_excel
-        if self.mode == "r" and self.read_excel != kwargs:
-            if "engine" not in kwargs:
-                kwargs["engine"] = "calamine"
-            if "sheet_name" not in kwargs:
-                kwargs["sheet_name"] = self.name
-            self.df = pd.read_excel(self.parent.file_io, **kwargs)
-            self.read_excel = kwargs
-        return self.df
-
     @property
     def parent(self) -> "ExcelIO":
         return super().parent
@@ -119,6 +104,17 @@ class ExcelSheetIO(epd.DataFrameIO):
     @parent.setter
     def parent(self, v):
         epd.DataFrameIO.parent.fset(self, v)
+
+    def _read(self, kwargs):
+        if not kwargs:
+            kwargs = self.kw_for_pull
+        if self.mode in ("r", "s") and self.kw_for_pull != kwargs:
+            if "engine" not in kwargs:
+                kwargs["engine"] = "calamine"
+            if "sheet_name" not in kwargs:
+                kwargs["sheet_name"] = self.name
+            self.df = pd.read_excel(self.parent.file_io, **kwargs)
+            self.kw_for_pull = kwargs
 
 
 class ExcelIO(epd.DataFrameContainerMixinIO):
@@ -130,7 +126,29 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
 
         # load file and sheets
         self.file_io = el.fetch_file_io(self.url, replace=self.replace)
+        # TODO: mode will never be write on init?
         self.children = [] if self.mode == "w" else self._children_init()
+
+    @property
+    def create_or_replace(self):
+        if self.replace or not os.path.isfile(self.url):
+            return True
+        else:
+            return False
+
+    def get_child(self, child_name) -> ExcelSheetIO:
+        return super().get_child(child_name)
+
+    @property
+    def childrens(self) -> tuple[ExcelSheetIO]:
+        return super().children
+
+    @property
+    def write_engine(self):
+        if self.mode == "a":
+            return "openpyxl"
+        else:
+            return "xlsxwriter"
 
     def _children_init(self):
         self.file_io.seek(0)
@@ -146,35 +164,6 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                 and (sheet.typ == SheetTypeEnum.WorkSheet)
             ]
 
-    @cached_property
-    def create_or_replace(self):
-        if self.replace or not os.path.isfile(self.url):
-            return True
-        else:
-            return False
-
-    def get_child(self, child_name) -> ExcelSheetIO:
-        return super().get_child(child_name)
-
-    @property
-    def childrens(self) -> tuple[ExcelSheetIO]:
-        return super().children
-
-    def pull_sheet(self, kwargs):
-        sheet_name = kwargs["sheet_name"]
-        if self.has_child(sheet_name):
-            sheet = self.get_child(sheet_name)
-            return sheet.pull(kwargs)
-        else:
-            raise Exception(f"sheet not found: {sheet_name}")
-
-    @property
-    def write_engine(self):
-        if self.mode == "a":
-            return "openpyxl"
-        else:
-            return "xlsxwriter"
-
     def persist(self):
         if self.mode == "w":
             with pd.ExcelWriter(
@@ -182,7 +171,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
             ) as writer:
                 for df_io in self.childrens:
                     df = df_io.df_target
-                    to_excel = df_io.to_excel
+                    to_excel = df_io.kw_for_push
                     if to_excel:
                         kwargs = to_excel.model_dump(exclude_none=True)
                     else:
@@ -196,7 +185,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
         elif self.mode == "a":
             sheet_exists = set()
             for df_io in self.childrens:
-                if df_io.mode != "r":
+                if df_io.mode not in ("r", "s"):
                     sheet_exists.add(df_io.if_sheet_exists)
             for sheet_exist in sheet_exists:
                 with pd.ExcelWriter(
@@ -206,9 +195,12 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                     if_sheet_exists=sheet_exist,
                 ) as writer:
                     for df_io in self.childrens:
-                        if df_io.mode != "r" and df_io.if_sheet_exists == sheet_exist:
+                        if (
+                            df_io.mode not in ("r", "s")
+                            and df_io.if_sheet_exists == sheet_exist
+                        ):
                             df = df_io.df_target
-                            to_excel = df_io.to_excel
+                            to_excel = df_io.kw_for_push
                             if df_io.mode == "a":
                                 header = False
                             else:
@@ -228,33 +220,9 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                                 startrow=df_io.startrow,
                                 **kwargs,
                             )
-
         with open(self.url, "wb") as write_file:
             self.file_io.seek(0)
             write_file.write(self.file_io.getbuffer())
-
-    def set_sheet_df(
-        self,
-        sheet_name,
-        df,
-        if_exists,
-        kwargs,
-        build=False,
-    ):
-        if build:
-            df = epd.get_column_frame(df)
-        df_io: ExcelSheetIO = self.fetch_child(
-            df_name=sheet_name,
-            df=df,
-        )
-        df_io.set_df(
-            df_name=sheet_name,
-            df=df,
-            if_exists=if_exists,
-        )
-        if if_exists == "truncate":
-            df_io.truncate = True
-        df_io.to_excel = kwargs
 
     def close(self):
         self.file_io.close()

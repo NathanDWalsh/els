@@ -3,9 +3,8 @@ import io
 import logging
 import os
 import sys
-from enum import Enum
 from pathlib import Path
-from typing import Optional, Type, Union
+from typing import Optional, Union
 
 import pandas as pd
 import ruamel.yaml as yaml
@@ -13,7 +12,7 @@ import typer
 from anytree import PreOrderIter
 
 import els.core as el
-from els.config import Config, TargetIfExistsValue
+from els.config import Config
 from els.path import (
     CONFIG_FILE_EXT,
     ConfigPath,
@@ -93,6 +92,7 @@ class TaskFlow:
         el.open_sa_engs.clear()
 
     def execute(self):
+        start_logging()
         if isinstance(self.config_like, str):
             ca_path = get_ca_path(self.config_like)
             tree = plant_tree(ca_path)
@@ -322,13 +322,13 @@ def write_yaml_str(yaml_str):
     sys.stdout.write(yaml_str)
 
 
-def concat_enum_values(enum_class: Type[Enum]) -> str:
-    # Use a list comprehension to get the value of each enum member
-    values = [member.value for member in enum_class]
-    values = sorted(values)
-    # Concatenate the values into a single string
-    concatenated_values = ",".join(values)
-    return concatenated_values
+# def concat_enum_values(enum_class: Type[Enum]) -> str:
+#     # Use a list comprehension to get the value of each enum member
+#     values = [member.value for member in enum_class]
+#     values = sorted(values)
+#     # Concatenate the values into a single string
+#     concatenated_values = ",".join(values)
+#     return concatenated_values
 
 
 @app.command()
@@ -338,8 +338,8 @@ def test():
     yml_stream = io.StringIO()
     yml.dump(contents, yml_stream)
     yml_obj = yml.load(yml_stream.getvalue())
-    comment = concat_enum_values(TargetIfExistsValue)
-    yml_obj["target"].yaml_add_eol_comment(comment, key="if_exists")
+    # comment = concat_enum_values(TargetIfExistsValue)
+    # yml_obj["target"].yaml_add_eol_comment(comment, key="if_exists")
     yml_stream = io.StringIO()
     yml.dump(yml_obj, yml_stream)
     print(yml_stream.getvalue())
@@ -399,8 +399,8 @@ def new(
         yml_stream = io.StringIO()
         yml.dump(contents, yml_stream)
         yml_obj = yml.load(yml_stream.getvalue())
-        comment = concat_enum_values(TargetIfExistsValue)
-        yml_obj["target"].yaml_add_eol_comment(comment, key="if_exists")
+        # comment = concat_enum_values(TargetIfExistsValue)
+        # yml_obj["target"].yaml_add_eol_comment(comment, key="if_exists")
         # yml_stream = io.StringIO()
         # yml.dump(yml_obj, yml_stream)
 

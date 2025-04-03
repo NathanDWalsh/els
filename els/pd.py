@@ -26,24 +26,38 @@ class DataFrameIO(NodeMixin):
         self,
         name,
         parent: "DataFrameContainerMixinIO",
+        if_exists="fail",
         mode="s",
         df: pd.DataFrame = pd.DataFrame(),
-        # (s)oftread: only load the name
+        # (s)oftread: only loads the name
+        # TODO: consider meta-read where data types are read/infered/data is sampled
         # (r)ead    : nothing yet to be written
         # (a)ppend  : append df to df_target
         # (w)rite   : overwrite df_target with df
     ):
         # df target is where results will be written/appended to on self.write()
-        self.df_target = df
+        self.df_target: pd.DataFrame = df
         # df is where intermediate operations (truncate, append, etc) are performed
         self.df = df
         self.parent = parent
         self.mode = mode
+        self.if_exists = if_exists
 
         # If an orphan, name could be optional
         self.name = name
 
+    def read(self, kwargs={}) -> pd.DataFrame:
+        if self.mode == "s":
+            self._read(kwargs)
+            self.mode = "r"
+        return self.df
+
+    def _read(self, kwargs={}):
+        self.df = self.parent.df_dict[self.name]
+        self.df_target = self.parent.df_dict[self.name]
+
     def write(self):
+        print(f"TRY TO WRITE: {[self.mode, self.name]}")
         if self.mode in ("r", "s"):
             return None
         if self.mode == "a" and not self.df_target.empty:
@@ -63,14 +77,24 @@ class DataFrameIO(NodeMixin):
 
     def set_df(
         self,
-        df_name,
+        # df_name,
         df,
         if_exists,
+        kw_for_push=None,
+        build=False,
     ):
+        self.if_exists = if_exists
+        self.kw_for_push = kw_for_push
+        if build:
+            # TODO: not efficient to load a dataframe and then just take its columns
+            # implement idea around meta-read
+            df = get_column_frame(df)
+            self.df_target = df
+            self.df = df
         if self.mode in ("r", "s"):  # if in read mode, code below is first write
             if if_exists == "fail":
                 raise Exception(
-                    f"Failing: dataframe {df_name} already exists with mode {self.mode}"
+                    f"Failing: dataframe {self.name} already exists with mode {self.mode}"
                 )
             elif if_exists == "append":
                 # ensures alignment of columns with target
@@ -108,12 +132,8 @@ class DataFrameContainerMixinIO(NodeMixin):
     def get_child(self, child_name):
         for c in self.childrens:
             if c.name == child_name:
-                if c.mode == "s":
-                    print(f"before pull child {[c.name, c.df]}")
-                    c = self.pull_child(c, c.name)
-                    print(f"after pull child {c.name, c.df}")
                 return c
-        raise Exception(f"{child_name} not found")
+        raise Exception(f"{child_name} not found in {[n.name for n in self.childrens]}")
 
     def has_child(self, child_name):
         for c in self.childrens:
@@ -121,14 +141,14 @@ class DataFrameContainerMixinIO(NodeMixin):
                 return True
         return False
 
-    def pull_child(self, child: DataFrameIO, df_name):
-        if child.mode == "s":
-            child.df = self.df_dict[df_name]
-            child.df_target = self.df_dict[df_name]
-            child.mode = "r"
-        return child
-
-    def fetch_child(self, df_name, df):
+    def fetch_child(
+        self,
+        df_name,
+        df,
+        build=False,
+    ):
+        if build:
+            df = get_column_frame(df)
         if not self.has_child(df_name):
             self.add_child(
                 self.child_class(
@@ -137,6 +157,7 @@ class DataFrameContainerMixinIO(NodeMixin):
                     parent=self,
                     # fetched+added children are always for writing
                     mode="w",
+                    # if_exists="",
                 )
             )
 
@@ -162,6 +183,7 @@ class DataFrameContainerMixinIO(NodeMixin):
                 raise Exception("Cannot write empty dataframe")
             for df_io in self.childrens:
                 df_io.write()
+            print("ALL WRITING DONE, PERSISTING")
             self.persist()
 
     def add_child(self, child: DataFrameIO):
@@ -188,17 +210,20 @@ class DataFrameContainerMixinIO(NodeMixin):
     def _children_init():
         raise Exception("_children_init must be set in derived classes")
 
-    def set_df():
-        # set the initial/subsequent dataframe?
-        raise Exception("set_df must be set in derived classes")
+    # def read_df() -> DataFrameIO:
+    #     raise Exception("read_df must be set in derived class")
+
+    # def set_df():
+    #     # set the initial/subsequent dataframe?
+    #     raise Exception("set_df must be set in derived class")
 
     def persist():
         # persist dataframes to data store
-        raise Exception("persist must be set in derived classes")
+        raise Exception("persist must be set in derived class")
 
     def close():
         # perform closing operations on container (file, connection, etc)
-        raise Exception("close must be set in derived classes")
+        raise Exception("close must be set in derived class")
 
 
 class DataFrameDictIO(DataFrameContainerMixinIO):
@@ -217,28 +242,33 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
         return f"DataFrameDictIO({(self.df_dict, self.replace)})"
 
     def _children_init(self) -> dict:
-        for name, df in self.df_dict.items():
+        for name in self.df_dict.keys():
             DataFrameIO(
                 name=name,
                 parent=self,
             )
 
-    def set_df(
-        self,
-        df_name,
-        df,
-        if_exists,
-        build=False,
-    ):
-        if build:
-            df = get_column_frame(df)
-        # TODO: add consistency check to fetch_child()?
-        df_io = self.fetch_child(df_name, df=df)
-        df_io.set_df(
-            df_name,
-            df,
-            if_exists,
-        )
+    # def set_df(
+    #     self,
+    #     df_name,
+    #     df,
+    #     if_exists,
+    #     build=False,
+    # ):
+    #     # if build:
+    #     #     df = get_column_frame(df)
+    #     # TODO: add consistency check to fetch_child()?
+    #     df_io = self.fetch_child(
+    #         df_name=df_name,
+    #         df=df,
+    #         # build=build,
+    #     )
+    #     df_io.set_df(
+    #         df_name,
+    #         df,
+    #         if_exists,
+    #         build,
+    #     )
 
     def persist(self):
         for df_io in self.childrens:
