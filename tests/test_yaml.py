@@ -379,7 +379,7 @@ for testset in (
     #     "mssql+pyodbc",
     #     "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
     # ),
-    # (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
+    (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
     # (TestDuckDb, get_1r1c_tests_sql, "duckdb", None),
 ):
     for class_name, get_frames_func in test_classes.items():
