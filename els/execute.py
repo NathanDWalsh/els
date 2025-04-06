@@ -2,29 +2,38 @@ import csv
 import io
 import logging
 import os
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import duckdb
 import numpy as np
 import pandas as pd
 import prqlc
-import sqlalchemy as sa
 from pdfminer.high_level import LAParams, extract_pages
 from pdfminer.layout import LTChar, LTTextBox
+from sqlalchemy_utils import database_exists
 
 import els.config as ec
 import els.core as el
 
 
 def table_exists(target: ec.Target) -> Optional[bool]:
-    if target.db_connection_string and target.table and target.dbschema:
-        with sa.create_engine(target.db_connection_string).connect() as sqeng:
-            inspector = sa.inspect(sqeng)
-            res = inspector.has_table(target.table, target.dbschema)
-    elif target.db_connection_string and target.table:
-        with sa.create_engine(target.db_connection_string).connect() as sqeng:
-            inspector = sa.inspect(sqeng)
-            res = inspector.has_table(target.table)
+    # TODO, bring back schema logic in new objects
+    # if target.db_connection_string and target.table and target.dbschema:
+    #     db_exists(target)
+    #     with sa.create_engine(target.db_connection_string).connect() as sqeng:
+    #         inspector = sa.inspect(sqeng)
+    #         res = inspector.has_table(target.table, target.dbschema)
+    if target.type_is_db:
+        # db_exists(target)
+        # raise Exception()
+        sql_container = el.fetch_sql_container(target.db_connection_string)
+        return target.table in sql_container.child_names
+        # if database_exists(target.db_connection_string):
+        #     with sa.create_engine(target.db_connection_string).connect() as sqeng:
+        #         inspector = sa.inspect(sqeng)
+        #         res = inspector.has_table(target.table)
+        # else:
+        #     return False
     elif target.type in (".csv", ".tsv"):
         res = target.file_exists
     elif (
@@ -35,8 +44,10 @@ def table_exists(target: ec.Target) -> Optional[bool]:
         sheet_names = xl_io.child_names
         res = target.sheet_name in sheet_names
     elif target.type == "dict":
+        # TODO, make these method calls consistent
         df_dict_io = el.fetch_df_dict_io(target.url)
         df_dict = df_dict_io.df_dict
+        # TODO, the empty check may no longer be necessary if fetch is changed for get/has child
         if target.table in df_dict and not df_dict[target.table].empty:
             res = True
         else:
@@ -46,13 +57,33 @@ def table_exists(target: ec.Target) -> Optional[bool]:
     return res
 
 
-def build_action(target: ec.Target) -> str:
+def build_action(
+    target: ec.Target,
+) -> Literal[
+    "fail",
+    "create_replace",
+    "create_replace_file",
+    "create_replace_database",
+    "truncate",
+    "fail",
+    "no_action",
+]:
     if not target.if_exists:
         res = "fail"
     elif target.url_scheme == "file" and (
         target.if_exists == "replace_file" or not target.file_exists
     ):
         res = "create_replace_file"
+    # TODO remove mssql hardcode
+    elif (
+        target.type_is_db
+        and target.type == "mssql"
+        and (
+            target.if_exists == "replace_database"
+            or not database_exists(target.db_connection_string)
+        )
+    ):
+        res = "create_replace_database"
     elif not table_exists(target) or target.if_exists == "replace":
         res = "create_replace"
     elif target.if_exists == "truncate":
@@ -90,9 +121,19 @@ def push_sql(
     target: ec.Target,
     build=False,
 ) -> bool:
+    print(build_action(target))
+    if build and build_action(target) == "create_replace_database":
+        replace_database = True
+        # target.if_exists = ''
+        target.if_exists = "append"
+    else:
+        replace_database = False
+    if target.if_exists == "replace_database":
+        target.if_exists = "append"
+
     sql_container = el.fetch_sql_container(
         url=target.db_connection_string,
-        replace=False,
+        replace=replace_database,
     )
     sql_table = sql_container.fetch_child(
         df_name=target.table,
@@ -110,7 +151,7 @@ def push_sql(
 def push_csv(source_df: pd.DataFrame, target: ec.Target) -> bool:
     if not target.url:
         raise Exception("no file path")
-    if not os.path.exists(os.path.isfile(target.url)):
+    if not os.path.isfile(target.url):
         raise Exception("invalid file path")
 
     if target.to_csv:
@@ -174,52 +215,6 @@ def push_pandas(
         build=build,
     )
     # df_dict_io.set_df(target.table, source_df, target.if_exists, build=build)
-    return True
-
-
-def pull_sql(frame: ec.Frame, nrows=None, **kwargs) -> pd.DataFrame:
-    if "norws" in kwargs:
-        kwargs.pop("norws")
-    if not frame.db_connection_string:
-        raise Exception("invalid db_connection_string")
-    if not frame.sqn:
-        raise Exception("invalid sqn")
-    with sa.create_engine(frame.db_connection_string).connect() as sqeng:
-        stmt = sa.select(sa.text("*")).select_from(sa.text(frame.sqn)).limit(nrows)
-        df = pd.read_sql(stmt, con=sqeng, **kwargs)
-    return df
-
-
-def build_sql(df: pd.DataFrame, target: ec.Frame, id_field: str = None) -> bool:
-    print("legacy build")
-    if not target.db_connection_string:
-        raise Exception("invalid db_connection_string")
-    if not target.sqn:
-        raise Exception("invalid sqn")
-    if not target.table:
-        raise Exception("invalid table")
-
-    with sa.create_engine(target.db_connection_string).connect() as sqeng:
-        sqeng.execute(sa.text(f"drop table if exists {target.sqn}"))
-
-        # Use the first row to create the table structure
-        df.head(1).to_sql(target.table, sqeng, schema=target.dbschema, index=False)
-
-        # Delete the temporary row from the table
-        sqeng.execute(sa.text(f"DELETE FROM {target.sqn}"))
-
-        # TODO: TEST
-        if id_field:
-            sqeng.execute(
-                sa.text(
-                    (
-                        f"ALTER TABLE {target.sqn} ADD {id_field}"
-                        " int identity(1,1) PRIMARY KEY "
-                    )
-                )
-            )
-
-        sqeng.connection.commit()
     return True
 
 
@@ -638,10 +633,11 @@ def pull_frame(
 
         kwargs = get_source_kwargs(None, frame, nrows)
 
-        sql_io = el.fetch_sql_container(frame.url)
+        sql_io = el.fetch_sql_container(frame.db_connection_string)
         table_io = sql_io.get_child(frame.table)
         df = table_io.read(kwargs)
     elif frame.type in (".csv", ".tsv"):
+        print(f"FRAME TYPE: {frame.type}")
         if isinstance(frame, ec.Source):
             clean_last_column = True
             kwargs = get_source_kwargs(frame.read_csv, frame, nrows)
@@ -783,7 +779,11 @@ def build(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
     if target and build_action(target) != "no_action":
         action = build_action(target)
-        if action in ("create_replace", "create_replace_file"):
+        if action in (
+            "create_replace",
+            "create_replace_file",
+            "create_replace_database",
+        ):
             # TODO, use caching to avoid pulling the same data twice
             df = pull_frame(source, 100)
             df = apply_transforms(df, transform, mark_as_executed=False)

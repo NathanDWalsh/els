@@ -1,6 +1,7 @@
 import datetime
 import os
 from functools import wraps
+from typing import Literal
 
 import pandas as pd
 
@@ -10,6 +11,22 @@ import els.core as el
 from . import helpers as th
 
 inflight = {}
+
+
+def get_flight_url(test_medium):
+    if test_medium == "pandas":
+        el.fetch_df_dict_io(inflight)
+        return f"dict://{id(inflight)}"
+    elif test_medium == "excel":
+        return th.filename_from_dir("xlsx")
+    elif test_medium == "sqlite":
+        return f"sqlite:///{th.filename_from_dir('db')}"
+    elif test_medium == "duckdb":
+        return f"duckdb:///{th.filename_from_dir('db')}"
+    elif test_medium == "mssql":
+        db_host = os.getenv("TEST_ELS_MSSQL_HOST", "localhost")
+        test_url = f"mssql://sa:dbatools.I0@{db_host}/{th.filename_from_dir()}"
+        return test_url
 
 
 def flight_url_df_dict():
@@ -25,6 +42,16 @@ def flight_url_sqlite():
     return f"sqlite:///{th.filename_from_dir('db')}"
 
 
+def flight_url_duckdb():
+    return f"duckdb:///{th.filename_from_dir('db')}"
+
+
+def flight_url_mssql():
+    db_host = os.getenv("TEST_ELS_MSSQL_HOST", "localhost")
+    test_url = f"mssql://sa:dbatools.I0@{db_host}/{th.filename_from_dir()}"
+    return test_url
+
+
 def test_xl_skiprows(tmp_path):
     os.chdir(tmp_path)
     outbound = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
@@ -35,7 +62,7 @@ def test_xl_skiprows(tmp_path):
         )
     )
     push(
-        flight_url=flight_url_excel,
+        test_medium="excel",
         config=config,
         outbound=outbound,
     )
@@ -46,13 +73,13 @@ def test_xl_skiprows(tmp_path):
         )
     )
     inbound = pull(
-        flight_url=flight_url_excel,
+        test_medium="excel",
         config=config,
     )
 
     th.assert_expected(expected, inbound)
 
-    inbound = pull(flight_url=flight_url_excel)
+    inbound = pull(test_medium="excel")
     df1 = inbound["df"]
     assert len(df1) == 5
 
@@ -64,43 +91,52 @@ def test_xl_sheet_skipfooter(tmp_path):
 
     outbound = dict(df1=df0f)
 
-    push(flight_url=flight_url_excel, outbound=outbound)
+    push(test_medium="excel", outbound=outbound)
 
-    inbound = pull(flight_url=flight_url_excel)
+    inbound = pull(test_medium="excel")
     df1 = inbound["df1"]
     assert len(df1) == 6
     th.assert_dfs_equal(df0f, df1)
 
     inbound = pull(
-        flight_url=flight_url_excel,
+        test_medium="excel",
         config=ec.Config(source=ec.Source(read_excel=ec.ReadExcel(skipfooter=3))),
     )
     df1 = inbound["df1"]
     th.assert_dfs_equal(df0, df1)
 
 
-def configify(config):
-    for c in th.listify(config):
+def configify(config, test_medium, pp: Literal["push", "pull"]):
+    for i, c in enumerate(th.listify(config)):
         if isinstance(c, ec.Target):
             cc = ec.Config(target=c)
         elif isinstance(c, ec.Source):
             cc = ec.Config(source=c)
         else:
             cc = c
+        # if pp == "pull":
+        #     cc.source.url = flight_url()
+        if pp == "push":
+            cc.target.url = get_flight_url(test_medium)
+        if i == 0 and cc.target.type == "mssql":
+            cc.target.if_exists = "replace_database"
         yield cc
 
 
-def oneway_config(flight_url, config_for, outbound, expected, config):
+def oneway_config(test_medium, config_for, outbound, expected, config):
     inflight.clear()
     if config_for == "push":
-        for cc in configify(config):
-            push(flight_url=flight_url, config=cc, outbound=outbound)
-        inbound = pull(flight_url=flight_url)
+        for cc in configify(config, test_medium=test_medium, pp="push"):
+            push(test_medium=test_medium, config=cc, outbound=outbound)
+        inbound = pull(test_medium=test_medium)
     elif config_for == "pull":
-        push(flight_url=flight_url, outbound=outbound)
+        pull_config = ec.Config(target=ec.Target(url=get_flight_url(test_medium)))
+        if pull_config.target.type == "mssql":
+            pull_config.target.if_exists = "replace_database"
+        push(test_medium=test_medium, outbound=outbound, config=pull_config)
         inbound = {}
-        for cc in configify(config):
-            inbound = pull(flight_url=flight_url, config=cc, inbound=inbound)
+        for cc in configify(config, test_medium=test_medium, pp="pull"):
+            inbound = pull(test_medium=test_medium, config=cc, inbound=inbound)
     else:
         assert False
     th.assert_expected(expected, actual=inbound)
@@ -108,27 +144,27 @@ def oneway_config(flight_url, config_for, outbound, expected, config):
 
 def config_symmetrical(func):
     @wraps(func)
-    def wrapper(flight_url, config_for):
+    def wrapper(test_medium, config_for):
         outbound, expected, config = func()
-        oneway_config(flight_url, config_for, outbound, expected, config)
+        oneway_config(test_medium, config_for, outbound, expected, config)
 
     return wrapper
 
 
 def config_pull(func):
     @wraps(func)
-    def wrapper(flight_url):
+    def wrapper(test_medium):
         outbound, expected, config = func()
-        oneway_config(flight_url, "pull", outbound, expected, config)
+        oneway_config(test_medium, "pull", outbound, expected, config)
 
     return wrapper
 
 
 def config_push(func):
     @wraps(func)
-    def wrapper(flight_url):
+    def wrapper(test_medium):
         outbound, expected, config = func()
-        oneway_config(flight_url, "push", outbound, expected, config)
+        oneway_config(test_medium, "push", outbound, expected, config)
 
     return wrapper
 
@@ -845,12 +881,12 @@ def get_time_str() -> str:
 
 
 def push(
-    flight_url,
+    test_medium,
     outbound,
     config=ec.Config(),
 ):
     config.source.url = el.urlize_dict(outbound)
-    config.target.url = flight_url()
+    config.target.url = get_flight_url(test_medium)
 
     print(f"pushing {config.source.url} as {outbound}")
     print(f"outbound: {outbound}")
@@ -858,13 +894,13 @@ def push(
 
 
 def pull(
-    flight_url,
+    test_medium,
     inbound=None,
     config=ec.Config(),
 ):
     if inbound is None:
         inbound = {}
-    config.source.url = flight_url()
+    config.source.url = get_flight_url(test_medium)
     config.target.url = el.urlize_dict(inbound)
 
     print("pulling")

@@ -15,11 +15,13 @@ from . import test_template as tt
     ],
 )
 @pytest.mark.parametrize(
-    "test_name,flight_url",
+    "test_name",
     [
-        ("pandas", tt.flight_url_df_dict),
-        ("excel", tt.flight_url_excel),
-        ("sqlite", tt.flight_url_sqlite),
+        ("pandas"),
+        ("excel"),
+        ("sqlite"),
+        ("duckdb"),
+        ("mssql"),
     ],
 )
 @pytest.mark.parametrize(
@@ -49,16 +51,19 @@ from . import test_template as tt
         tt.append_plus,
     ],
 )
-def test_symconfig(tmp_path, test_name, flight_url, func, config_for):
+def test_sc(tmp_path, test_name, func, config_for):
     os.chdir(tmp_path)
-    func(flight_url=flight_url, config_for=config_for)
+    func(test_medium=test_name, config_for=config_for)
 
 
 @pytest.mark.parametrize(
-    "test_name,flight_url",
+    "test_name",
     [
-        ("pandas", tt.flight_url_df_dict),
-        ("excel", tt.flight_url_excel),
+        ("pandas"),
+        ("excel"),
+        ("sqlite"),
+        ("duckdb"),
+        ("mssql"),
     ],
 )
 @pytest.mark.parametrize(
@@ -68,15 +73,15 @@ def test_symconfig(tmp_path, test_name, flight_url, func, config_for):
         tt.stack_dynamic,
     ],
 )
-def test_for_push_or_pull(tmp_path, test_name, flight_url, func):
+def test_for_push_or_pull(tmp_path, test_name, func):
     os.chdir(tmp_path)
-    func(flight_url=flight_url)
+    func(test_medium=test_name)
 
 
 @pytest.mark.parametrize(
-    "test_name,flight_url",
+    "test_name",
     [
-        ("excel", tt.flight_url_excel),
+        ("excel"),
     ],
 )
 @pytest.mark.parametrize(
@@ -86,6 +91,6 @@ def test_for_push_or_pull(tmp_path, test_name, flight_url, func):
         tt.xl_replace_file,
     ],
 )
-def test_for_excel(tmp_path, test_name, flight_url, func):
+def test_for_excel(tmp_path, test_name, func):
     os.chdir(tmp_path)
-    func(flight_url=flight_url)
+    func(test_medium=test_name)

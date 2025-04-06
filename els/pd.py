@@ -57,7 +57,6 @@ class DataFrameIO(NodeMixin):
         self.df_target = self.parent.df_dict[self.name]
 
     def write(self):
-        print(f"TRY TO WRITE: {[self.mode, self.name]}")
         if self.mode in ("r", "s"):
             return None
         if self.mode == "a" and not self.df_target.empty:
@@ -77,7 +76,6 @@ class DataFrameIO(NodeMixin):
 
     def set_df(
         self,
-        # df_name,
         df,
         if_exists,
         kw_for_push=None,
@@ -183,7 +181,6 @@ class DataFrameContainerMixinIO(NodeMixin):
                 raise Exception("Cannot write empty dataframe")
             for df_io in self.childrens:
                 df_io.write()
-            print("ALL WRITING DONE, PERSISTING")
             self.persist()
 
     def add_child(self, child: DataFrameIO):
@@ -205,6 +202,7 @@ class DataFrameContainerMixinIO(NodeMixin):
 
     @property
     def child_names(self):
+        # TODO: better to change to tuple?
         return [child.name for child in self.childrens]
 
     def _children_init():
@@ -247,28 +245,6 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
                 name=name,
                 parent=self,
             )
-
-    # def set_df(
-    #     self,
-    #     df_name,
-    #     df,
-    #     if_exists,
-    #     build=False,
-    # ):
-    #     # if build:
-    #     #     df = get_column_frame(df)
-    #     # TODO: add consistency check to fetch_child()?
-    #     df_io = self.fetch_child(
-    #         df_name=df_name,
-    #         df=df,
-    #         # build=build,
-    #     )
-    #     df_io.set_df(
-    #         df_name,
-    #         df,
-    #         if_exists,
-    #         build,
-    #     )
 
     def persist(self):
         for df_io in self.childrens:

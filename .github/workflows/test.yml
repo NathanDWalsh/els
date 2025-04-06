@@ -40,6 +40,7 @@ jobs:
           show-log: true
       - name: Run sqlclient
         run: |
+          ${{ matrix.sys.sqlcmd-path }} -C -S localhost -U sa -P dbatools.I0 -d master -Q "ALTER DATABASE [model] SET RECOVERY SIMPLE;"
           ${{ matrix.sys.sqlcmd-path }} -C -S localhost -U sa -P dbatools.I0 -d master -Q "drop database if exists els;"
           ${{ matrix.sys.sqlcmd-path }} -C -S localhost -U sa -P dbatools.I0 -d master -Q "create database els;"
       - uses: actions/checkout@v4

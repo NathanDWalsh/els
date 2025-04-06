@@ -3,6 +3,7 @@ import os
 
 import pandas as pd
 import sqlalchemy as sa
+from sqlalchemy_utils import create_database, database_exists, drop_database
 
 import els.pd as pn
 import els.sa as sq
@@ -20,16 +21,14 @@ def fetch_sql_container(url: str, replace: bool = False) -> sq.SQLDBContainer:
     if url is None:
         raise Exception("Cannot fetch None url")
     elif url in open_sqls:
-        print("found")
         res = open_sqls[url]
     else:
-        print("create")
         res = sq.SQLDBContainer(url, replace)
     open_sqls[url] = res
     return res
 
 
-def fetch_sa_engine(url) -> sa.Engine:
+def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
     # TODO: fix this here
     # if target.type in ("mssql") and len(ec.supported_available_odbc_drivers()):
     #     kwargs_connect["fast_executemany"] = True
@@ -40,11 +39,18 @@ def fetch_sa_engine(url) -> sa.Engine:
     if url is None:
         raise Exception("Cannot fetch None url")
     elif url in open_sa_engs:
-        print(f"creating engine {url}")
         res = open_sa_engs[url]
     else:
-        print(f"opening engine {url}")
+        # raise Exception()
         res = sa.create_engine(url)
+        if not database_exists(res.url):
+            create_database(res.url)
+        elif replace:
+            # res.dispose()
+            drop_database(res.url)
+            create_database(res.url)
+            # res = sa.create_engine(url)
+
     open_sa_engs[url] = res
     return res
 

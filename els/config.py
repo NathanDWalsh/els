@@ -343,12 +343,28 @@ class Frame(BaseModel):
 
 class Target(Frame):
     model_config = ConfigDict(
-        extra="forbid", use_enum_values=True, validate_default=True
+        extra="forbid",
+        use_enum_values=True,
+        validate_default=True,
+        json_schema_extra={
+            "oneOf": [
+                {"required": ["to_sql"]},
+                {"required": ["to_csv"]},
+                {"required": ["to_excel"]},
+            ]
+        },
     )
 
     consistency: Literal["strict", "ignore"] = "strict"
     if_exists: Optional[
-        Literal["fail", "truncate", "append", "replace", "replace_file"]
+        Literal[
+            "fail",
+            "truncate",
+            "append",
+            "replace",
+            "replace_file",
+            "replace_database",
+        ]
     ] = None
     to_sql: Optional[ToSql] = None
     to_csv: Optional[ToCsv] = None
@@ -395,6 +411,18 @@ class ReadXml(BaseModel, extra="allow"):
 
 
 class Source(Frame, extra="forbid"):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "oneOf": [
+                {"required": ["read_csv"]},
+                {"required": ["read_excel"]},
+                {"required": ["read_fwf"]},
+                {"required": ["read_xml"]},
+                {"required": ["extract_pages_pdf"]},
+            ]
+        },
+    )
     load_parallel: bool = False
     nrows: Optional[int] = None
     dtype: Optional[dict] = None
@@ -421,7 +449,7 @@ TransformType = NewType(
 
 
 class Config(BaseModel):
-    # KEEP config_path AROUND JUST IN CASE, can be used when priting yamls for debugging
+    # KEEP config_path AROUND JUST IN CASE, can be used when printing yamls for debugging
     config_path: Optional[str] = None
     # source: Union[Source,list[Source]] = Source()
     source: Source = Source()

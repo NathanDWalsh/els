@@ -1,4 +1,5 @@
-from functools import cached_property
+import os
+from typing import Literal
 
 import pandas as pd
 import sqlalchemy as sa
@@ -6,18 +7,6 @@ import sqlalchemy as sa
 import els.config as ec
 import els.core as el
 import els.pd as epd
-
-
-def get_table_names(source: ec.Source) -> list[str]:
-    res = None
-    if source.type_is_db:
-        if not source.table:
-            with sa.create_engine(source.db_connection_string).connect() as sqeng:
-                inspector = sa.inspect(sqeng)
-                res = inspector.get_table_names(source.dbschema)
-        else:
-            res = [source.table]
-    return res
 
 
 class SQLTable(epd.DataFrameIO):
@@ -41,9 +30,22 @@ class SQLTable(epd.DataFrameIO):
         self.kw_for_pull = kw_for_pull
         self.kw_for_push: ec.ToSql = kw_for_push
 
-        # # TODO not efficient to pull table if not being used
-        # if self.df.empty:
-        #     self.df = self.pull()
+    @property
+    def sqn(self) -> str:
+        if self.parent.flavor == "duckdb":
+            res = '"' + self.name + '"'
+        # elif self.dbschema and self.table:
+        #     res = "[" + self.dbschema + "].[" + self.table + "]"
+        else:
+            res = "[" + self.name + "]"
+        return res
+
+    @property
+    def truncate_stmt(self):
+        if self.parent.flavor == "sqlite":
+            return f"delete from {self.sqn}"
+        else:
+            return f"truncate table {self.sqn}"
 
     # def pull(self, kwargs={}, nrows=100):
     def _read(self, kwargs):
@@ -65,9 +67,7 @@ class SQLTable(epd.DataFrameIO):
             raise Exception("invalid sqn")
         with self.parent.sa_engine.connect() as sqeng:
             stmt = (
-                sa.select(sa.text("*"))
-                .select_from(sa.text(f"[{self.name}]"))
-                .limit(nrows)
+                sa.select(sa.text("*")).select_from(sa.text(f"{self.sqn}")).limit(nrows)
             )
             self.df = pd.read_sql(stmt, con=sqeng, **kwargs)
             if sample:
@@ -92,9 +92,38 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
         self.url = url
         self.replace = replace
 
-        self.sa_engine: sa.Engine = el.fetch_sa_engine(self.url)
+        self.sa_engine: sa.Engine = el.fetch_sa_engine(
+            self.url,
+            replace=replace,
+        )
         self._children_init()
         print(f"children created: {[n.name for n in self.children]}")
+
+    @property
+    def flavor(
+        self,
+    ) -> Literal[
+        "mssql",
+        "duckdb",
+        "sqlite",
+    ]:
+        scheme = self.url.split(":")[0]
+        return scheme.split("+")[0]
+
+    @property
+    def dbtype(
+        self,
+    ) -> Literal[
+        "file",
+        "server",
+    ]:
+        if self.flavor in ("sqlite", "duckdb"):
+            return "file"
+        else:
+            return "server"
+
+    def db_exists(self) -> bool:
+        return True
 
     def _children_init(self):
         with self.sa_engine.connect() as sqeng:
@@ -108,12 +137,16 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
                 for n in inspector.get_table_names()
             ]
 
-    @cached_property
+    @property
     def create_or_replace(self):
         # if self.replace or not os.path.isfile(self.url):
         # TODO: add logic which discriminates between file or server-based databases
         # consider allowing database replacement with prompt
-        if self.replace:
+        if (
+            self.replace
+            or (self.dbtype == "file" and not os.path.isfile(self.url))
+            or (self.dbtype == "server" and not self.db_exists())
+        ):
             return True
         else:
             return False
@@ -125,28 +158,30 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
     def childrens(self) -> tuple[SQLTable]:
         return super().children
 
+    def db_create(self):
+        if self.dbtype == "file":
+            pass  # TODO: why does this not seem to be necessary??
+        elif self.dbtype == "server":
+            pass  # maybe this is done better at the fetch level??
+
     def persist(self):
         # print(f"children len: {len(self.children)}")
-
+        if self.mode == "w":
+            self.db_create()
         with self.sa_engine.connect() as sqeng:
             for df_io in self.childrens:
-                # print(f"PERSIST: {[df_io.mode, df_io.name]}")
                 if df_io.mode in ("a", "w"):
-                    # self.df_dict[df_io.name] = df_io.df_target
-
                     if df_io.kw_for_push:
                         kwargs = df_io.kw_for_push
                     else:  # TODO: else maybe not needed when default for kw_for_push
                         kwargs = {}
-                    print(f"TO_SQL::::::: {df_io.df_target}")
                     if df_io.if_exists == "truncate":
-                        # TODO: bring back sqn's and flavor specific truncate scenarios
-                        sqeng.execute(sa.text(f"delete from [{df_io.name}]"))
+                        sqeng.execute(sa.text(df_io.truncate_stmt))
                         df_io.if_exists = "append"
                     df_io.df_target.to_sql(
                         df_io.name,
                         sqeng,
-                        # schema=target.dbschema,
+                        schema=None,
                         index=False,
                         if_exists=df_io.if_exists,
                         chunksize=1000,

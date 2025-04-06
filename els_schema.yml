@@ -373,6 +373,17 @@ $defs:
     type: object
   Source:
     additionalProperties: false
+    oneOf:
+    - required:
+      - read_csv
+    - required:
+      - read_excel
+    - required:
+      - read_fwf
+    - required:
+      - read_xml
+    - required:
+      - extract_pages_pdf
     properties:
       dbschema:
         anyOf:
@@ -472,6 +483,13 @@ $defs:
     type: object
   Target:
     additionalProperties: false
+    oneOf:
+    - required:
+      - to_sql
+    - required:
+      - to_csv
+    - required:
+      - to_excel
     properties:
       consistency:
         default: strict
@@ -494,6 +512,7 @@ $defs:
           - append
           - replace
           - replace_file
+          - replace_database
           type: string
         - type: 'null'
         default: null

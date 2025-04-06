@@ -9,7 +9,6 @@ from stat import FILE_ATTRIBUTE_HIDDEN
 from typing import Callable, Optional, Union
 
 import pandas as pd
-import sqlalchemy as sa
 import typer
 import yaml
 from anytree import NodeMixin, PreOrderIter, RenderTree
@@ -831,18 +830,6 @@ def dict_diff(dict1: dict, dict2: dict) -> dict:
     return diff
 
 
-def get_table_names(source: ec.Source) -> list[str]:
-    res = None
-    if source.type_is_db:
-        if not source.table:
-            with sa.create_engine(source.db_connection_string).connect() as sqeng:
-                inspector = sa.inspect(sqeng)
-                res = inspector.get_table_names(source.dbschema)
-        else:
-            res = [source.table]
-    return res
-
-
 def get_yml_docs(path: Union[ConfigPath, Path], expected: int = None) -> list[dict]:
     if path.exists():
         with path.open() as file:
@@ -882,7 +869,9 @@ def config_path_valid(path: ConfigPath) -> bool:
 
 def get_content_leaf_names(source: ec.Source) -> list[str]:
     if source.type_is_db:
-        return get_table_names(source)
+        # return get_table_names(source)
+        sql_container = el.fetch_sql_container(source.db_connection_string)
+        return sql_container.child_names
     elif source.type_is_excel:
         xl_io = el.fetch_excel_io(source.url)
         return xl_io.child_names

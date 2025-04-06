@@ -1,11 +1,22 @@
 import os
-from typing import Union
+from typing import Literal, NewType, Union
 
 import pandas as pd
 import yaml
 
 import els.cli as ei
 import els.config as ec
+
+TestMedium = NewType(
+    "TestMedium",
+    Literal[
+        "pandas",
+        "excel",
+        "sqlite",
+        "duckdb",
+        "mssql",
+    ],
+)
 
 
 def assert_dfs_equal(df0: pd.DataFrame, df1: pd.DataFrame):
