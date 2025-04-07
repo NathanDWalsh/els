@@ -25,7 +25,8 @@ def get_flight_url(test_medium):
         return f"duckdb:///{th.filename_from_dir('db')}"
     elif test_medium == "mssql":
         db_host = os.getenv("TEST_ELS_MSSQL_HOST", "localhost")
-        test_url = f"mssql://sa:dbatools.I0@{db_host}/{th.filename_from_dir()}"
+        dbname = os.environ.get("PYTEST_CURRENT_TEST").split(" ")[0].split("[")[-1][:-1]
+        test_url = f"mssql://sa:dbatools.I0@{db_host}/{dbname}"
         return test_url
 
 

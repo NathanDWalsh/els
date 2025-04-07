@@ -10,7 +10,6 @@ import pandas as pd
 import prqlc
 from pdfminer.high_level import LAParams, extract_pages
 from pdfminer.layout import LTChar, LTTextBox
-from sqlalchemy_utils import database_exists
 
 import els.config as ec
 import els.core as el
@@ -26,7 +25,7 @@ def table_exists(target: ec.Target) -> Optional[bool]:
     if target.type_is_db:
         # db_exists(target)
         # raise Exception()
-        sql_container = el.fetch_sql_container(target.db_connection_string)
+        sql_container = el.fetch_sql_container(target.url)
         return target.table in sql_container.child_names
         # if database_exists(target.db_connection_string):
         #     with sa.create_engine(target.db_connection_string).connect() as sqeng:
@@ -80,7 +79,7 @@ def build_action(
         and target.type == "mssql"
         and (
             target.if_exists == "replace_database"
-            or not database_exists(target.db_connection_string)
+            or target.table not in el.fetch_sql_container(target.url).child_names
         )
     ):
         res = "create_replace_database"
@@ -132,7 +131,7 @@ def push_sql(
         target.if_exists = "append"
 
     sql_container = el.fetch_sql_container(
-        url=target.db_connection_string,
+        url=target.url,
         replace=replace_database,
     )
     sql_table = sql_container.fetch_child(
@@ -633,7 +632,7 @@ def pull_frame(
 
         kwargs = get_source_kwargs(None, frame, nrows)
 
-        sql_io = el.fetch_sql_container(frame.db_connection_string)
+        sql_io = el.fetch_sql_container(frame.url)
         table_io = sql_io.get_child(frame.table)
         df = table_io.read(kwargs)
     elif frame.type in (".csv", ".tsv"):

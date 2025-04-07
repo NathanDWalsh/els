@@ -1,5 +1,7 @@
+import logging
 import os
-from typing import Literal
+from typing import Literal, Optional
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import pandas as pd
 import sqlalchemy as sa
@@ -7,6 +9,15 @@ import sqlalchemy as sa
 import els.config as ec
 import els.core as el
 import els.pd as epd
+
+
+def lcase_dict_keys(_dict):
+    return {k.lower(): v for k, v in _dict.items()}
+
+
+def lcase_query_keys(query):
+    query_parsed = parse_qs(query)
+    return lcase_dict_keys(query_parsed)
 
 
 class SQLTable(epd.DataFrameIO):
@@ -93,11 +104,86 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
         self.replace = replace
 
         self.sa_engine: sa.Engine = el.fetch_sa_engine(
-            self.url,
+            self.db_connection_string,
             replace=replace,
         )
         self._children_init()
         print(f"children created: {[n.name for n in self.children]}")
+
+    @property
+    def query_lcased(self):
+        url_parsed = urlparse(self.url)
+        query = parse_qs(url_parsed.query)
+        res = {k.lower(): v[0].lower() for k, v in query.items()}
+        return res
+
+    @property
+    def db_url_driver(self):
+        query_lcased = self.query_lcased
+        if "driver" in query_lcased.keys():
+            return query_lcased["driver"]
+        else:
+            return False
+
+    @property
+    def choose_db_driver(self):
+        explicit_driver = self.db_url_driver
+        if explicit_driver and explicit_driver in el.supported_mssql_odbc_drivers:
+            return explicit_driver
+        else:
+            return None
+
+    @property
+    def odbc_driver_supported_available(self):
+        explicit_odbc = self.db_url_driver
+        if explicit_odbc and explicit_odbc in el.supported_available_odbc_drivers():
+            return True
+        else:
+            return False
+
+    @property
+    def type(self):
+        return self.url.split(":")[0]
+
+    @property
+    def db_connection_string(self) -> Optional[str]:
+        # Define the connection string based on the database type
+        if self.type in (
+            "mssql+pymssql",
+            "mssql+pyodbc",
+        ):  # assumes advanced usage and url must be correct
+            return self.url
+        elif (
+            self.type == "mssql"
+        ):  # try to automatically detect odbc drivers and falls back on tds/pymssql
+            url_parsed = urlparse(self.url)._replace(scheme="mssql+pyodbc")
+            if self.odbc_driver_supported_available:
+                query = el.lcase_query_keys(url_parsed.query)
+                query["driver"] = query["driver"][0]
+                if query["driver"].lower() == "odbc driver 18 for sql server":
+                    query["TrustServerCertificate"] = "yes"
+                res = url_parsed._replace(query=urlencode(query)).geturl()
+                # res = url_parsed.geturl()
+            elif len(el.supported_available_odbc_drivers()):
+                logging.info(
+                    "No valid ODBC driver defined in connection string, choosing one."
+                )
+                query = lcase_query_keys(url_parsed.query)
+                query["driver"] = list(el.supported_available_odbc_drivers())[0]
+                logging.info(query["driver"].lower())
+                if query["driver"].lower() == "odbc driver 18 for sql server":
+                    query["TrustServerCertificate"] = "yes"
+                res = url_parsed._replace(query=urlencode(query)).geturl()
+            else:
+                logging.info("No ODBC drivers for pyodbc, using pymssql")
+                res = urlparse(self.url)._replace(scheme="mssql+pymssql").geturl()
+        elif self.type in ("sqlite", "duckdb"):
+            res = self.url
+        elif self.type == "postgres":
+            res = "Driver={{PostgreSQL}};Server={self.server};Database={self.database};"
+        else:
+            res = None
+        return res
 
     @property
     def flavor(
@@ -192,4 +278,4 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
     def close(self):
         self.sa_engine.dispose()
         print("engine disposed")
-        del el.open_sa_engs[self.url]
+        del el.open_sa_engs[self.db_connection_string]

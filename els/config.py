@@ -1,13 +1,11 @@
-import logging
 import os
 import re
 from copy import deepcopy
 from enum import Enum
 from functools import cached_property
 from typing import Literal, NewType, Optional, Union
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import urlparse
 
-import pyodbc
 import yaml
 from pydantic import BaseModel, ConfigDict
 
@@ -116,34 +114,6 @@ class SplitOnColumn(Transform):
     split_on_column: str
 
 
-supported_mssql_odbc_drivers = {
-    "sql server native client 11.0",
-    "odbc driver 17 for sql server",
-    "odbc driver 18 for sql server",
-}
-
-
-def available_odbc_drivers():
-    available = pyodbc.drivers()
-    lcased = {v.lower() for v in available}
-    return lcased
-
-
-def supported_available_odbc_drivers():
-    supported = supported_mssql_odbc_drivers
-    available = available_odbc_drivers()
-    return supported.intersection(available)
-
-
-def lcase_dict_keys(_dict):
-    return {k.lower(): v for k, v in _dict.items()}
-
-
-def lcase_query_keys(query):
-    query_parsed = parse_qs(query)
-    return lcase_dict_keys(query_parsed)
-
-
 def merge_configs(*configs: list[Union["Config", dict]]) -> "Config":
     dicts: list[dict] = []
     for config in configs:
@@ -189,77 +159,6 @@ class Frame(BaseModel):
     def file_exists(self) -> Optional[bool]:
         if self.url:
             res = os.path.exists(self.url)
-        else:
-            res = None
-        return res
-
-    @cached_property
-    def query_lcased(self):
-        url_parsed = urlparse(self.url)
-        query = parse_qs(url_parsed.query)
-        res = {k.lower(): v[0].lower() for k, v in query.items()}
-        return res
-
-    @cached_property
-    def db_url_driver(self):
-        query_lcased = self.query_lcased
-        if "driver" in query_lcased.keys():
-            return query_lcased["driver"]
-        else:
-            return False
-
-    @cached_property
-    def choose_db_driver(self):
-        explicit_driver = self.db_url_driver
-        if explicit_driver and explicit_driver in supported_mssql_odbc_drivers:
-            return explicit_driver
-        else:
-            return None
-
-    @cached_property
-    def odbc_driver_supported_available(self):
-        explicit_odbc = self.db_url_driver
-        if explicit_odbc and explicit_odbc in supported_available_odbc_drivers():
-            return True
-        else:
-            return False
-
-    @cached_property
-    def db_connection_string(self) -> Optional[str]:
-        # Define the connection string based on the database type
-        if self.type in (
-            "mssql+pymssql",
-            "mssql+pyodbc",
-        ):  # assumes advanced usage and url must be correct
-            return self.url
-        elif (
-            self.type == "mssql"
-        ):  # try to automatically detect odbc drivers and falls back on tds/pymssql
-            url_parsed = urlparse(self.url)._replace(scheme="mssql+pyodbc")
-            if self.odbc_driver_supported_available:
-                query = lcase_query_keys(url_parsed.query)
-                query["driver"] = query["driver"][0]
-                if query["driver"].lower() == "odbc driver 18 for sql server":
-                    query["TrustServerCertificate"] = "yes"
-                res = url_parsed._replace(query=urlencode(query)).geturl()
-                # res = url_parsed.geturl()
-            elif len(supported_available_odbc_drivers()):
-                logging.info(
-                    "No valid ODBC driver defined in connection string, choosing one."
-                )
-                query = lcase_query_keys(url_parsed.query)
-                query["driver"] = list(supported_available_odbc_drivers())[0]
-                logging.info(query["driver"].lower())
-                if query["driver"].lower() == "odbc driver 18 for sql server":
-                    query["TrustServerCertificate"] = "yes"
-                res = url_parsed._replace(query=urlencode(query)).geturl()
-            else:
-                logging.info("No ODBC drivers for pyodbc, using pymssql")
-                res = urlparse(self.url)._replace(scheme="mssql+pymssql").geturl()
-        elif self.type in ("sqlite", "duckdb"):
-            res = self.url
-        elif self.type == "postgres":
-            res = "Driver={{PostgreSQL}};Server={self.server};Database={self.database};"
         else:
             res = None
         return res

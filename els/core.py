@@ -1,7 +1,9 @@
 import io
 import os
+from typing import Literal
 
 import pandas as pd
+import pyodbc
 import sqlalchemy as sa
 from sqlalchemy_utils import create_database, database_exists, drop_database
 
@@ -17,6 +19,25 @@ open_sa_engs: dict[str, sa.Engine] = {}
 open_sqls: dict[str, sq.SQLDBContainer] = {}
 
 
+supported_mssql_odbc_drivers = {
+    "sql server native client 11.0",
+    "odbc driver 17 for sql server",
+    "odbc driver 18 for sql server",
+}
+
+
+def available_odbc_drivers():
+    available = pyodbc.drivers()
+    lcased = {v.lower() for v in available}
+    return lcased
+
+
+def supported_available_odbc_drivers():
+    supported = supported_mssql_odbc_drivers
+    available = available_odbc_drivers()
+    return supported.intersection(available)
+
+
 def fetch_sql_container(url: str, replace: bool = False) -> sq.SQLDBContainer:
     if url is None:
         raise Exception("Cannot fetch None url")
@@ -29,27 +50,22 @@ def fetch_sql_container(url: str, replace: bool = False) -> sq.SQLDBContainer:
 
 
 def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
-    # TODO: fix this here
-    # if target.type in ("mssql") and len(ec.supported_available_odbc_drivers()):
-    #     kwargs_connect["fast_executemany"] = True
-    # with sa.create_engine(
-    #     target.db_connection_string, **kwargs_connect
-    # ).connect() as sqeng:
+    dialect: Literal["mssql", "sqlite", "duckdb"] = url.split(":")[0].split("+")[0]
+    kwargs = {}
+    if dialect in ("mssql") and len(supported_available_odbc_drivers()):
+        kwargs["fast_executemany"] = True
 
     if url is None:
         raise Exception("Cannot fetch None url")
     elif url in open_sa_engs:
         res = open_sa_engs[url]
     else:
-        # raise Exception()
-        res = sa.create_engine(url)
+        res = sa.create_engine(url, **kwargs)
         if not database_exists(res.url):
             create_database(res.url)
         elif replace:
-            # res.dispose()
             drop_database(res.url)
             create_database(res.url)
-            # res = sa.create_engine(url)
 
     open_sa_engs[url] = res
     return res

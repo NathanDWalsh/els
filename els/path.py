@@ -870,7 +870,7 @@ def config_path_valid(path: ConfigPath) -> bool:
 def get_content_leaf_names(source: ec.Source) -> list[str]:
     if source.type_is_db:
         # return get_table_names(source)
-        sql_container = el.fetch_sql_container(source.db_connection_string)
+        sql_container = el.fetch_sql_container(source.url)
         return sql_container.child_names
     elif source.type_is_excel:
         xl_io = el.fetch_excel_io(source.url)
