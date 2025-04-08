@@ -14,3 +14,4 @@ duckdb_engine>=0.12.1
 pdfminer.six>=20231228
 prqlc>=0.13.3
 XlsxWriter>=3.2.2
+SQLAlchemy-Utils>=0.41.2

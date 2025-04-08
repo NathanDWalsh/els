@@ -52,7 +52,8 @@ jobs:
             3.10
             3.11
             3.12
-            3.13
+          # 3.13 Removing 3.13 due to issue with pymssql on 3.13 Windows
+          # Cannot open include file: 'sqlfront.h': No such file or directory
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
