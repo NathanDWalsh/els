@@ -1,6 +1,5 @@
 import io
 import os
-from typing import Literal
 
 import pandas as pd
 import pyodbc
@@ -50,9 +49,11 @@ def fetch_sql_container(url: str, replace: bool = False) -> sq.SQLDBContainer:
 
 
 def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
-    dialect: Literal["mssql", "sqlite", "duckdb"] = url.split(":")[0].split("+")[0]
+    dialect = url.split(":")[0]
     kwargs = {}
-    if dialect in ("mssql") and len(supported_available_odbc_drivers()):
+    if dialect in ("mssql+pyodbc", "mssql+") and len(
+        supported_available_odbc_drivers()
+    ):
         kwargs["fast_executemany"] = True
 
     if url is None:
