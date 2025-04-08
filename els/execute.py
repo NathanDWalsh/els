@@ -311,9 +311,9 @@ def config_frames_consistent(config: ec.Config) -> bool:
     #         if v == ec.DynamicColumnValue.ROW_INDEX.value:
     #             ignore_cols.append(k)
 
-    source_df = pull_frame(source, 100)
+    source_df = pull_frame(source, sample=True)
     source_df = apply_transforms(source_df, transform, mark_as_executed=False)
-    target_df = pull_frame(target, 100)
+    target_df = pull_frame(target, sample=True)
     return data_frames_consistent(source_df, target_df)
 
 
@@ -565,7 +565,11 @@ def pull_xml(file, **kwargs):
     return df
 
 
-def get_source_kwargs(read_x, frame: ec.Source, nrows: Optional[int] = None):
+def get_source_kwargs(
+    read_x: Union[ec.ReadCsv, ec.ReadExcel, ec.ReadFwf, ec.ReadXml],
+    frame: ec.Source,
+    nrows: Optional[int] = None,
+):
     kwargs = {}
     if read_x:
         kwargs = read_x.model_dump(exclude_none=True)
@@ -593,9 +597,6 @@ def get_source_kwargs(read_x, frame: ec.Source, nrows: Optional[int] = None):
 
     if nrows:
         kwargs["nrows"] = nrows
-
-    if kwargs.get("nrows") and kwargs.get("skipfooter"):
-        del kwargs["nrows"]
 
     return kwargs
 
@@ -626,6 +627,7 @@ def get_target_kwargs(to_x, frame: ec.Target, nrows: Optional[int] = None):
 def pull_frame(
     frame: Union[ec.Source, ec.Target],
     nrows: Optional[int] = None,
+    sample: bool = False,
 ) -> pd.DataFrame:
     if frame.type_is_db:
         print(f"pull {frame.table}")
@@ -634,7 +636,7 @@ def pull_frame(
 
         sql_io = el.fetch_sql_container(frame.url)
         table_io = sql_io.get_child(frame.table)
-        df = table_io.read(kwargs)
+        df = table_io.read(kwargs, sample=sample)
     elif frame.type in (".csv", ".tsv"):
         print(f"FRAME TYPE: {frame.type}")
         if isinstance(frame, ec.Source):
@@ -663,7 +665,7 @@ def pull_frame(
 
         xl_io = el.fetch_excel_io(frame.url)
         sheet_io = xl_io.get_child(frame.table)
-        df = sheet_io.read(kwargs)
+        df = sheet_io.read(kwargs, sample=sample)
     elif frame.type == ".fwf":
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_fwf, frame, nrows)
@@ -767,7 +769,9 @@ def ingest(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
     consistent = config_frames_consistent(config)
     if not target or not target.table or consistent or target.consistency == "ignore":
-        source_df = pull_frame(source, config.nrows)
+        # TODO: why is nrows on config root and not in source
+        # this is the only place where nrows is passed to pull_frame
+        source_df = pull_frame(source, config.nrows, False)
         source_df = apply_transforms(source_df, transform)
         return push_frame(source_df, target)
     else:
@@ -784,7 +788,7 @@ def build(config: ec.Config) -> bool:
             "create_replace_database",
         ):
             # TODO, use caching to avoid pulling the same data twice
-            df = pull_frame(source, 100)
+            df = pull_frame(source, sample=True)
             df = apply_transforms(df, transform, mark_as_executed=False)
             res = build_target(df, target)
         elif action == "truncate":

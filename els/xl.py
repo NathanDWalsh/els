@@ -105,7 +105,9 @@ class ExcelSheetIO(epd.DataFrameIO):
     def parent(self, v):
         epd.DataFrameIO.parent.fset(self, v)
 
-    def _read(self, kwargs):
+    def _read(self, kwargs, sample: bool = False):
+        if kwargs.get("nrows") and kwargs.get("skipfooter"):
+            del kwargs["nrows"]
         if not kwargs:
             kwargs = self.kw_for_pull
         if self.mode in ("r", "s") and self.kw_for_pull != kwargs:

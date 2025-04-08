@@ -58,8 +58,7 @@ class SQLTable(epd.DataFrameIO):
         else:
             return f"truncate table {self.sqn}"
 
-    # def pull(self, kwargs={}, nrows=100):
-    def _read(self, kwargs):
+    def _read(self, kwargs, sample: bool = False):
         print(f"READ kwargs:{kwargs}")
         if not kwargs:
             kwargs = self.kw_for_pull
@@ -69,9 +68,6 @@ class SQLTable(epd.DataFrameIO):
             nrows = kwargs.pop("nrows")
         else:
             nrows = None
-        sample = False
-        if nrows == 100:
-            sample = True
         if not self.parent.url:
             raise Exception("invalid db_connection_string")
         if not self.name:
