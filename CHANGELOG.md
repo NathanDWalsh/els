@@ -1,6 +1,45 @@
 # CHANGELOG
 
 
+## v0.5.1 (2025-04-09)
+
+### Bug Fixes
+
+- **mssql**: Execute_fastmany
+  ([`776b1cc`](https://github.com/NathanDWalsh/els/commit/776b1cc90eb6197a7212027a857eb8eb5f3cda9a))
+
+- **mssql**: Windows mssql drop db issue
+  ([`0db421e`](https://github.com/NathanDWalsh/els/commit/0db421eaa3d4d2d263936b017ba48d78cd66d5a2))
+
+- **mssql**: Windows mssql drop db issue
+  ([`f21a9cc`](https://github.com/NathanDWalsh/els/commit/f21a9cc599a141a42c77b9d101f4c9c82000d95f))
+
+### Refactoring
+
+- **config**: Make yaml transforms more readable
+  ([`7121ac7`](https://github.com/NathanDWalsh/els/commit/7121ac7a280cffe2bddaf3e9857d0c185d2bb86e))
+
+- **io**: Add medium read state for sampling/meta data inference
+  ([`ae7ff36`](https://github.com/NathanDWalsh/els/commit/ae7ff364027fb0145e3d999833dd4e09bc68d285))
+
+- **io**: And tests
+  ([`011a354`](https://github.com/NathanDWalsh/els/commit/011a3547b35271f58835a395402d7aa106684ff5))
+
+- **io**: Df_dict
+  ([`1887d41`](https://github.com/NathanDWalsh/els/commit/1887d413ab2cc461a3902c5ac8c903aee2d5f03c))
+
+- **io**: Sql
+  ([`6d872bb`](https://github.com/NathanDWalsh/els/commit/6d872bbef7a3a2f63fceba8354f5dac31a28f6e5))
+
+- **tests**: Templates
+  ([`3b16a14`](https://github.com/NathanDWalsh/els/commit/3b16a147865c940c4b0fe2f3049f2ea55c78cb2e))
+
+### Testing
+
+- **3.13**: Removed 3.13 from tests due to bug in pymssql for windows
+  ([`ded7f4c`](https://github.com/NathanDWalsh/els/commit/ded7f4c78823bb143bec8c2b4c4ea842eab2e7d3))
+
+
 ## v0.5.0 (2025-03-24)
 
 ### Features
