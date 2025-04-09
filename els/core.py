@@ -5,8 +5,9 @@ import os
 import pandas as pd
 import pyodbc
 import sqlalchemy as sa
-import sqlalchemy_utils as sau
 from sqlalchemy.engine.url import make_url
+from sqlalchemy.exc import InterfaceError, OperationalError, ProgrammingError
+from sqlalchemy_utils import create_database
 from sqlalchemy_utils.functions.orm import quote
 
 import els.pd as pn
@@ -169,10 +170,89 @@ def drop_database(url):
             conn.execute(sa.text(text))
     else:
         with engine.begin() as conn:
+            # text = f"DROP DATABASE {quote(conn, database)}"
+            # TODO, seems SINGLE_USER/ROLLBACK call only required on Windows macnines
             text = f"ALTER DATABASE {quote(conn, database)} SET SINGLE_USER WITH ROLLBACK IMMEDIATE;DROP DATABASE {quote(conn, database)}"
             conn.execute(sa.text(text))
 
     engine.dispose()
+
+
+def _sqlite_file_exists(database):
+    if not os.path.isfile(database) or os.path.getsize(database) < 100:
+        return False
+
+    with open(database, "rb") as f:
+        header = f.read(100)
+
+    return header[:16] == b"SQLite format 3\x00"
+
+
+def database_exists(url):
+    """Check if a database exists.
+
+    :param url: A SQLAlchemy engine URL.
+
+    Performs backend-specific testing to quickly determine if a database
+    exists on the server. ::
+
+        database_exists('postgresql://postgres@localhost/name')  #=> False
+        create_database('postgresql://postgres@localhost/name')
+        database_exists('postgresql://postgres@localhost/name')  #=> True
+
+    Supports checking against a constructed URL as well. ::
+
+        engine = create_engine('postgresql://postgres@localhost/name')
+        database_exists(engine.url)  #=> False
+        create_database(engine.url)
+        database_exists(engine.url)  #=> True
+
+    """
+
+    url = make_url(url)
+    database = url.database
+    dialect_name = url.get_dialect().name
+    engine = None
+    try:
+        if dialect_name == "postgresql":
+            text = "SELECT 1 FROM pg_database WHERE datname='%s'" % database
+            for db in (database, "postgres", "template1", "template0", None):
+                url = _set_url_database(url, database=db)
+                engine = sa.create_engine(url)
+                try:
+                    return bool(_get_scalar_result(engine, sa.text(text)))
+                except (ProgrammingError, OperationalError):
+                    pass
+            return False
+
+        elif dialect_name == "mysql":
+            url = _set_url_database(url, database=None)
+            engine = sa.create_engine(url)
+            text = (
+                "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA "
+                "WHERE SCHEMA_NAME = '%s'" % database
+            )
+            return bool(_get_scalar_result(engine, sa.text(text)))
+
+        elif dialect_name == "sqlite":
+            url = _set_url_database(url, database=None)
+            engine = sa.create_engine(url)
+            if database:
+                return database == ":memory:" or _sqlite_file_exists(database)
+            else:
+                # The default SQLAlchemy database is in memory, and :memory: is
+                # not required, thus we should support that use case.
+                return True
+        else:
+            text = "SELECT 1"
+            try:
+                engine = sa.create_engine(url)
+                return bool(_get_scalar_result(engine, sa.text(text)))
+            except (ProgrammingError, OperationalError, InterfaceError):
+                return False
+    finally:
+        if engine:
+            engine.dispose()
 
 
 def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
@@ -188,13 +268,13 @@ def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
     elif url in open_sa_engs:
         res = open_sa_engs[url]
     else:
-        if not sau.database_exists(url):
-            sau.create_database(url)
+        if not database_exists(url):
+            create_database(url)
         elif replace:
             drop_database(url)
             # with sa.engine(url).connect() as cn:
             #     cn.execute()
-            sau.create_database(url)
+            create_database(url)
         res = sa.create_engine(url, **kwargs)
 
     open_sa_engs[url] = res
