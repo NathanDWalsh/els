@@ -1,23 +1,61 @@
 import logging
-import os
 from typing import Literal, Optional
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pandas as pd
+import pyodbc
 import sqlalchemy as sa
+from sqlalchemy_utils import create_database, database_exists, drop_database
 
 import els.config as ec
 import els.core as el
 import els.pd as epd
 
 
-def lcase_dict_keys(_dict):
+def lcase_dict_keys(_dict: dict[str]):
     return {k.lower(): v for k, v in _dict.items()}
 
 
 def lcase_query_keys(query):
     query_parsed = parse_qs(query)
     return lcase_dict_keys(query_parsed)
+
+
+supported_mssql_odbc_drivers = {
+    "sql server native client 11.0",
+    "odbc driver 17 for sql server",
+    "odbc driver 18 for sql server",
+}
+
+
+def available_odbc_drivers():
+    available = pyodbc.drivers()
+    lcased = {v.lower() for v in available}
+    return lcased
+
+
+def supported_available_odbc_drivers():
+    supported = supported_mssql_odbc_drivers
+    available = available_odbc_drivers()
+    return supported.intersection(available)
+
+
+def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
+    dialect = url.split(":")[0]
+    kwargs = {}
+    if dialect in ("mssql+pyodbc", "mssql") and len(supported_available_odbc_drivers()):
+        kwargs["fast_executemany"] = True
+
+    if url is None:
+        raise Exception("Cannot fetch None url")
+    else:
+        if not database_exists(url):
+            create_database(url)
+        elif replace:
+            drop_database(url)
+            create_database(url)
+        res = sa.create_engine(url, **kwargs)
+    return res
 
 
 class SQLTable(epd.DataFrameIO):
@@ -97,14 +135,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
         self.child_class = SQLTable
 
         self.url = url
-        self.replace = replace
-
-        self.sa_engine: sa.Engine = el.fetch_sa_engine(
-            self.db_connection_string,
-            replace=replace,
-        )
-        self._children_init()
-        print(f"children created: {[n.name for n in self.children]}")
+        super().__init__(replace)
 
     @property
     def query_lcased(self):
@@ -124,7 +155,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
     @property
     def choose_db_driver(self):
         explicit_driver = self.db_url_driver
-        if explicit_driver and explicit_driver in el.supported_mssql_odbc_drivers:
+        if explicit_driver and explicit_driver in supported_mssql_odbc_drivers:
             return explicit_driver
         else:
             return None
@@ -132,7 +163,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
     @property
     def odbc_driver_supported_available(self):
         explicit_odbc = self.db_url_driver
-        if explicit_odbc and explicit_odbc in el.supported_available_odbc_drivers():
+        if explicit_odbc and explicit_odbc in supported_available_odbc_drivers():
             return True
         else:
             return False
@@ -160,12 +191,12 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
                     query["TrustServerCertificate"] = "yes"
                 res = url_parsed._replace(query=urlencode(query)).geturl()
                 # res = url_parsed.geturl()
-            elif len(el.supported_available_odbc_drivers()):
+            elif len(supported_available_odbc_drivers()):
                 logging.info(
                     "No valid ODBC driver defined in connection string, choosing one."
                 )
                 query = lcase_query_keys(url_parsed.query)
-                query["driver"] = list(el.supported_available_odbc_drivers())[0]
+                query["driver"] = list(supported_available_odbc_drivers())[0]
                 logging.info(query["driver"].lower())
                 if query["driver"].lower() == "odbc driver 18 for sql server":
                     query["TrustServerCertificate"] = "yes"
@@ -204,13 +235,10 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
         else:
             return "server"
 
-    def db_exists(self) -> bool:
-        return True
-
     def _children_init(self):
+        self.sa_engine: sa.Engine = fetch_sa_engine(self.db_connection_string)
         with self.sa_engine.connect() as sqeng:
             inspector = sa.inspect(sqeng)
-            # inspector.get_table_names(source.dbschema)
             [
                 SQLTable(
                     name=n,
@@ -221,14 +249,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
 
     @property
     def create_or_replace(self):
-        # if self.replace or not os.path.isfile(self.url):
-        # TODO: add logic which discriminates between file or server-based databases
-        # consider allowing database replacement with prompt
-        if (
-            self.replace
-            or (self.dbtype == "file" and not os.path.isfile(self.url))
-            or (self.dbtype == "server" and not self.db_exists())
-        ):
+        if self.replace or not database_exists(self.db_connection_string):
             return True
         else:
             return False
@@ -240,16 +261,12 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
     def childrens(self) -> tuple[SQLTable]:
         return super().children
 
-    def db_create(self):
-        if self.dbtype == "file":
-            pass  # TODO: why does this not seem to be necessary??
-        elif self.dbtype == "server":
-            pass  # maybe this is done better at the fetch level??
-
     def persist(self):
-        # print(f"children len: {len(self.children)}")
         if self.mode == "w":
-            self.db_create()
+            self.sa_engine = fetch_sa_engine(
+                self.db_connection_string,
+                replace=True,
+            )
         with self.sa_engine.connect() as sqeng:
             for df_io in self.childrens:
                 if df_io.mode in ("a", "w"):
@@ -274,4 +291,3 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
     def close(self):
         self.sa_engine.dispose()
         print("engine disposed")
-        del el.open_sa_engs[self.db_connection_string]

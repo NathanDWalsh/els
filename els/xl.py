@@ -124,12 +124,13 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
         self.child_class = ExcelSheetIO
 
         self.url = url
-        self.replace = replace
+        # self.replace = replace
 
         # load file and sheets
-        self.file_io = el.fetch_file_io(self.url, replace=self.replace)
+        # self.file_io = el.fetch_file_io(self.url, replace=self.replace)
         # TODO: mode will never be write on init?
-        self.children = [] if self.mode == "w" else self._children_init()
+        # self.children = [] if self.mode == "w" else self._children_init()
+        super().__init__(replace)
 
     @property
     def create_or_replace(self):
@@ -153,6 +154,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
             return "xlsxwriter"
 
     def _children_init(self):
+        self.file_io = el.fetch_file_io(self.url)
         self.file_io.seek(0)
         with CalamineWorkbook.from_filelike(self.file_io) as workbook:
             return [
@@ -168,6 +170,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
 
     def persist(self):
         if self.mode == "w":
+            self.file_io = el.fetch_file_io(self.url, replace=True)
             with pd.ExcelWriter(
                 self.file_io, engine=self.write_engine, mode=self.mode
             ) as writer:

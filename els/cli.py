@@ -87,10 +87,6 @@ class TaskFlow:
             file.close()
         el.open_files.clear()
 
-        for eng in el.open_sa_engs.values():
-            eng.dispose()
-        el.open_sa_engs.clear()
-
     def execute(self):
         start_logging()
         if isinstance(self.config_like, str):

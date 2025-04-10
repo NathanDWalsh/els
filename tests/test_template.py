@@ -890,7 +890,6 @@ def push(
     config.target.url = get_flight_url(test_medium)
 
     print(f"pushing {config.source.url} as {outbound}")
-    print(f"outbound: {outbound}")
     th.config_execute(config, f"{get_time_str()}_push.els.yml")
 
 

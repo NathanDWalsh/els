@@ -140,8 +140,14 @@ class DataFrameIO(NodeMixin):
 
 class DataFrameContainerMixinIO(NodeMixin):
     child_class: DataFrameIO
-    replace: bool
+    # replace: bool
     df_dict: dict[str, pd.DataFrame]
+
+    def __init__(self, replace):
+        self.replace = replace
+
+        if not self.create_or_replace:
+            self._children_init()
 
     def get_child(self, child_name):
         for c in self.childrens:
@@ -241,9 +247,8 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
     ):
         self.child_class = DataFrameIO
         self.df_dict = df_dict
-        self.replace = replace
-        if not self.create_or_replace:
-            self._children_init()
+        # self.replace = replace
+        super().__init__(replace)
 
     def __repr__(self):
         return f"DataFrameDictIO({(self.df_dict, self.replace)})"
