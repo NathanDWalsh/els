@@ -3,8 +3,7 @@ from copy import copy
 
 import sqlalchemy as sa
 from sqlalchemy.engine.url import make_url
-from sqlalchemy.exc import InterfaceError, OperationalError, ProgrammingError
-from sqlalchemy_utils.functions.orm import quote
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 
 def _get_scalar_result(engine, sql):
@@ -28,76 +27,6 @@ def _set_url_database(url: sa.engine.url.URL, database):
         ret = url
     assert ret.database == database, ret
     return ret
-
-
-def drop_database(url):
-    """Issue the appropriate DROP DATABASE statement.
-
-    :param url: A SQLAlchemy engine URL.
-
-    Works similar to the :ref:`create_database` method in that both url text
-    and a constructed url are accepted. ::
-
-        drop_database('postgresql://postgres@localhost/name')
-        drop_database(engine.url)
-
-    """
-
-    url = make_url(url)
-    database = url.database
-    dialect_name = url.get_dialect().name
-    dialect_driver = url.get_dialect().driver
-
-    if dialect_name == "postgresql":
-        url = _set_url_database(url, database="postgres")
-    elif dialect_name == "mssql":
-        url = _set_url_database(url, database="master")
-    elif dialect_name == "cockroachdb":
-        url = _set_url_database(url, database="defaultdb")
-    elif not dialect_name == "sqlite":
-        url = _set_url_database(url, database=None)
-
-    if dialect_name == "mssql" and dialect_driver in {"pymssql", "pyodbc"}:
-        engine = sa.create_engine(url, connect_args={"autocommit": True})
-    elif dialect_name == "postgresql" and dialect_driver in {
-        "asyncpg",
-        "pg8000",
-        "psycopg",
-        "psycopg2",
-        "psycopg2cffi",
-    }:
-        engine = sa.create_engine(url, isolation_level="AUTOCOMMIT")
-    else:
-        engine = sa.create_engine(url)
-
-    if dialect_name == "sqlite" and database != ":memory:":
-        if database:
-            os.remove(database)
-    elif dialect_name == "postgresql":
-        with engine.begin() as conn:
-            # Disconnect all users from the database we are dropping.
-            version = conn.dialect.server_version_info
-            pid_column = "pid" if (version >= (9, 2)) else "procpid"
-            text = """
-            SELECT pg_terminate_backend(pg_stat_activity.{pid_column})
-            FROM pg_stat_activity
-            WHERE pg_stat_activity.datname = '{database}'
-            AND {pid_column} <> pg_backend_pid();
-            """.format(pid_column=pid_column, database=database)
-            conn.execute(sa.text(text))
-
-            # Drop the database.
-            text = f"DROP DATABASE {quote(conn, database)}"
-            conn.execute(sa.text(text))
-    else:
-        with engine.begin() as conn:
-            # TODO, not sure if setting single is required on dbs other than mssql
-            if os.name == "nt":
-                text = f"ALTER DATABASE {quote(conn, database)} SET SINGLE_USER WITH ROLLBACK IMMEDIATE;DROP DATABASE {quote(conn, database)}"
-            else:
-                text = f"DROP DATABASE {quote(conn, database)}"
-            conn.execute(sa.text(text))
-    engine.dispose()
 
 
 def _sqlite_file_exists(database):
@@ -171,17 +100,15 @@ def database_exists(url):
             url = _set_url_database(url, database="master")
             try:
                 engine = sa.create_engine(url)
-                res = bool(_get_scalar_result(engine, sa.text(text)))
-                return res
+                return bool(_get_scalar_result(engine, sa.text(text)))
             except Exception:
                 return False
         else:
             text = "SELECT 1"
             try:
                 engine = sa.create_engine(url)
-                res = _get_scalar_result(engine, sa.text(text))
-                return bool(res)
-            except (ProgrammingError, OperationalError, InterfaceError):
+                return _get_scalar_result(engine, sa.text(text))
+            except (ProgrammingError, OperationalError):
                 return False
 
     finally:

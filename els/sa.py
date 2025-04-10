@@ -5,11 +5,12 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import pandas as pd
 import pyodbc
 import sqlalchemy as sa
-from sqlalchemy_utils import create_database, database_exists, drop_database
+from sqlalchemy_utils import create_database, drop_database
 
 import els.config as ec
 import els.core as el
 import els.pd as epd
+from els.sa_utils_fork import database_exists
 
 
 def lcase_dict_keys(_dict: dict[str]):
