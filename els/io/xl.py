@@ -1,12 +1,13 @@
 import io
 import os
+from typing import Generator
 
 import pandas as pd
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 
 import els.config as ec
 import els.core as el
-import els.pd as epd
+import els.io.pd as epd
 
 
 def get_sheet_names(
@@ -51,7 +52,7 @@ def get_sheet_row(
             return None
 
 
-class ExcelSheetIO(epd.DataFrameIO):
+class ExcelSheetIO(epd.DataFrameIOMixin):
     def __init__(
         self,
         name,
@@ -103,7 +104,7 @@ class ExcelSheetIO(epd.DataFrameIO):
 
     @parent.setter
     def parent(self, v):
-        epd.DataFrameIO.parent.fset(self, v)
+        epd.DataFrameIOMixin.parent.fset(self, v)
 
     def _read(self, kwargs, sample: bool = False):
         if kwargs.get("nrows") and kwargs.get("skipfooter"):
@@ -122,15 +123,12 @@ class ExcelSheetIO(epd.DataFrameIO):
 class ExcelIO(epd.DataFrameContainerMixinIO):
     def __init__(self, url, replace=False):
         self.child_class = ExcelSheetIO
-
         self.url = url
-        # self.replace = replace
-
-        # load file and sheets
-        # self.file_io = el.fetch_file_io(self.url, replace=self.replace)
-        # TODO: mode will never be write on init?
-        # self.children = [] if self.mode == "w" else self._children_init()
         super().__init__(replace)
+
+    def __iter__(self) -> Generator[ExcelSheetIO, None, None]:
+        for child in super().children:
+            yield child
 
     @property
     def create_or_replace(self):
@@ -138,13 +136,6 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
             return True
         else:
             return False
-
-    def get_child(self, child_name) -> ExcelSheetIO:
-        return super().get_child(child_name)
-
-    @property
-    def childrens(self) -> tuple[ExcelSheetIO]:
-        return super().children
 
     @property
     def write_engine(self):
@@ -155,7 +146,6 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
 
     def _children_init(self):
         self.file_io = el.fetch_file_io(self.url)
-        self.file_io.seek(0)
         with CalamineWorkbook.from_filelike(self.file_io) as workbook:
             return [
                 ExcelSheetIO(
@@ -174,7 +164,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
             with pd.ExcelWriter(
                 self.file_io, engine=self.write_engine, mode=self.mode
             ) as writer:
-                for df_io in self.childrens:
+                for df_io in self:
                     df = df_io.df_target
                     to_excel = df_io.kw_for_push
                     if to_excel:
@@ -189,7 +179,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                     sheet.autofit(500)
         elif self.mode == "a":
             sheet_exists = set()
-            for df_io in self.childrens:
+            for df_io in self:
                 if df_io.mode not in ("r", "s"):
                     sheet_exists.add(df_io.if_sheet_exists)
             for sheet_exist in sheet_exists:
@@ -199,7 +189,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                     mode=self.mode,
                     if_sheet_exists=sheet_exist,
                 ) as writer:
-                    for df_io in self.childrens:
+                    for df_io in self:
                         if (
                             df_io.mode not in ("r", "s")
                             and df_io.if_sheet_exists == sheet_exist
@@ -225,10 +215,11 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                                 startrow=df_io.startrow,
                                 **kwargs,
                             )
+        # TODO: should this be nested? Ensuring mode is a or w
         with open(self.url, "wb") as write_file:
             self.file_io.seek(0)
             write_file.write(self.file_io.getbuffer())
 
     def close(self):
         self.file_io.close()
-        del el.open_files[self.url]
+        del el.io_files[self.url]

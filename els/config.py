@@ -187,7 +187,7 @@ class Frame(BaseModel):
     def type(self):
         if self.url_scheme == "file":
             ext = os.path.splitext(self.url)[-1]
-            if ext in (".txt"):
+            if ext == (".txt"):
                 return ".csv"
             else:
                 return ext

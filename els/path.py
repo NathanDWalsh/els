@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from copy import deepcopy
 
 # from collections.abc import Generator
 from enum import Enum
@@ -107,8 +108,13 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                     self.parent = None
 
         elif self.is_config_file:
+            # TODO, brin back adjacent logic?
+            # elif self.node_type == NodeType.CONFIG_ADJACENT:
+            # self.config_local = ec.Config(source=ec.Source(url=self.adjacent_file_path))
+
             self.config_local = ec.Config(source=ec.Source(url=self.adjacent_file_path))
             self.grow_config_branches()
+
         else:
             raise Exception("Unknown node cannot be configured.")
 
@@ -181,7 +187,19 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                     "different than its adjacent data file: "
                     f"{self.adjacent_file_path}"
                 )
-
+            elif first_config.source.url and "*" in first_config.source.url:
+                docs.clear()
+                if not first_config.source.table:
+                    for p in Path(self).parent.glob(first_config.source.url):
+                        cp = deepcopy(first_config)
+                        cp.source.url = str(p)
+                        docs.append(cp)
+                else:
+                    tables = el.listify(first_config.source.table)
+                    for t in tables:
+                        cp = deepcopy(first_config)
+                        cp.source.url = first_config.source.url.replace("*", t)
+                        docs.append(cp)
             return [ec.Config.model_validate(c) for c in docs]
         elif self.config_local:
             return [self.config_local]
@@ -222,6 +240,11 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 table_docs[source.table] = config
             elif isinstance(source.table, list):
                 for t in source.table:
+                    if (
+                        source.type == ".csv"
+                        and not t == source.url.split("/")[-1].split(".")[0]
+                    ):
+                        continue
                     config_copy = config.model_copy(deep=True)
                     config_copy.source.table = t
                     table_docs[t] = config_copy
@@ -396,7 +419,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     def eval_dynamic_attributes(self, config: ec.Config) -> ec.Config:
         config_dict = config.model_dump(exclude_none=True)
         find_replace = self.get_path_props_find_replace()
-        ConfigPath.swap_dict_vals(config_dict, find_replace)
         if (
             self.is_leaf
             and config_dict
@@ -409,6 +431,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 "*", config_dict["target"]["table"]
             )
 
+        ConfigPath.swap_dict_vals(config_dict, find_replace)
         res = ec.Config(**config_dict)
         return res
 
@@ -422,7 +445,10 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return True
 
     @staticmethod
-    def swap_dict_vals(dictionary: dict, find_replace_dict: dict) -> None:
+    def swap_dict_vals(
+        dictionary: dict,
+        find_replace_dict: dict,
+    ) -> None:
         for key, value in dictionary.items():
             if isinstance(value, dict):
                 ConfigPath.swap_dict_vals(dictionary[key], find_replace_dict)
@@ -434,8 +460,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 pass
             elif value in find_replace_dict:
                 dictionary[key] = find_replace_dict[value]
-            # elif key == "url" and "*" in value:
-            #     dictionary[key] = value.replace("*", find_replace_dict["_leaf_name"])
+            elif key == "url" and "*" in value:
+                dictionary[key] = value.replace("*", find_replace_dict["_leaf_name"])
 
     @property
     def is_root_dir(self):
@@ -481,7 +507,6 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
                 column2 = f" → {target_path}"
             elif node.is_leaf and (node.config.target.type == "dict"):
-                # column2 = f" → memory['{node.config.target.table}']"
                 column2 = f" → {node.config.target.url}#{node.config.target.table}"
 
             rows.append((column1, column2))
@@ -835,6 +860,8 @@ def get_yml_docs(path: Union[ConfigPath, Path], expected: int = None) -> list[di
         with path.open() as file:
             yaml_text = file.read()
             documents = list(yaml.safe_load_all(yaml_text))
+    else:
+        raise Exception(f"path does not exist: {path}")
     # elif str(path).endswith(CONFIG_FILE_EXT):
     #     documents = [{"source": {"url": str(path).removesuffix(CONFIG_FILE_EXT)}}]
 

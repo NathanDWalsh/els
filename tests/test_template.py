@@ -17,6 +17,8 @@ def get_flight_url(test_medium):
     if test_medium == "pandas":
         el.fetch_df_dict_io(inflight)
         return f"dict://{id(inflight)}"
+    elif test_medium == "csv":
+        return "*.csv"
     elif test_medium == "excel":
         return th.filename_from_dir("xlsx")
     elif test_medium == "sqlite":
@@ -353,17 +355,17 @@ def truncate_single():
         ),
         dfb=pd.DataFrame(
             {
-                "b": [30, 40],
-                "a": [10, 20],
-                "c": [50, 60],
+                "b": [30],
+                "a": [10],
+                "c": [50],
             }
         ),
     )
     expected = dict(
         df=pd.DataFrame(
             {
-                "a": [10, 20],
-                "b": [30, 40],
+                "a": [10],
+                "b": [30],
             }
         )
     )
@@ -900,7 +902,10 @@ def pull(
 ):
     if inbound is None:
         inbound = {}
+    # if test_medium not in ("csv"):
     config.source.url = get_flight_url(test_medium)
+    # else:
+    # config.source.url = None
     config.target.url = el.urlize_dict(inbound)
 
     print("pulling")

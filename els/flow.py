@@ -106,7 +106,7 @@ class ElsXlsxWrapper(ElsFileWrapper):
         super().__init__(parent, file_path)
 
     def open(self):
-        if self.file_path not in el.open_workbooks:
+        if self.file_path not in el.io_workbooks:
             el.fetch_excel_io(self.file_path)
 
     def execute(self):
@@ -115,9 +115,9 @@ class ElsXlsxWrapper(ElsFileWrapper):
         self.close()
 
     def close(self):
-        file = el.open_workbooks[self.file_path]
+        file = el.io_workbooks[self.file_path]
         file.close()
-        del el.open_workbooks[self.file_path]
+        del el.io_workbooks[self.file_path]
 
 
 # groups files together that share a common target table so that target can be built once
@@ -131,7 +131,6 @@ class ElsTargetTableWrapper(FlowNodeMixin, SerialNodeMixin):
         file_child = flow_child.children[0]
         file_child.open()
         if file_child.build_target():
-            # print("TARGET BUILT: " + file_child.name)
             flow_child.execute()
         else:
             file_child.close()

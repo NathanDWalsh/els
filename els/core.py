@@ -1,30 +1,31 @@
 import io
 import os
+from typing import Union
 
 import pandas as pd
 
-import els.pd as pn
-import els.sa as sq
-import els.xl as xl
+import els.io.csv as csv
+import els.io.pd as pn
+import els.io.sql as sq
+import els.io.xl as xl
 
 default_target: dict[str, pd.DataFrame] = {}
 
-open_files: dict[str, io.BytesIO] = {}
-open_workbooks: dict[str, xl.ExcelIO] = {}
-
-open_dicts: dict[int, pn.DataFrameDictIO] = {}
-
-open_sqls: dict[str, sq.SQLDBContainer] = {}
+io_files: dict[str, io.BytesIO] = {}
+io_workbooks: dict[str, xl.ExcelIO] = {}
+io_csvs: dict[str, csv.CSVIO] = {}
+io_dicts: dict[int, pn.DataFrameDictIO] = {}
+io_sqls: dict[str, sq.SQLDBContainer] = {}
 
 
 def fetch_sql_container(url: str, replace: bool = False) -> sq.SQLDBContainer:
     if url is None:
         raise Exception("Cannot fetch None url")
-    elif url in open_sqls:
-        res = open_sqls[url]
+    elif url in io_sqls:
+        res = io_sqls[url]
     else:
         res = sq.SQLDBContainer(url, replace)
-    open_sqls[url] = res
+    io_sqls[url] = res
     return res
 
 
@@ -33,26 +34,29 @@ def urlize_dict(df_dict: dict):
     return f"dict://{id(df_dict)}"
 
 
-def fetch_df_dict_io(df_dict: dict, replace: bool = False):
-    if isinstance(df_dict, int):
-        return open_dicts[df_dict]
-    if isinstance(df_dict, str):
-        return open_dicts[int(df_dict.split("/")[-1])]
-    if df_dict is None:
+def fetch_df_dict_io(
+    dict_or_address: Union[dict, str, int],
+    replace: bool = False,
+):
+    if isinstance(dict_or_address, int):
+        return io_dicts[dict_or_address]
+    if isinstance(dict_or_address, str):
+        return io_dicts[int(dict_or_address.split("/")[-1])]
+    if dict_or_address is None:
         raise Exception("Cannot fetch None dict")
-    elif id(df_dict) in open_dicts:
-        res = open_dicts[id(df_dict)]
+    elif id(dict_or_address) in io_dicts:
+        res = io_dicts[id(dict_or_address)]
     else:
-        res = pn.DataFrameDictIO(df_dict, replace)
-    open_dicts[id(df_dict)] = res
+        res = pn.DataFrameDictIO(dict_or_address, replace)
+    io_dicts[id(dict_or_address)] = res
     return res
 
 
 def fetch_file_io(url: str, replace: bool = False):
     if url is None:
         raise Exception("Cannot fetch None url")
-    elif url in open_files:
-        res = open_files[url]
+    elif url in io_files:
+        res = io_files[url]
     # only allows replacing once:
     elif replace:
         res = io.BytesIO()
@@ -62,18 +66,29 @@ def fetch_file_io(url: str, replace: bool = False):
             res = io.BytesIO(file.read())
     else:
         res = io.BytesIO()
-    open_files[url] = res
+    io_files[url] = res
+    return res
+
+
+def fetch_csv_io(url: str, replace: bool = False):
+    if url is None:
+        raise Exception("Cannot fetch None url")
+    elif url in io_csvs:
+        res = io_csvs[url]
+    else:
+        res = csv.CSVIO(url, replace)
+    io_csvs[url] = res
     return res
 
 
 def fetch_excel_io(url: str, replace: bool = False):
     if url is None:
         raise Exception("Cannot fetch None url")
-    elif url in open_workbooks:
-        res = open_workbooks[url]
+    elif url in io_workbooks:
+        res = io_workbooks[url]
     else:
         res = xl.ExcelIO(url, replace)
-    open_workbooks[url] = res
+    io_workbooks[url] = res
     return res
 
 

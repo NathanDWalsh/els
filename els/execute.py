@@ -1,4 +1,3 @@
-import csv
 import io
 import logging
 import os
@@ -23,16 +22,8 @@ def table_exists(target: ec.Target) -> Optional[bool]:
     #         inspector = sa.inspect(sqeng)
     #         res = inspector.has_table(target.table, target.dbschema)
     if target.type_is_db:
-        # db_exists(target)
-        # raise Exception()
         sql_container = el.fetch_sql_container(target.url)
-        return target.table in sql_container.child_names
-        # if database_exists(target.db_connection_string):
-        #     with sa.create_engine(target.db_connection_string).connect() as sqeng:
-        #         inspector = sa.inspect(sqeng)
-        #         res = inspector.has_table(target.table)
-        # else:
-        #     return False
+        return target.table in sql_container
     elif target.type in (".csv", ".tsv"):
         res = target.file_exists
     elif (
@@ -40,17 +31,16 @@ def table_exists(target: ec.Target) -> Optional[bool]:
     ):  # TODO: add other file types supported by Calamine, be careful not to support legacy excel
         # check if sheet exists
         xl_io = el.fetch_excel_io(target.url)
-        sheet_names = xl_io.child_names
-        res = target.sheet_name in sheet_names
+        res = target.sheet_name in xl_io
     elif target.type == "dict":
         # TODO, make these method calls consistent
         df_dict_io = el.fetch_df_dict_io(target.url)
-        df_dict = df_dict_io.df_dict
+        res = target.table in df_dict_io
         # TODO, the empty check may no longer be necessary if fetch is changed for get/has child
-        if target.table in df_dict and not df_dict[target.table].empty:
-            res = True
-        else:
-            res = False
+        # if target.table in df_dict and not df_dict[target.table].empty:
+        #     res = True
+        # else:
+        #     res = False
     else:
         res = None
     return res
@@ -79,7 +69,7 @@ def build_action(
         and target.type == "mssql"
         and (
             target.if_exists == "replace_database"
-            or target.table not in el.fetch_sql_container(target.url).child_names
+            or target.table not in el.fetch_sql_container(target.url)
         )
     ):
         res = "create_replace_database"
@@ -103,7 +93,7 @@ def push_frame(df: pd.DataFrame, target: ec.Target) -> bool:
             res = True
         else:
             if target.type in (".csv"):
-                res = push_csv(df, target)
+                res = push_csv(df, target, old_way=False)
             if target.type in (".xlsx"):
                 res = push_excel(df, target)
             elif target.type_is_db:
@@ -120,7 +110,6 @@ def push_sql(
     target: ec.Target,
     build=False,
 ) -> bool:
-    print(build_action(target))
     if build and build_action(target) == "create_replace_database":
         replace_database = True
         # target.if_exists = ''
@@ -147,19 +136,45 @@ def push_sql(
     return True
 
 
-def push_csv(source_df: pd.DataFrame, target: ec.Target) -> bool:
+def push_csv(
+    source_df: pd.DataFrame,
+    target: ec.Target,
+    build=False,
+    old_way=True,
+) -> bool:
     if not target.url:
-        raise Exception("no file path")
-    if not os.path.isfile(target.url):
-        raise Exception("invalid file path")
+        raise Exception("missing url")
 
-    if target.to_csv:
-        kwargs = target.to_csv.model_dump()
+    if old_way:
+        if build:
+            # save header row to csv, overwriting if exists
+            source_df.head(0).to_csv(target.url, index=False, mode="w")
+        else:
+            if target.to_csv:
+                kwargs = target.to_csv.model_dump()
+            else:
+                kwargs = {}
+
+            source_df.to_csv(target.url, index=False, mode="a", header=False, **kwargs)
     else:
-        kwargs = {}
-
-    source_df.to_csv(target.url, index=False, mode="a", header=False, **kwargs)
-
+        # if build_action(target) in ("create_replace_file", "create_replace"):
+        #     replace_file = True
+        # else:
+        #     replace_file = False
+        csv_container = el.fetch_csv_io(
+            target.url,
+            # replace=replace_file,
+        )
+        csv_io = csv_container.fetch_child(
+            target.table,
+            source_df,
+        )
+        csv_io.set_df(
+            df=source_df,
+            if_exists=target.if_exists,
+            build=build,
+            kw_for_push=target.to_csv,
+        )
     return True
 
 
@@ -213,17 +228,6 @@ def push_pandas(
         if_exists=target.if_exists,
         build=build,
     )
-    # df_dict_io.set_df(target.table, source_df, target.if_exists, build=build)
-    return True
-
-
-def build_csv(df: pd.DataFrame, target: ec.Frame) -> bool:
-    if not target.url:
-        raise Exception("invalid file_path")
-
-    # save header row to csv, overwriting if exists
-    df.head(0).to_csv(target.url, index=False, mode="w")
-
     return True
 
 
@@ -233,7 +237,8 @@ def build_target(df: pd.DataFrame, target: ec.Frame) -> bool:
         res = push_sql(df, target, build=True)
     elif target.type in (".csv"):
         create_directory_if_not_exists(target.url)
-        res = build_csv(df, target)
+        # res = build_csv(df, target)
+        res = push_csv(df, target, build=True, old_way=False)
     elif target.type in (".xlsx"):
         create_directory_if_not_exists(target.url)
         res = push_excel(df, target, build=True)
@@ -248,54 +253,6 @@ def create_directory_if_not_exists(file_path: str):
     directory = os.path.dirname(file_path)
     if directory and not os.path.exists(directory):
         os.makedirs(directory)
-
-
-def truncate_target(target: ec.Target) -> bool:
-    if target.type_is_db:
-        res = True
-    elif target.type in (".csv"):
-        res = truncate_csv(target)
-    elif target.type in (".xlsx"):
-        res = True
-    elif target.type in ("dict"):
-        res = True
-    else:
-        raise Exception(f"invalid target type {target.type}")
-    return res
-
-
-def truncate_pandas(target):
-    df = target.pandas_frame
-    df.drop(df.index, axis=0, inplace=True)
-    return True
-
-
-def truncate_csv(target: ec.Target) -> bool:
-    if not target.url:
-        raise Exception("no file path")
-    if not os.path.exists(os.path.isfile(target.url)):
-        raise Exception("invalid file path")
-
-    # read the first row of the file
-    with open(target.url, "r") as f:
-        reader = csv.reader(f)
-        first_row = next(reader)
-
-    # write the first row back to the file
-    with open(target.url, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(first_row)
-
-    return True
-
-
-# def truncate_sql(target: ec.Target) -> bool:
-#     if not target.db_connection_string:
-#         raise Exception("invalid db_connection_string")
-#     with sa.create_engine(target.db_connection_string).connect() as sqeng:
-#         sqeng.execute(sa.text(f"truncate table {target.sqn}"))
-#         sqeng.connection.commit()
-#     return True
 
 
 # TODO: add tests for this:
@@ -540,21 +497,6 @@ def pull_pdf(file, laparams, **kwargs) -> pd.DataFrame:
     return pd.DataFrame(dict_res)
 
 
-def pull_csv(file, clean_last_column, **kwargs):
-    df = pd.read_csv(file, **kwargs)
-    # check if last column is unnamed
-    if (
-        clean_last_column
-        and isinstance(df.columns[-1], str)
-        and df.columns[-1].startswith("Unnamed")
-    ):
-        # check if the last column is all null
-        if df[df.columns[-1]].isnull().all():
-            # drop the last column
-            df = df.drop(df.columns[-1], axis=1)
-    return df
-
-
 def pull_fwf(file, **kwargs):
     df = pd.read_fwf(file, **kwargs)
     return df
@@ -630,15 +572,12 @@ def pull_frame(
     sample: bool = False,
 ) -> pd.DataFrame:
     if frame.type_is_db:
-        print(f"pull {frame.table}")
-
         kwargs = get_source_kwargs(None, frame, nrows)
 
         sql_io = el.fetch_sql_container(frame.url)
-        table_io = sql_io.get_child(frame.table)
+        table_io = sql_io[frame.table]
         df = table_io.read(kwargs, sample=sample)
     elif frame.type in (".csv", ".tsv"):
-        print(f"FRAME TYPE: {frame.type}")
         if isinstance(frame, ec.Source):
             clean_last_column = True
             kwargs = get_source_kwargs(frame.read_csv, frame, nrows)
@@ -649,7 +588,11 @@ def pull_frame(
             kwargs = {}
         if "sep" not in kwargs.keys():
             kwargs["sep"] = ","
-        df = pull_csv(frame.url, clean_last_column, **kwargs)
+
+        kwargs["clean_last_column"] = clean_last_column
+        csv_container = el.fetch_csv_io(frame.url)
+        csv_io = csv_container[frame.table]
+        df = csv_io.read(kwargs)
 
     elif frame.type_is_excel:
         if isinstance(frame, ec.Source):
@@ -664,7 +607,7 @@ def pull_frame(
             kwargs = {}
 
         xl_io = el.fetch_excel_io(frame.url)
-        sheet_io = xl_io.get_child(frame.table)
+        sheet_io = xl_io[frame.table]
         df = sheet_io.read(kwargs, sample=sample)
     elif frame.type == ".fwf":
         if isinstance(frame, ec.Source):
@@ -699,11 +642,8 @@ def pull_frame(
         if nrows:
             df = df.head(nrows)
     elif frame.type in ("dict"):
-        # df_dict_io = frame.df_dict_io
-        # df = df_dict_io.get_child(frame.table).df
-
         df_dict_io = el.fetch_df_dict_io(frame.url)
-        df_io = df_dict_io.get_child(frame.table)
+        df_io = df_dict_io[frame.table]
         df = df_io.read()
     else:
         raise Exception("unable to pull df")
@@ -791,8 +731,6 @@ def build(config: ec.Config) -> bool:
             df = pull_frame(source, sample=True)
             df = apply_transforms(df, transform, mark_as_executed=False)
             res = build_target(df, target)
-        elif action == "truncate":
-            res = truncate_target(target)
         elif action == "fail":
             logging.error("Table Exists, failing")
             res = False

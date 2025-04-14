@@ -1,7 +1,7 @@
 import os
+import re
 import sys
 import tempfile
-import re
 from pathlib import Path
 
 import pytest
@@ -111,9 +111,8 @@ def test_tree(
 
         # change out of temp dir so that it can be deleted
         os.chdir("/")
-        match = re.match(expected,actual)
+        match = re.match(expected, actual)
         if not match:
             print(f"Actual:\n{actual}")
             print(f"Expected:\n{expected}")
         assert match
-    # print("done")

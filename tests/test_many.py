@@ -22,6 +22,7 @@ from . import test_template as tt
         ("sqlite"),
         ("duckdb"),
         ("mssql"),
+        ("csv"),
     ],
 )
 @pytest.mark.parametrize(

@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Generator, Literal
 
 import pandas as pd
 from anytree import NodeMixin
@@ -25,7 +25,7 @@ def multiindex_to_singleindex(df: pd.DataFrame, separator="_"):
 
 # Stores a reference to a dataframe that is currently scoped,
 # Should be a child of a DataFrameContainerMixinIO
-class DataFrameIO(NodeMixin):
+class DataFrameIOMixin(NodeMixin):
     def __init__(
         self,
         name,
@@ -35,7 +35,6 @@ class DataFrameIO(NodeMixin):
         df: pd.DataFrame = pd.DataFrame(),
         # (s)oftread: only loads the name
         # (m)edium read: sample/meta read reads the first rows_for_sampling
-        # TODO: consider meta-read where data types are read/infered/data is sampled
         # (r)ead    : nothing yet to be written
         # (a)ppend  : append df to df_target
         # (w)rite   : overwrite df_target with df
@@ -100,8 +99,6 @@ class DataFrameIO(NodeMixin):
         self.if_exists = if_exists
         self.kw_for_push = kw_for_push
         if build:
-            # TODO: not efficient to load a dataframe and then just take its columns
-            # implement idea around meta-read
             df = get_column_frame(df)
             self.df_target = df
             self.df = df
@@ -137,11 +134,18 @@ class DataFrameIO(NodeMixin):
     def parent(self, v):
         NodeMixin.parent.fset(self, v)
 
+    def _read(self, kwargs={}, sample=False):
+        raise Exception("_read must be set in sub-class")
+
+
+class DataFrameIO(DataFrameIOMixin):
+    def _read(self, kwargs={}, sample=False):
+        self.df = self.parent.df_dict[self.name]
+        self.df_target = self.parent.df_dict[self.name]
+
 
 class DataFrameContainerMixinIO(NodeMixin):
-    child_class: DataFrameIO
-    # replace: bool
-    df_dict: dict[str, pd.DataFrame]
+    child_class: DataFrameIOMixin
 
     def __init__(self, replace):
         self.replace = replace
@@ -149,17 +153,21 @@ class DataFrameContainerMixinIO(NodeMixin):
         if not self.create_or_replace:
             self._children_init()
 
-    def get_child(self, child_name):
-        for c in self.childrens:
-            if c.name == child_name:
-                return c
-        raise Exception(f"{child_name} not found in {[n.name for n in self.childrens]}")
-
-    def has_child(self, child_name):
-        for c in self.childrens:
+    def __contains__(self, child_name):
+        for c in self:
             if c.name == child_name:
                 return True
         return False
+
+    def __getitem__(self, child_name) -> DataFrameIOMixin:
+        for c in self:
+            if c.name == child_name:
+                return c
+        raise Exception(f"{child_name} not found in {[n.name for n in self]}")
+
+    def __iter__(self) -> Generator[DataFrameIOMixin, None, None]:
+        for child in super().children:
+            yield child
 
     def fetch_child(
         self,
@@ -169,7 +177,7 @@ class DataFrameContainerMixinIO(NodeMixin):
     ):
         if build:
             df = get_column_frame(df)
-        if not self.has_child(df_name):
+        if df_name not in self:
             self.add_child(
                 self.child_class(
                     df=df,
@@ -177,35 +185,29 @@ class DataFrameContainerMixinIO(NodeMixin):
                     parent=self,
                     # fetched+added children are always for writing
                     mode="w",
-                    # if_exists="",
                 )
             )
 
-        return self.get_child(df_name)
+        return self[df_name]
 
     @property
     def any_empty_frames(self):
-        for df_io in self.childrens:
+        for df_io in self:
             if df_io.mode in ("a", "w"):
                 if df_io.df.empty:
-                    print(f"empty dataframe found: {df_io.name}: {df_io.df}")
                     return True
         return False
-
-    @property
-    def childrens(self) -> tuple[DataFrameIO]:
-        return super().children
 
     def write(self):
         # write to target dataframe and then persist to data store
         if self.mode != "r":
             if self.any_empty_frames:
                 raise Exception("Cannot write empty dataframe")
-            for df_io in self.childrens:
+            for df_io in self:
                 df_io.write()
             self.persist()
 
-    def add_child(self, child: DataFrameIO):
+    def add_child(self, child: DataFrameIOMixin):
         child.parent = self
 
     @property
@@ -217,15 +219,15 @@ class DataFrameContainerMixinIO(NodeMixin):
         if self.create_or_replace:
             return "w"
         else:
-            for c in self.childrens:
+            for c in self:
                 if c.mode in ("a", "w"):
                     return "a"
         return "r"
 
     @property
-    def child_names(self):
+    def child_names(self) -> tuple[str]:
         # TODO: better to change to tuple?
-        return [child.name for child in self.childrens]
+        return (child.name for child in self)
 
     def _children_init():
         raise Exception("_children_init must be set in derived classes")
@@ -247,7 +249,6 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
     ):
         self.child_class = DataFrameIO
         self.df_dict = df_dict
-        # self.replace = replace
         super().__init__(replace)
 
     def __repr__(self):
@@ -261,7 +262,7 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
             )
 
     def persist(self):
-        for df_io in self.childrens:
+        for df_io in self:
             if df_io.mode in ("a", "w"):
                 self.df_dict[df_io.name] = df_io.df_target
 

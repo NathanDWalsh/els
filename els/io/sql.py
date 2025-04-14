@@ -1,15 +1,16 @@
 import logging
-from typing import Literal, Optional
+from typing import Generator, Literal, Optional
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pandas as pd
 import pyodbc
 import sqlalchemy as sa
 from sqlalchemy_utils import create_database, drop_database
+from sqlalchemy_utils.functions.orm import quote
 
 import els.config as ec
 import els.core as el
-import els.pd as epd
+import els.io.pd as epd
 from els.sa_utils_fork import database_exists
 
 
@@ -42,9 +43,14 @@ def supported_available_odbc_drivers():
 
 
 def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
-    dialect = url.split(":")[0]
+    dialect = sa.make_url(url).get_dialect().name
+    driver = sa.make_url(url).get_driver_name()
     kwargs = {}
-    if dialect in ("mssql+pyodbc", "mssql") and len(supported_available_odbc_drivers()):
+    if (
+        dialect in ("mssql")
+        and driver == "pyodbc"
+        and len(supported_available_odbc_drivers())
+    ):
         kwargs["fast_executemany"] = True
 
     if url is None:
@@ -59,7 +65,7 @@ def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
     return res
 
 
-class SQLTable(epd.DataFrameIO):
+class SQLTable(epd.DataFrameIOMixin):
     def __init__(
         self,
         name,
@@ -82,7 +88,7 @@ class SQLTable(epd.DataFrameIO):
 
     @property
     def sqn(self) -> str:
-        if self.parent.flavor == "duckdb":
+        if self.parent.dialect_name == "duckdb":
             res = '"' + self.name + '"'
         # elif self.dbschema and self.table:
         #     res = "[" + self.dbschema + "].[" + self.table + "]"
@@ -92,13 +98,12 @@ class SQLTable(epd.DataFrameIO):
 
     @property
     def truncate_stmt(self):
-        if self.parent.flavor == "sqlite":
+        if self.parent.dialect_name == "sqlite":
             return f"delete from {self.sqn}"
         else:
             return f"truncate table {self.sqn}"
 
     def _read(self, kwargs, sample: bool = False):
-        print(f"READ kwargs:{kwargs}")
         if not kwargs:
             kwargs = self.kw_for_pull
         else:
@@ -113,14 +118,15 @@ class SQLTable(epd.DataFrameIO):
             raise Exception("invalid sqn")
         with self.parent.sa_engine.connect() as sqeng:
             stmt = (
-                sa.select(sa.text("*")).select_from(sa.text(f"{self.sqn}")).limit(nrows)
+                sa.select(sa.text("*"))
+                .select_from(sa.text(f"{quote(sqeng, self.name)}"))
+                .limit(nrows)
             )
             self.df = pd.read_sql(stmt, con=sqeng, **kwargs)
             if sample:
                 self.df_target = epd.get_column_frame(self.df)
             else:
                 self.df_target = self.df
-            print(f"READ result: {self.df}")
 
     @property
     def parent(self) -> "SQLDBContainer":
@@ -128,15 +134,18 @@ class SQLTable(epd.DataFrameIO):
 
     @parent.setter
     def parent(self, v):
-        epd.DataFrameIO.parent.fset(self, v)
+        epd.DataFrameIOMixin.parent.fset(self, v)
 
 
 class SQLDBContainer(epd.DataFrameContainerMixinIO):
     def __init__(self, url, replace=False):
         self.child_class = SQLTable
-
         self.url = url
         super().__init__(replace)
+
+    def __iter__(self) -> Generator[SQLTable, None, None]:
+        for child in super().children:
+            yield child
 
     @property
     def query_lcased(self):
@@ -214,15 +223,16 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
         return res
 
     @property
-    def flavor(
+    def dialect_name(
         self,
     ) -> Literal[
         "mssql",
         "duckdb",
         "sqlite",
     ]:
-        scheme = self.url.split(":")[0]
-        return scheme.split("+")[0]
+        url = sa.make_url(self.db_connection_string)
+        dialect = url.get_dialect()
+        return dialect.name
 
     @property
     def dbtype(
@@ -231,7 +241,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
         "file",
         "server",
     ]:
-        if self.flavor in ("sqlite", "duckdb"):
+        if self.dialect_name in ("sqlite", "duckdb"):
             return "file"
         else:
             return "server"
@@ -255,13 +265,6 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
         else:
             return False
 
-    def get_child(self, child_name) -> SQLTable:
-        return super().get_child(child_name)
-
-    @property
-    def childrens(self) -> tuple[SQLTable]:
-        return super().children
-
     def persist(self):
         if self.mode == "w":
             self.sa_engine = fetch_sa_engine(
@@ -269,7 +272,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
                 replace=True,
             )
         with self.sa_engine.connect() as sqeng:
-            for df_io in self.childrens:
+            for df_io in self:
                 if df_io.mode in ("a", "w"):
                     if df_io.kw_for_push:
                         kwargs = df_io.kw_for_push
@@ -291,4 +294,3 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
 
     def close(self):
         self.sa_engine.dispose()
-        print("engine disposed")

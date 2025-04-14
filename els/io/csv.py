@@ -1,0 +1,133 @@
+import os
+from pathlib import Path
+from typing import Generator
+
+import pandas as pd
+
+import els.config as ec
+import els.core as el
+import els.io.pd as epd
+
+
+class CSVContent(epd.DataFrameIOMixin):
+    def __init__(
+        self,
+        name,
+        parent,
+        if_exists="fail",
+        mode="s",
+        df=pd.DataFrame(),
+        # startrow=0,
+        kw_for_pull={},
+        kw_for_push={},
+    ):
+        super().__init__(
+            df=df,
+            name=name,
+            parent=parent,
+            mode=mode,
+            if_exists=if_exists,
+        )
+        # TODO: maybe use skiprows instead?
+        # self._startrow = startrow
+        self.kw_for_pull = kw_for_pull
+        self.kw_for_push: ec.ToExcel = kw_for_push
+        self.clean_last_column = False
+
+    @property
+    def parent(self) -> "CSVIO":
+        return super().parent
+
+    @parent.setter
+    def parent(self, v):
+        epd.DataFrameIOMixin.parent.fset(self, v)
+
+    # TODO test sample scenarios
+    # TODO sample should not be optional since it is always called by super.read()
+    def _read(self, kwargs, sample: bool = False):
+        if kwargs.get("nrows") and kwargs.get("skipfooter"):
+            del kwargs["nrows"]
+        if "clean_last_column" in kwargs:
+            self.clean_last_column = kwargs.pop("clean_last_column")
+        if not kwargs:
+            kwargs = self.kw_for_pull
+        if self.mode in ("r", "s") and self.kw_for_pull != kwargs:
+            self.df = pd.read_csv(self.parent.file_io, **kwargs)
+            # check if last column is unnamed
+            if (
+                self.clean_last_column
+                and isinstance(self.df.columns[-1], str)
+                and self.df.columns[-1].startswith("Unnamed")
+            ):
+                # check if the last column is all null
+                if self.df[self.df.columns[-1]].isnull().all():
+                    # drop the last column
+                    self.df = self.df.drop(self.df.columns[-1], axis=1)
+
+            # TODO, engine is optional for csv, test different engines in different scenarios
+            # if "engine" not in kwargs:
+            #     kwargs["engine"] = "calamine"
+            # self.df = pd.read_csv(self.parent.file_io, **kwargs)
+            # TODO this is redundant? condier using the instnace var directly?
+            self.kw_for_pull = kwargs
+
+
+class CSVIO(epd.DataFrameContainerMixinIO):
+    def __init__(self, url, replace=False):
+        self.child_class = CSVContent
+        self.url = url
+        # TODO: consider having url in all IO Container objects (difficult for DataFrameIO?)
+        super().__init__(replace)
+
+    def __iter__(self) -> Generator[CSVContent, None, None]:
+        for child in super().children:
+            yield child
+
+    @property
+    def create_or_replace(self):
+        if self.replace or not os.path.isfile(self.url):
+            return True
+        else:
+            return False
+
+    def _children_init(self):
+        self.file_io = el.fetch_file_io(self.url, replace=self.create_or_replace)
+        CSVContent(
+            name=Path(self.url).stem,
+            parent=self,
+        )
+
+    def persist(self):
+        if self.mode in ("w", "a"):
+            self.file_io = el.fetch_file_io(self.url, replace=True)
+            # loop not required, only one child in csv
+            for df_io in self:
+                df = df_io.df_target
+                to_csv = df_io.kw_for_push
+                if to_csv:
+                    kwargs = to_csv.model_dump(exclude_none=True)
+                else:
+                    kwargs = {}
+                # TODO integrate better into write method?
+                if isinstance(df.columns, pd.MultiIndex):
+                    df = epd.multiindex_to_singleindex(df)
+
+                if df_io.if_exists == "truncate":
+                    #     df_io.mode = "w"
+                    self.file_io.seek(0)
+                df.to_csv(
+                    self.file_io,
+                    index=False,
+                    mode=df_io.mode,
+                    # header=False,
+                    header=True if df_io.mode == "w" else False,
+                    **kwargs,
+                )
+                self.file_io.truncate()
+            with open(self.url, "wb") as write_file:
+                self.file_io.seek(0)
+                write_file.write(self.file_io.getbuffer())
+
+    def close(self):
+        self.file_io.close()
+        del el.io_files[self.url]
