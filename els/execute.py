@@ -93,7 +93,7 @@ def push_frame(df: pd.DataFrame, target: ec.Target) -> bool:
             res = True
         else:
             if target.type in (".csv"):
-                res = push_csv(df, target, old_way=False)
+                res = push_csv(df, target)
             if target.type in (".xlsx"):
                 res = push_excel(df, target)
             elif target.type_is_db:
@@ -140,41 +140,28 @@ def push_csv(
     source_df: pd.DataFrame,
     target: ec.Target,
     build=False,
-    old_way=True,
 ) -> bool:
     if not target.url:
         raise Exception("missing url")
 
-    if old_way:
-        if build:
-            # save header row to csv, overwriting if exists
-            source_df.head(0).to_csv(target.url, index=False, mode="w")
-        else:
-            if target.to_csv:
-                kwargs = target.to_csv.model_dump()
-            else:
-                kwargs = {}
-
-            source_df.to_csv(target.url, index=False, mode="a", header=False, **kwargs)
+    if build_action(target) in ("create_replace_file", "create_replace"):
+        replace_file = True
     else:
-        # if build_action(target) in ("create_replace_file", "create_replace"):
-        #     replace_file = True
-        # else:
-        #     replace_file = False
-        csv_container = el.fetch_csv_io(
-            target.url,
-            # replace=replace_file,
-        )
-        csv_io = csv_container.fetch_child(
-            target.table,
-            source_df,
-        )
-        csv_io.set_df(
-            df=source_df,
-            if_exists=target.if_exists,
-            build=build,
-            kw_for_push=target.to_csv,
-        )
+        replace_file = False
+    csv_container = el.fetch_csv_io(
+        target.url,
+        replace=replace_file,
+    )
+    csv_io = csv_container.fetch_child(
+        target.table,
+        source_df,
+    )
+    csv_io.set_df(
+        df=source_df,
+        if_exists=target.if_exists,
+        build=build,
+        kw_for_push=target.to_csv,
+    )
     return True
 
 
@@ -238,7 +225,7 @@ def build_target(df: pd.DataFrame, target: ec.Frame) -> bool:
     elif target.type in (".csv"):
         create_directory_if_not_exists(target.url)
         # res = build_csv(df, target)
-        res = push_csv(df, target, build=True, old_way=False)
+        res = push_csv(df, target, build=True)
     elif target.type in (".xlsx"):
         create_directory_if_not_exists(target.url)
         res = push_excel(df, target, build=True)

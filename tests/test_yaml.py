@@ -238,7 +238,8 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
         test_url = test_name + "." + test_type
     elif test_type in ("mssql", "mssql+pymssql", "mssql+pyodbc"):
         db_host = os.getenv("TEST_ELS_MSSQL_HOST", "localhost")
-        test_url = f"{test_type}://sa:dbatools.I0@{db_host}/els"
+        dbname = f"{os.environ.get('PYTEST_CURRENT_TEST').split(' ')[0].split('[')[-1][:-1]}{test_type}{query}"
+        test_url = f"{test_type}://sa:dbatools.I0@{db_host}/{dbname}"
         if query:
             test_url += f"?{query}"
     elif test_type == "sqlite":

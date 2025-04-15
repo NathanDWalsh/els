@@ -1,6 +1,5 @@
 import io
 import os
-from typing import Union
 
 import pandas as pd
 
@@ -10,6 +9,7 @@ import els.io.sql as sq
 import els.io.xl as xl
 
 default_target: dict[str, pd.DataFrame] = {}
+url_dicts: dict[str, dict[str, pd.DataFrame]] = {}
 
 io_files: dict[str, io.BytesIO] = {}
 io_workbooks: dict[str, xl.ExcelIO] = {}
@@ -29,26 +29,35 @@ def fetch_sql_container(url: str, replace: bool = False) -> sq.SQLDBContainer:
     return res
 
 
-def urlize_dict(df_dict: dict):
-    fetch_df_dict_io(df_dict)
-    return f"dict://{id(df_dict)}"
+def fetch_df_dict(
+    url: str,
+    replace: bool = False,
+):
+    res = url_dicts[url]
+    if replace:
+        res.clear()
+    return res
+
+
+def urlize_dict(df_dict: dict[str, pd.DataFrame]):
+    res = f"dict://{id(df_dict)}"
+    if res not in url_dicts:
+        url_dicts[res] = df_dict
+    return res
 
 
 def fetch_df_dict_io(
-    dict_or_address: Union[dict, str, int],
+    url: str,
     replace: bool = False,
 ):
-    if isinstance(dict_or_address, int):
-        return io_dicts[dict_or_address]
-    if isinstance(dict_or_address, str):
-        return io_dicts[int(dict_or_address.split("/")[-1])]
-    if dict_or_address is None:
-        raise Exception("Cannot fetch None dict")
-    elif id(dict_or_address) in io_dicts:
-        res = io_dicts[id(dict_or_address)]
+    if isinstance(url, str):
+        if url in io_dicts:
+            res = io_dicts[url]
+        else:
+            res = pn.DataFrameDictIO(url, replace)
     else:
-        res = pn.DataFrameDictIO(dict_or_address, replace)
-    io_dicts[id(dict_or_address)] = res
+        raise Exception(f"Cannot fetch df_dict_io from type: {type(url)}")
+    io_dicts[url] = res
     return res
 
 

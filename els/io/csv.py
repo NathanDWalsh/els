@@ -125,7 +125,7 @@ class CSVIO(epd.DataFrameContainerMixinIO):
                 )
                 self.file_io.truncate()
             with open(self.url, "wb") as write_file:
-                self.file_io.seek(0)
+                # self.file_io.seek(0)
                 write_file.write(self.file_io.getbuffer())
 
     def close(self):

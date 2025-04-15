@@ -3,6 +3,8 @@ from typing import Generator, Literal
 import pandas as pd
 from anytree import NodeMixin
 
+import els.core as el
+
 nrows_for_sampling: int = 100
 
 
@@ -244,17 +246,18 @@ class DataFrameContainerMixinIO(NodeMixin):
 class DataFrameDictIO(DataFrameContainerMixinIO):
     def __init__(
         self,
-        df_dict: dict[str, pd.DataFrame],
+        url,
         replace=False,
     ):
         self.child_class = DataFrameIO
-        self.df_dict = df_dict
+        self.url = url
         super().__init__(replace)
 
     def __repr__(self):
-        return f"DataFrameDictIO({(self.df_dict, self.replace)})"
+        return f"DataFrameDictIO({(self.url, self.replace)})"
 
     def _children_init(self) -> dict:
+        self.df_dict = el.fetch_df_dict(self.url)
         for name in self.df_dict.keys():
             DataFrameIO(
                 name=name,
@@ -262,6 +265,7 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
             )
 
     def persist(self):
+        self.df_dict = el.fetch_df_dict(self.url)
         for df_io in self:
             if df_io.mode in ("a", "w"):
                 self.df_dict[df_io.name] = df_io.df_target

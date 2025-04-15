@@ -65,6 +65,7 @@ def test_sc(tmp_path, test_name, func, config_for):
         ("sqlite"),
         ("duckdb"),
         ("mssql"),
+        ("csv"),
     ],
 )
 @pytest.mark.parametrize(
@@ -83,6 +84,7 @@ def test_for_push_or_pull(tmp_path, test_name, func):
     "test_name",
     [
         ("excel"),
+        ("csv"),
     ],
 )
 @pytest.mark.parametrize(
