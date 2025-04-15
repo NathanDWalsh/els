@@ -68,24 +68,10 @@ class TaskFlow:
         self.cleanup()
 
     def cleanup(self):
-        for dbconn in el.io_sqls.values():
-            dbconn.write()
-            dbconn.close()
-        el.io_sqls.clear()
-
-        for csv_file in el.io_csvs.values():
-            csv_file.write()
-            csv_file.close()
-        el.io_csvs.clear()
-
-        for excel_file in el.io_workbooks.values():
-            excel_file.write()
-            excel_file.close()
-        el.io_workbooks.clear()
-
-        for _dict in el.io_dicts.values():
-            _dict.write()
-        el.io_dicts.clear()
+        for container in el.df_containers.values():
+            container.write()
+            container.close()
+        el.df_containers.clear()
 
         # just in case files still open
         for file in el.io_files.values():

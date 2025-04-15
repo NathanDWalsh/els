@@ -44,7 +44,7 @@ class CSVContent(epd.DataFrameIOMixin):
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
-    def _read(self, kwargs, sample: bool = False):
+    def _read(self, kwargs: dict):
         if kwargs.get("nrows") and kwargs.get("skipfooter"):
             del kwargs["nrows"]
         if "clean_last_column" in kwargs:
@@ -64,20 +64,12 @@ class CSVContent(epd.DataFrameIOMixin):
                     # drop the last column
                     self.df = self.df.drop(self.df.columns[-1], axis=1)
 
-            # TODO, engine is optional for csv, test different engines in different scenarios
-            # if "engine" not in kwargs:
-            #     kwargs["engine"] = "calamine"
-            # self.df = pd.read_csv(self.parent.file_io, **kwargs)
-            # TODO this is redundant? condier using the instnace var directly?
             self.kw_for_pull = kwargs
 
 
 class CSVIO(epd.DataFrameContainerMixinIO):
     def __init__(self, url, replace=False):
-        self.child_class = CSVContent
-        self.url = url
-        # TODO: consider having url in all IO Container objects (difficult for DataFrameIO?)
-        super().__init__(replace)
+        super().__init__(CSVContent, url, replace)
 
     def __iter__(self) -> Generator[CSVContent, None, None]:
         for child in super().children:
@@ -99,7 +91,7 @@ class CSVIO(epd.DataFrameContainerMixinIO):
 
     def persist(self):
         if self.mode in ("w", "a"):
-            self.file_io = el.fetch_file_io(self.url, replace=True)
+            self.file_io = el.fetch_file_io(self.url)
             # loop not required, only one child in csv
             for df_io in self:
                 df = df_io.df_target

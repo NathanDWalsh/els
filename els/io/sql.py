@@ -103,7 +103,7 @@ class SQLTable(epd.DataFrameIOMixin):
         else:
             return f"truncate table {self.sqn}"
 
-    def _read(self, kwargs, sample: bool = False):
+    def _read(self, kwargs):
         if not kwargs:
             kwargs = self.kw_for_pull
         else:
@@ -123,10 +123,6 @@ class SQLTable(epd.DataFrameIOMixin):
                 .limit(nrows)
             )
             self.df = pd.read_sql(stmt, con=sqeng, **kwargs)
-            if sample:
-                self.df_target = epd.get_column_frame(self.df)
-            else:
-                self.df_target = self.df
 
     @property
     def parent(self) -> "SQLDBContainer":
@@ -139,9 +135,9 @@ class SQLTable(epd.DataFrameIOMixin):
 
 class SQLDBContainer(epd.DataFrameContainerMixinIO):
     def __init__(self, url, replace=False):
-        self.child_class = SQLTable
-        self.url = url
-        super().__init__(replace)
+        # self.child_class = SQLTable
+        # self.url = url
+        super().__init__(SQLTable, url, replace)
 
     def __iter__(self) -> Generator[SQLTable, None, None]:
         for child in super().children:

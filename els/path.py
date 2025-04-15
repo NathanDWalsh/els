@@ -18,6 +18,9 @@ import els.config as ec
 import els.core as el
 import els.execute as ee
 import els.flow as ef
+import els.io.pd as pn
+import els.io.sql as sq
+import els.io.xl as xl
 from els.pathprops import HumanPathPropertiesMixin
 
 CONFIG_FILE_EXT = ".els.yml"
@@ -897,10 +900,10 @@ def config_path_valid(path: ConfigPath) -> bool:
 def get_content_leaf_names(source: ec.Source) -> list[str]:
     if source.type_is_db:
         # return get_table_names(source)
-        sql_container = el.fetch_sql_container(source.url)
+        sql_container = el.fetch_df_container(sq.SQLDBContainer, source.url)
         return sql_container.child_names
     elif source.type_is_excel:
-        xl_io = el.fetch_excel_io(source.url)
+        xl_io = el.fetch_df_container(xl.ExcelIO, source.url)
         return xl_io.child_names
     elif source.type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
         # return root file name without path and suffix
@@ -918,7 +921,7 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
         #         )
         # else:
         # TODO: fix this to account for targeting of specific tables in dict instead of all
-        df_dict_io = el.fetch_df_dict_io(source.url)
+        df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, source.url)
         return list(df_dict_io.df_dict)
     else:
         return [source.url]

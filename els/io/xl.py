@@ -106,7 +106,7 @@ class ExcelSheetIO(epd.DataFrameIOMixin):
     def parent(self, v):
         epd.DataFrameIOMixin.parent.fset(self, v)
 
-    def _read(self, kwargs, sample: bool = False):
+    def _read(self, kwargs):
         if kwargs.get("nrows") and kwargs.get("skipfooter"):
             del kwargs["nrows"]
         if not kwargs:
@@ -122,9 +122,9 @@ class ExcelSheetIO(epd.DataFrameIOMixin):
 
 class ExcelIO(epd.DataFrameContainerMixinIO):
     def __init__(self, url, replace=False):
-        self.child_class = ExcelSheetIO
-        self.url = url
-        super().__init__(replace)
+        # self.child_class = ExcelSheetIO
+        # self.url = url
+        super().__init__(ExcelSheetIO, url, replace)
 
     def __iter__(self) -> Generator[ExcelSheetIO, None, None]:
         for child in super().children:

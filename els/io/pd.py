@@ -44,10 +44,10 @@ class DataFrameIOMixin(NodeMixin):
         # df target is where results will be written/appended to on self.write()
         self.df_target: pd.DataFrame = df
         # df is where intermediate operations (truncate, append, etc) are performed
-        self.df = df
-        self.parent = parent
+        self.df: pd.DataFrame = df
+        self.parent: "DataFrameContainerMixinIO" = parent
         self.mode: Literal["s", "r", "a", "w", "m"] = mode
-        self.if_exists = if_exists
+        self.if_exists: str = if_exists
 
         # If an orphan, name could be optional
         self.name = name
@@ -57,18 +57,18 @@ class DataFrameIOMixin(NodeMixin):
             kwargs["nrows"] = nrows_for_sampling
 
         if self.mode in ("s"):
-            self._read(kwargs, sample=sample)
+            self._read(kwargs)
             # when len of df != nrows: sample is assumed to be ignored or small dataset
             if not sample or (sample and len(self.df) != nrows_for_sampling):
                 self.mode = "r"
             else:
                 self.mode = "m"
         elif self.mode == "m" and not sample:
-            self._read(kwargs, sample=sample)
+            self._read(kwargs)
             self.mode = "r"
         return self.df
 
-    def _read(self, kwargs={}, sample=False):
+    def _read(self, kwargs={}):
         self.df = self.parent.df_dict[self.name]
         self.df_target = self.parent.df_dict[self.name]
 
@@ -136,20 +136,25 @@ class DataFrameIOMixin(NodeMixin):
     def parent(self, v):
         NodeMixin.parent.fset(self, v)
 
-    def _read(self, kwargs={}, sample=False):
+    def _read(self, kwargs={}):
         raise Exception("_read must be set in sub-class")
 
 
 class DataFrameIO(DataFrameIOMixin):
-    def _read(self, kwargs={}, sample=False):
+    def _read(self, kwargs={}):
         self.df = self.parent.df_dict[self.name]
         self.df_target = self.parent.df_dict[self.name]
 
 
 class DataFrameContainerMixinIO(NodeMixin):
-    child_class: DataFrameIOMixin
-
-    def __init__(self, replace):
+    def __init__(
+        self,
+        child_class: DataFrameIOMixin,
+        url: str,
+        replace: bool,
+    ):
+        self.child_class = child_class
+        self.url = url
         self.replace = replace
 
         if not self.create_or_replace:
@@ -249,9 +254,9 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
         url,
         replace=False,
     ):
-        self.child_class = DataFrameIO
-        self.url = url
-        super().__init__(replace)
+        # self.child_class = DataFrameIO
+        # self.url = url
+        super().__init__(DataFrameIO, url, replace)
 
     def __repr__(self):
         return f"DataFrameDictIO({(self.url, self.replace)})"
@@ -270,6 +275,6 @@ class DataFrameDictIO(DataFrameContainerMixinIO):
             if df_io.mode in ("a", "w"):
                 self.df_dict[df_io.name] = df_io.df_target
 
-    def close():
+    def close(self):
         pass
         # no closing operations required for dataframe

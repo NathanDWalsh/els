@@ -8,6 +8,7 @@ from joblib.externals.loky import get_reusable_executor
 import els.config as ec
 import els.core as el
 import els.execute as ee
+import els.io.xl as xl
 
 
 class FlowNodeMixin(NodeMixin):
@@ -106,8 +107,8 @@ class ElsXlsxWrapper(ElsFileWrapper):
         super().__init__(parent, file_path)
 
     def open(self):
-        if self.file_path not in el.io_workbooks:
-            el.fetch_excel_io(self.file_path)
+        if self.file_path not in el.df_containers:
+            el.fetch_df_container(xl.ExcelIO, self.file_path)
 
     def execute(self):
         self.open()
@@ -115,9 +116,9 @@ class ElsXlsxWrapper(ElsFileWrapper):
         self.close()
 
     def close(self):
-        file = el.io_workbooks[self.file_path]
+        file = el.df_containers[self.file_path]
         file.close()
-        del el.io_workbooks[self.file_path]
+        del el.df_containers[self.file_path]
 
 
 # groups files together that share a common target table so that target can be built once

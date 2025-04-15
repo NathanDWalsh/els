@@ -1,5 +1,6 @@
 import io
 import os
+from typing import Union
 
 import pandas as pd
 
@@ -12,21 +13,16 @@ default_target: dict[str, pd.DataFrame] = {}
 url_dicts: dict[str, dict[str, pd.DataFrame]] = {}
 
 io_files: dict[str, io.BytesIO] = {}
-io_workbooks: dict[str, xl.ExcelIO] = {}
-io_csvs: dict[str, csv.CSVIO] = {}
-io_dicts: dict[int, pn.DataFrameDictIO] = {}
-io_sqls: dict[str, sq.SQLDBContainer] = {}
 
-
-def fetch_sql_container(url: str, replace: bool = False) -> sq.SQLDBContainer:
-    if url is None:
-        raise Exception("Cannot fetch None url")
-    elif url in io_sqls:
-        res = io_sqls[url]
-    else:
-        res = sq.SQLDBContainer(url, replace)
-    io_sqls[url] = res
-    return res
+df_containers: dict[
+    str,
+    Union[
+        xl.ExcelIO,
+        csv.CSVIO,
+        pn.DataFrameDictIO,
+        sq.SQLDBContainer,
+    ],
+] = {}
 
 
 def fetch_df_dict(
@@ -46,18 +42,24 @@ def urlize_dict(df_dict: dict[str, pd.DataFrame]):
     return res
 
 
-def fetch_df_dict_io(
+def fetch_df_container(
+    container_class: Union[
+        xl.ExcelIO,
+        csv.CSVIO,
+        pn.DataFrameDictIO,
+        sq.SQLDBContainer,
+    ],
     url: str,
     replace: bool = False,
 ):
     if isinstance(url, str):
-        if url in io_dicts:
-            res = io_dicts[url]
+        if url in df_containers:
+            res = df_containers[url]
         else:
-            res = pn.DataFrameDictIO(url, replace)
+            res = container_class(url, replace)
     else:
-        raise Exception(f"Cannot fetch df_dict_io from type: {type(url)}")
-    io_dicts[url] = res
+        raise Exception(f"Cannot fetch {type(container_class)} from: {url}")
+    df_containers[url] = res
     return res
 
 
@@ -76,28 +78,6 @@ def fetch_file_io(url: str, replace: bool = False):
     else:
         res = io.BytesIO()
     io_files[url] = res
-    return res
-
-
-def fetch_csv_io(url: str, replace: bool = False):
-    if url is None:
-        raise Exception("Cannot fetch None url")
-    elif url in io_csvs:
-        res = io_csvs[url]
-    else:
-        res = csv.CSVIO(url, replace)
-    io_csvs[url] = res
-    return res
-
-
-def fetch_excel_io(url: str, replace: bool = False):
-    if url is None:
-        raise Exception("Cannot fetch None url")
-    elif url in io_workbooks:
-        res = io_workbooks[url]
-    else:
-        res = xl.ExcelIO(url, replace)
-    io_workbooks[url] = res
     return res
 
 

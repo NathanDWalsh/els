@@ -12,6 +12,10 @@ from pdfminer.layout import LTChar, LTTextBox
 
 import els.config as ec
 import els.core as el
+import els.io.csv as csv
+import els.io.pd as pn
+import els.io.sql as sq
+import els.io.xl as xl
 
 
 def table_exists(target: ec.Target) -> Optional[bool]:
@@ -22,7 +26,7 @@ def table_exists(target: ec.Target) -> Optional[bool]:
     #         inspector = sa.inspect(sqeng)
     #         res = inspector.has_table(target.table, target.dbschema)
     if target.type_is_db:
-        sql_container = el.fetch_sql_container(target.url)
+        sql_container = el.fetch_df_container(sq.SQLDBContainer, target.url)
         return target.table in sql_container
     elif target.type in (".csv", ".tsv"):
         res = target.file_exists
@@ -30,11 +34,12 @@ def table_exists(target: ec.Target) -> Optional[bool]:
         target.type in (".xlsx") and target.file_exists
     ):  # TODO: add other file types supported by Calamine, be careful not to support legacy excel
         # check if sheet exists
-        xl_io = el.fetch_excel_io(target.url)
+        xl_io = el.fetch_df_container(xl.ExcelIO, target.url)
         res = target.sheet_name in xl_io
     elif target.type == "dict":
         # TODO, make these method calls consistent
-        df_dict_io = el.fetch_df_dict_io(target.url)
+        # df_dict_io = el.fetch_df_dict_io(target.url)
+        df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, target.url)
         res = target.table in df_dict_io
         # TODO, the empty check may no longer be necessary if fetch is changed for get/has child
         # if target.table in df_dict and not df_dict[target.table].empty:
@@ -69,7 +74,7 @@ def build_action(
         and target.type == "mssql"
         and (
             target.if_exists == "replace_database"
-            or target.table not in el.fetch_sql_container(target.url)
+            or target.table not in el.fetch_df_container(sq.SQLDBContainer, target.url)
         )
     ):
         res = "create_replace_database"
@@ -119,7 +124,8 @@ def push_sql(
     if target.if_exists == "replace_database":
         target.if_exists = "append"
 
-    sql_container = el.fetch_sql_container(
+    sql_container = el.fetch_df_container(
+        sq.SQLDBContainer,
         url=target.url,
         replace=replace_database,
     )
@@ -148,7 +154,9 @@ def push_csv(
         replace_file = True
     else:
         replace_file = False
-    csv_container = el.fetch_csv_io(
+    # csv_container = el.fetch_csv_io(
+    csv_container = el.fetch_df_container(
+        csv.CSVIO,
         target.url,
         replace=replace_file,
     )
@@ -178,7 +186,8 @@ def push_excel(
     else:
         replace_file = False
 
-    xl_io = el.fetch_excel_io(
+    xl_io = el.fetch_df_container(
+        xl.ExcelIO,
         target.url,
         replace=replace_file,
     )
@@ -204,7 +213,8 @@ def push_pandas(
     if not target.table:
         raise Exception("invalid table")
     # df_dict_io = target.df_dict_io
-    df_dict_io = el.fetch_df_dict_io(target.url)
+    # df_dict_io = el.fetch_df_dict_io(target.url)
+    df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, target.url)
     df_io = df_dict_io.fetch_child(
         target.table,
         source_df,
@@ -561,7 +571,7 @@ def pull_frame(
     if frame.type_is_db:
         kwargs = get_source_kwargs(None, frame, nrows)
 
-        sql_io = el.fetch_sql_container(frame.url)
+        sql_io = el.fetch_df_container(sq.SQLDBContainer, frame.url)
         table_io = sql_io[frame.table]
         df = table_io.read(kwargs, sample=sample)
     elif frame.type in (".csv", ".tsv"):
@@ -577,7 +587,8 @@ def pull_frame(
             kwargs["sep"] = ","
 
         kwargs["clean_last_column"] = clean_last_column
-        csv_container = el.fetch_csv_io(frame.url)
+        # csv_container = el.fetch_csv_io(frame.url)
+        csv_container = el.fetch_df_container(csv.CSVIO, frame.url)
         csv_io = csv_container[frame.table]
         df = csv_io.read(kwargs)
 
@@ -593,7 +604,7 @@ def pull_frame(
         else:
             kwargs = {}
 
-        xl_io = el.fetch_excel_io(frame.url)
+        xl_io = el.fetch_df_container(xl.ExcelIO, frame.url)
         sheet_io = xl_io[frame.table]
         df = sheet_io.read(kwargs, sample=sample)
     elif frame.type == ".fwf":
@@ -629,7 +640,8 @@ def pull_frame(
         if nrows:
             df = df.head(nrows)
     elif frame.type in ("dict"):
-        df_dict_io = el.fetch_df_dict_io(frame.url)
+        df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, frame.url)
+        # df_dict_io = el.fetch_df_dict_io(frame.url)
         df_io = df_dict_io[frame.table]
         df = df_io.read()
     else:
