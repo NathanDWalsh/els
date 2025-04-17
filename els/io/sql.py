@@ -191,6 +191,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
         ):  # try to automatically detect odbc drivers and falls back on tds/pymssql
             url_parsed = urlparse(self.url)._replace(scheme="mssql+pyodbc")
             if self.odbc_driver_supported_available:
+                # TODO: fix el.
                 query = el.lcase_query_keys(url_parsed.query)
                 query["driver"] = query["driver"][0]
                 if query["driver"].lower() == "odbc driver 18 for sql server":

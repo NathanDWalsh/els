@@ -96,10 +96,10 @@ def database_exists(url):
                 return True
         elif dialect_name == "mssql":
             text = f"select 1 from sys.databases where name = '{url.database}'"
-            url = copy(url)
-            url = _set_url_database(url, database="master")
+            url_master = copy(url)
+            url_master = _set_url_database(url, database="master")
             try:
-                engine = sa.create_engine(url)
+                engine = sa.create_engine(url_master)
                 return bool(_get_scalar_result(engine, sa.text(text)))
             except Exception:
                 return False

@@ -1,7 +1,7 @@
 import io
 import logging
 import os
-from typing import Literal, Optional, Union
+from typing import Optional, Union
 
 import duckdb
 import numpy as np
@@ -18,234 +18,44 @@ import els.io.sql as sq
 import els.io.xl as xl
 
 
-def table_exists(target: ec.Target) -> Optional[bool]:
-    # TODO, bring back schema logic in new objects
-    # if target.db_connection_string and target.table and target.dbschema:
-    #     db_exists(target)
-    #     with sa.create_engine(target.db_connection_string).connect() as sqeng:
-    #         inspector = sa.inspect(sqeng)
-    #         res = inspector.has_table(target.table, target.dbschema)
-    if target.type_is_db:
-        sql_container = el.fetch_df_container(sq.SQLDBContainer, target.url)
-        return target.table in sql_container
-    elif target.type in (".csv", ".tsv"):
-        res = target.file_exists
-    elif (
-        target.type in (".xlsx") and target.file_exists
-    ):  # TODO: add other file types supported by Calamine, be careful not to support legacy excel
-        # check if sheet exists
-        xl_io = el.fetch_df_container(xl.ExcelIO, target.url)
-        res = target.sheet_name in xl_io
-    elif target.type == "dict":
-        # TODO, make these method calls consistent
-        # df_dict_io = el.fetch_df_dict_io(target.url)
-        df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, target.url)
-        res = target.table in df_dict_io
-        # TODO, the empty check may no longer be necessary if fetch is changed for get/has child
-        # if target.table in df_dict and not df_dict[target.table].empty:
-        #     res = True
-        # else:
-        #     res = False
-    else:
-        res = None
-    return res
-
-
-def build_action(
+def push_frame(
+    df: pd.DataFrame,
     target: ec.Target,
-) -> Literal[
-    "fail",
-    "create_replace",
-    "create_replace_file",
-    "create_replace_database",
-    "truncate",
-    "fail",
-    "no_action",
-]:
-    if not target.if_exists:
-        res = "fail"
-    elif target.url_scheme == "file" and (
-        target.if_exists == "replace_file" or not target.file_exists
-    ):
-        res = "create_replace_file"
-    # TODO remove mssql hardcode
-    elif (
-        target.type_is_db
-        and target.type == "mssql"
-        and (
-            target.if_exists == "replace_database"
-            or target.table not in el.fetch_df_container(sq.SQLDBContainer, target.url)
-        )
-    ):
-        res = "create_replace_database"
-    elif not table_exists(target) or target.if_exists == "replace":
-        res = "create_replace"
-    elif target.if_exists == "truncate":
-        res = "truncate"
-    elif target.if_exists == "fail":
-        res = "fail"
+    build: bool = False,
+) -> bool:
+    if not target or not target.type:
+        print("no target defined, printing first 100 rows:")
+        print(df.head(100))
     else:
-        res = "no_action"
-    return res
-
-
-def push_frame(df: pd.DataFrame, target: ec.Target) -> bool:
-    res = False
-    if df is not None:
-        if not target or not target.type:
-            print("no target defined, printing first 100 rows:")
-            print(df.head(100))
-            res = True
+        if target.type in (".csv"):
+            container_class = csv.CSVIO
+        elif target.type in (".xlsx"):
+            container_class = xl.ExcelIO
+        elif target.type_is_db:
+            container_class = sq.SQLDBContainer
+        elif target.type in ("dict"):
+            container_class = pn.DataFrameDictIO
         else:
-            if target.type in (".csv"):
-                res = push_csv(df, target)
-            if target.type in (".xlsx"):
-                res = push_excel(df, target)
-            elif target.type_is_db:
-                res = push_sql(df, target)
-            elif target.type in ("dict"):
-                res = push_pandas(df, target)
-            else:
-                pass
-    return res
-
-
-def push_sql(
-    source_df: pd.DataFrame,
-    target: ec.Target,
-    build=False,
-) -> bool:
-    if build and build_action(target) == "create_replace_database":
-        replace_database = True
-        # target.if_exists = ''
-        target.if_exists = "append"
-    else:
-        replace_database = False
-    if target.if_exists == "replace_database":
-        target.if_exists = "append"
-
-    sql_container = el.fetch_df_container(
-        sq.SQLDBContainer,
-        url=target.url,
-        replace=replace_database,
-    )
-    sql_table = sql_container.fetch_child(
-        df_name=target.table,
-        df=source_df,
-    )
-    sql_table.set_df(
-        df=source_df,
-        if_exists=target.if_exists,
-        build=build,
-        kw_for_push=target.to_sql,
-    )
+            raise Exception(f"unknown target type: {target.type}")
+        df_container = el.fetch_df_container(
+            container_class,
+            url=target.url,
+            replace=target.replace_container,
+        )
+        df_table = df_container.fetch_child(
+            df_name=target.table,
+            df=df,
+        )
+        df_table.set_df(
+            df=df,
+            if_exists=target.if_table_exists,
+            build=build,
+            kw_for_push=target.kw_for_push,
+        )
     return True
 
 
-def push_csv(
-    source_df: pd.DataFrame,
-    target: ec.Target,
-    build=False,
-) -> bool:
-    if not target.url:
-        raise Exception("missing url")
-
-    if build_action(target) in ("create_replace_file", "create_replace"):
-        replace_file = True
-    else:
-        replace_file = False
-    # csv_container = el.fetch_csv_io(
-    csv_container = el.fetch_df_container(
-        csv.CSVIO,
-        target.url,
-        replace=replace_file,
-    )
-    csv_io = csv_container.fetch_child(
-        target.table,
-        source_df,
-    )
-    csv_io.set_df(
-        df=source_df,
-        if_exists=target.if_exists,
-        build=build,
-        kw_for_push=target.to_csv,
-    )
-    return True
-
-
-def push_excel(
-    source_df: pd.DataFrame,
-    target: ec.Target,
-    build=False,
-) -> bool:
-    if not target.url:
-        raise Exception("missing url")
-
-    if build_action(target) == "create_replace_file":
-        replace_file = True
-    else:
-        replace_file = False
-
-    xl_io = el.fetch_df_container(
-        xl.ExcelIO,
-        target.url,
-        replace=replace_file,
-    )
-    sheet_io = xl_io.fetch_child(
-        target.table,
-        source_df,
-    )
-    sheet_io.set_df(
-        df=source_df,
-        if_exists=target.if_exists,
-        build=build,
-        kw_for_push=target.to_excel,
-    )
-
-    return True
-
-
-def push_pandas(
-    source_df: pd.DataFrame,
-    target: ec.Target,
-    build=False,
-) -> bool:
-    if not target.table:
-        raise Exception("invalid table")
-    # df_dict_io = target.df_dict_io
-    # df_dict_io = el.fetch_df_dict_io(target.url)
-    df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, target.url)
-    df_io = df_dict_io.fetch_child(
-        target.table,
-        source_df,
-    )
-    df_io.set_df(
-        # target.table,
-        df=source_df,
-        if_exists=target.if_exists,
-        build=build,
-    )
-    return True
-
-
-def build_target(df: pd.DataFrame, target: ec.Frame) -> bool:
-    if target.type_is_db:
-        # res = build_sql(df, target)
-        res = push_sql(df, target, build=True)
-    elif target.type in (".csv"):
-        create_directory_if_not_exists(target.url)
-        # res = build_csv(df, target)
-        res = push_csv(df, target, build=True)
-    elif target.type in (".xlsx"):
-        create_directory_if_not_exists(target.url)
-        res = push_excel(df, target, build=True)
-    elif target.type in ("dict"):
-        res = push_pandas(df, target, build=True)
-    else:
-        raise Exception("invalid target type")
-    return res
-
-
+# TODO: integrate into the container objects?
 def create_directory_if_not_exists(file_path: str):
     directory = os.path.dirname(file_path)
     if directory and not os.path.exists(directory):
@@ -587,7 +397,6 @@ def pull_frame(
             kwargs["sep"] = ","
 
         kwargs["clean_last_column"] = clean_last_column
-        # csv_container = el.fetch_csv_io(frame.url)
         csv_container = el.fetch_df_container(csv.CSVIO, frame.url)
         csv_io = csv_container[frame.table]
         df = csv_io.read(kwargs)
@@ -607,6 +416,11 @@ def pull_frame(
         xl_io = el.fetch_df_container(xl.ExcelIO, frame.url)
         sheet_io = xl_io[frame.table]
         df = sheet_io.read(kwargs, sample=sample)
+    elif frame.type in ("dict"):
+        df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, frame.url)
+        # df_dict_io = el.fetch_df_dict_io(frame.url)
+        df_io = df_dict_io[frame.table]
+        df = df_io.read()
     elif frame.type == ".fwf":
         if isinstance(frame, ec.Source):
             kwargs = get_source_kwargs(frame.read_fwf, frame, nrows)
@@ -639,11 +453,6 @@ def pull_frame(
         df = pull_xml(frame.url, **kwargs)
         if nrows:
             df = df.head(nrows)
-    elif frame.type in ("dict"):
-        df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, frame.url)
-        # df_dict_io = el.fetch_df_dict_io(frame.url)
-        df_io = df_dict_io[frame.table]
-        df = df_io.read()
     else:
         raise Exception("unable to pull df")
 
@@ -717,24 +526,58 @@ def ingest(config: ec.Config) -> bool:
         raise Exception(f"{target.table}: Inconsistent, not saved.")
 
 
+def table_exists(target: ec.Target) -> Optional[bool]:
+    # TODO, bring back schema logic in new objects
+    # if target.db_connection_string and target.table and target.dbschema:
+    #     db_exists(target)
+    #     with sa.create_engine(target.db_connection_string).connect() as sqeng:
+    #         inspector = sa.inspect(sqeng)
+    #         res = inspector.has_table(target.table, target.dbschema)
+    if target.type_is_db:
+        sql_container = el.fetch_df_container(sq.SQLDBContainer, target.url)
+        return target.table in sql_container
+    elif target.type in (".csv", ".tsv"):
+        res = target.file_exists
+    elif (
+        target.type in (".xlsx") and target.file_exists
+    ):  # TODO: add other file types supported by Calamine, be careful not to support legacy excel
+        # check if sheet exists
+        xl_io = el.fetch_df_container(xl.ExcelIO, target.url)
+        res = target.sheet_name in xl_io
+    elif target.type == "dict":
+        # TODO, make these method calls consistent
+        # df_dict_io = el.fetch_df_dict_io(target.url)
+        df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, target.url)
+        res = target.table in df_dict_io
+        # TODO, the empty check may no longer be necessary if fetch is changed for get/has child
+        # if target.table in df_dict and not df_dict[target.table].empty:
+        #     res = True
+        # else:
+        #     res = False
+    else:
+        res = None
+    return res
+
+
+def requires_build_action(
+    target: ec.Target,
+) -> bool:
+    if target.url_scheme == "file" and target.if_exists == "replace_file":
+        return True
+    elif target.type_is_db and target.if_exists == "replace_database":
+        return True
+    elif not table_exists(target) or target.if_exists == "replace":
+        return True
+    else:
+        return False
+
+
 def build(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
-    if target and build_action(target) != "no_action":
-        action = build_action(target)
-        if action in (
-            "create_replace",
-            "create_replace_file",
-            "create_replace_database",
-        ):
-            # TODO, use caching to avoid pulling the same data twice
-            df = pull_frame(source, sample=True)
-            df = apply_transforms(df, transform, mark_as_executed=False)
-            res = build_target(df, target)
-        elif action == "fail":
-            logging.error("Table Exists, failing")
-            res = False
-        else:
-            res = True
+    if requires_build_action(target):
+        # TODO, use caching to avoid pulling the same data twice
+        df = pull_frame(source, sample=True)
+        df = apply_transforms(df, transform, mark_as_executed=False)
+        return push_frame(df, target, build=True)
     else:
-        res = True
-    return res
+        return True

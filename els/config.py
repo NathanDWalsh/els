@@ -241,6 +241,15 @@ class Frame(BaseModel):
 
 
 class Target(Frame):
+    _if_exists_map = dict(
+        fail=("append", "fail"),
+        truncate=("append", "truncate"),
+        append=("append", "append"),
+        replace=("append", "replace"),
+        replace_file=("replace", "append"),
+        replace_database=("replace", "append"),
+    )
+
     model_config = ConfigDict(
         extra="forbid",
         use_enum_values=True,
@@ -268,6 +277,31 @@ class Target(Frame):
     to_sql: Optional[ToSql] = None
     to_csv: Optional[ToCsv] = None
     to_excel: Optional[ToExcel] = None
+
+    @property
+    def kw_for_push(self):
+        return self.to_sql or self.to_csv or self.to_excel
+
+    @property
+    def replace_container(self) -> bool:
+        if self.if_container_exists == "replace":
+            return True
+        else:
+            return False
+
+    @property
+    def if_container_exists(self):
+        if self.if_exists:
+            return self._if_exists_map[self.if_exists][0]
+        else:
+            return "append"
+
+    @property
+    def if_table_exists(self):
+        if self.if_exists:
+            return self._if_exists_map[self.if_exists][1]
+        else:
+            return "fail"
 
 
 class ReadCsv(BaseModel, extra="allow"):
