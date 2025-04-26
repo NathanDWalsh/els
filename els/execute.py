@@ -1,21 +1,42 @@
-import io
 import logging
 import os
 from typing import Optional, Union
 
-import duckdb
 import numpy as np
 import pandas as pd
-import prqlc
 from pdfminer.high_level import LAParams, extract_pages
 from pdfminer.layout import LTChar, LTTextBox
 
 import els.config as ec
 import els.core as el
+import els.io.base as eio
 import els.io.csv as csv
+import els.io.fwf as fwf
 import els.io.pd as pn
 import els.io.sql as sq
 import els.io.xl as xl
+import els.io.xml as xml
+
+
+def get_container_class(
+    frame: ec.Frame,
+) -> type[eio.ContainerWriterABC]:
+    if frame.type == ".csv":
+        return csv.CSVContainer
+    elif frame.type_is_excel:
+        return xl.XLContainer
+    elif frame.type_is_db:
+        return sq.SQLContainer
+    elif frame.type == "dict":
+        return pn.DFContainer
+    elif frame.type == ".fwf":
+        return fwf.FWFContainer
+    elif frame.type == ".xml":
+        return xml.XMLContainer
+    else:
+        raise Exception(
+            f"unknown {[type(frame), frame.model_dump(exclude_none=True)]} type: {frame.type}"
+        )
 
 
 def push_frame(
@@ -23,20 +44,11 @@ def push_frame(
     target: ec.Target,
     build: bool = False,
 ) -> bool:
-    if not target or not target.type:
+    if not target or not target.type or not target.url:
         print("no target defined, printing first 100 rows:")
         print(df.head(100))
     else:
-        if target.type in (".csv"):
-            container_class = csv.CSVIO
-        elif target.type in (".xlsx"):
-            container_class = xl.ExcelIO
-        elif target.type_is_db:
-            container_class = sq.SQLDBContainer
-        elif target.type in ("dict"):
-            container_class = pn.DataFrameDictIO
-        else:
-            raise Exception(f"unknown target type: {target.type}")
+        container_class = get_container_class(target)
         df_container = el.fetch_df_container(
             container_class,
             url=target.url,
@@ -81,58 +93,18 @@ def config_frames_consistent(config: ec.Config) -> bool:
     return data_frames_consistent(source_df, target_df)
 
 
-def apply_transforms(df, transform, mark_as_executed: bool = True):
-    if not transform == [None]:
-        for tx in transform:
-            if not tx.executed:
-                if isinstance(tx, ec.FilterTransform):
-                    df = df.query(tx.filter)
-
-                elif isinstance(tx, ec.PrqlTransform):
-                    if os.path.isfile(tx.prql):
-                        with io.open(tx.prql) as file:
-                            prql = file.read()
-                    else:
-                        prql = tx.prql
-                    prqlo = prqlc.CompileOptions(target="sql.duckdb")
-                    dsql = prqlc.compile(prql, options=prqlo)
-                    df = duckdb.sql(dsql).df()
-
-                elif isinstance(tx, ec.SplitOnColumn):
-                    # this transform is converted to a filter transform in the path module
-                    # it may need to moved here
-                    # should be here in the case of multiple splits, the path one only considers the final one
-                    # for now multiple splits are not supported
-                    # raise Exception("Multiple splits are not supported")
-                    pass
-
-                elif isinstance(tx, ec.Pivot):
-                    df = df.pivot(
-                        columns=tx.pivot_columns,
-                        values=tx.pivot_values,
-                        index=tx.pivot_index,
-                    )
-                    df.columns.name = None
-                    df.index.name = None
-
-                elif isinstance(tx, ec.AsType):
-                    df = df.astype(tx.as_dtypes)
-
-                elif isinstance(tx, ec.Melt):
-                    df = pd.melt(
-                        df,
-                        id_vars=tx.melt_id_vars,
-                        value_vars=tx.melt_value_vars,
-                        value_name=tx.melt_value_name,
-                        var_name=tx.melt_var_name,
-                    )
-
-                elif isinstance(tx, ec.StackDynamic):
-                    df = stack_columns(df, tx)
-
-                elif isinstance(tx, ec.AddColumns):
-                    add_columns(df, tx.model_dump(exclude="additionalProperties"))
-                tx.executed = mark_as_executed
+def apply_transforms(
+    df: pd.DataFrame,
+    transforms: list[ec.Transform],
+    mark_as_executed: bool = True,
+):
+    if not transforms == [None]:
+        for transform in transforms:
+            if not transform.executed:
+                df = transform(
+                    df,
+                    mark_as_executed=mark_as_executed,
+                )
     return df
 
 
@@ -225,8 +197,8 @@ def get_sql_data_type(dtype):
         return "VARCHAR(MAX)"
 
 
-def text_range_to_list(text):
-    result = []
+def text_range_to_list(text: str):
+    result: list = []
     segments = text.split(",")
     for segment in segments:
         if "-" in segment:
@@ -247,8 +219,12 @@ def clean_page_numbers(page_numbers):
     return sorted(res)
 
 
-def pull_pdf(file, laparams, **kwargs) -> pd.DataFrame:
-    def get_first_char_from_text_box(tb) -> LTChar:
+def pull_pdf(
+    file,
+    laparams: Optional[dict],
+    **kwargs,
+) -> pd.DataFrame:
+    def get_first_char_from_text_box(tb) -> LTChar:  # type: ignore
         for line in tb:
             for char in line:
                 return char
@@ -263,7 +239,7 @@ def pull_pdf(file, laparams, **kwargs) -> pd.DataFrame:
 
     pm_pages = extract_pages(file, laparams=lap, **kwargs)
 
-    dict_res = {
+    dict_res: dict[str, list] = {
         "page_index": [],
         "y0": [],
         "y1": [],
@@ -304,135 +280,38 @@ def pull_pdf(file, laparams, **kwargs) -> pd.DataFrame:
     return pd.DataFrame(dict_res)
 
 
-def pull_fwf(file, **kwargs):
-    df = pd.read_fwf(file, **kwargs)
-    return df
-
-
-def pull_xml(file, **kwargs):
-    df = pd.read_xml(file, **kwargs)
-    return df
-
-
-def get_source_kwargs(
-    read_x: Union[ec.ReadCsv, ec.ReadExcel, ec.ReadFwf, ec.ReadXml],
-    frame: ec.Source,
-    nrows: Optional[int] = None,
-):
-    kwargs = {}
-    if read_x:
-        kwargs = read_x.model_dump(exclude_none=True)
-
-    for k, v in kwargs.items():
-        if v == "None":
-            kwargs[k] = None
-
-    root_kwargs = (
-        "nrows",
-        "dtype",
-        "sheet_name",
-        "names",
-        "encoding",
-        "low_memory",
-        "sep",
-    )
-    for k in root_kwargs:
-        if hasattr(frame, k) and getattr(frame, k):
-            if k == "dtype":
-                dtypes = getattr(frame, "dtype")
-                kwargs["dtype"] = {k: v for k, v in dtypes.items() if v != "date"}
-            else:
-                kwargs[k] = getattr(frame, k)
-
-    if nrows:
-        kwargs["nrows"] = nrows
-
-    return kwargs
-
-
-def get_target_kwargs(to_x, frame: ec.Target, nrows: Optional[int] = None):
-    kwargs = {}
-    if to_x:
-        kwargs = to_x.model_dump(exclude_none=True)
-
-    root_kwargs = (
-        "nrows",
-        "dtype",
-        "sheet_name",
-        "names",
-        "encoding",
-        "low_memory",
-        "sep",
-    )
-    for k in root_kwargs:
-        if hasattr(frame, k) and getattr(frame, k):
-            kwargs[k] = getattr(frame, k)
-    if nrows:
-        kwargs["nrows"] = nrows
-
-    return kwargs
+# def pull_xml(file, **kwargs):
+#     df = pd.read_xml(file, **kwargs)
+#     return df
 
 
 def pull_frame(
     frame: Union[ec.Source, ec.Target],
-    nrows: Optional[int] = None,
+    # nrows: Optional[int] = None,
     sample: bool = False,
 ) -> pd.DataFrame:
-    if frame.type_is_db:
-        kwargs = get_source_kwargs(None, frame, nrows)
-
-        sql_io = el.fetch_df_container(sq.SQLDBContainer, frame.url)
-        table_io = sql_io[frame.table]
-        df = table_io.read(kwargs, sample=sample)
-    elif frame.type in (".csv", ".tsv"):
-        if isinstance(frame, ec.Source):
-            clean_last_column = True
-            kwargs = get_source_kwargs(frame.read_csv, frame, nrows)
-            if frame.type == ".tsv":
-                kwargs["sep"] = "\t"
-        else:
-            clean_last_column = False
-            kwargs = {}
-        if "sep" not in kwargs.keys():
-            kwargs["sep"] = ","
-
-        kwargs["clean_last_column"] = clean_last_column
-        csv_container = el.fetch_df_container(csv.CSVIO, frame.url)
-        csv_io = csv_container[frame.table]
-        df = csv_io.read(kwargs)
-
-    elif frame.type_is_excel:
-        if isinstance(frame, ec.Source):
-            kwargs = get_source_kwargs(frame.read_excel, frame, nrows)
-        elif isinstance(frame, ec.Target):
-            kwargs = get_target_kwargs(frame.to_excel, frame, nrows)
-            if "startrow" in kwargs:
-                startrow = kwargs.pop("startrow")
-                if startrow > 0:
-                    kwargs["skiprows"] = startrow + 1
-        else:
-            kwargs = {}
-
-        xl_io = el.fetch_df_container(xl.ExcelIO, frame.url)
-        sheet_io = xl_io[frame.table]
-        df = sheet_io.read(kwargs, sample=sample)
-    elif frame.type in ("dict"):
-        df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, frame.url)
-        # df_dict_io = el.fetch_df_dict_io(frame.url)
-        df_io = df_dict_io[frame.table]
-        df = df_io.read()
-    elif frame.type == ".fwf":
-        if isinstance(frame, ec.Source):
-            kwargs = get_source_kwargs(frame.read_fwf, frame, nrows)
-        else:
-            kwargs = {}
-
-        df = pull_fwf(frame.url, **kwargs)
+    container_class = get_container_class(frame)
+    if (
+        frame.type_is_db
+        or frame.type_is_excel
+        or frame.type in (".csv", ".tsv", "dict", ".fwf", ".xml")
+    ):
+        df_container = el.fetch_df_container(
+            container_class=container_class,
+            url=frame.url,  # type: ignore
+        )
+        df_table = df_container[frame.table]
+        df = df_table.read(
+            kwargs=frame.kw_for_pull,
+            sample=sample,
+            # nrows=nrows,
+        )
     elif frame.type == ".pdf":
+        assert isinstance(frame, ec.Source)
         # TODO parallelize, break job into page chunks
         df = None
         for extract_props in el.listify(frame.extract_pages_pdf):
-            if isinstance(frame, ec.Source) and extract_props:
+            if extract_props:
                 kwargs = extract_props.model_dump(exclude_none=True)
                 laparams = None
                 if "laparams" in kwargs:
@@ -443,55 +322,25 @@ def pull_frame(
                 df = pull_pdf(frame.url, laparams=laparams, **kwargs)
             else:
                 df = pd.concat([df, pull_pdf(frame.url, laparams=laparams, **kwargs)])
-    elif frame.type == ".xml":
-        if isinstance(frame, ec.Source):
-            kwargs = get_source_kwargs(frame.read_xml, frame)
-        else:
-            kwargs = {}
-        if "nrows" in kwargs:
-            kwargs.pop("nrows")
-        df = pull_xml(frame.url, **kwargs)
-        if nrows:
-            df = df.head(nrows)
+    # elif frame.type == ".xml":
+    #     if isinstance(frame, ec.Source):
+    #         kwargs = frame.kw_for_pull
+    #     else:
+    #         kwargs = {}
+    #     if "nrows" in kwargs:
+    #         kwargs.pop("nrows")
+    #     df = pull_xml(frame.url, **kwargs)
+    #     if nrows:
+    #         df = df.head(nrows)
     else:
         raise Exception("unable to pull df")
 
     if frame and hasattr(frame, "dtype") and frame.dtype:
+        assert df is not None
         for k, v in frame.dtype.items():
             if v == "date" and not isinstance(type(df[k]), np.dtypes.DateTime64DType):
                 df[k] = pd.to_datetime(df[k])
     return pd.DataFrame(df)
-
-
-def stack_columns(df, stack: ec.StackDynamic):
-    # Define the primary column headers based on the first columns
-    primary_headers = list(df.columns[: stack.stack_fixed_columns])
-
-    # Extract the top-level column names from the primary headers
-    top_level_headers, _ = zip(*primary_headers)
-
-    # Set the DataFrame's index to the primary headers
-    df = df.set_index(primary_headers)
-
-    # Get the names of the newly set indices
-    current_index_names = list(df.index.names[: stack.stack_fixed_columns])
-
-    # Create a dictionary to map the current index names to the top-level headers
-    index_name_mapping = dict(zip(current_index_names, top_level_headers))
-
-    # Rename the indices using the created mapping
-    df.index.rename(index_name_mapping, inplace=True)
-
-    # Stack the DataFrame based on the top-level columns
-    df = df.stack(level=stack.stack_header, future_stack=True)
-
-    # Rename the new index created by the stacking operation
-    df.index.rename({None: stack.stack_name}, inplace=True)
-
-    # Reset the index for the resulting DataFrame
-    df.reset_index(inplace=True)
-
-    return df
 
 
 def get_configs(config: ec.Config):
@@ -502,24 +351,13 @@ def get_configs(config: ec.Config):
     return target, source, transform
 
 
-def add_columns(df: pd.DataFrame, add_cols: dict) -> pd.DataFrame:
-    if add_cols:
-        for k, v in add_cols.items():
-            if (
-                k != "additionalProperties"
-                and v != ec.DynamicColumnValue.ROW_INDEX.value
-            ):
-                df[k] = v
-    return df
-
-
 def ingest(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
     consistent = config_frames_consistent(config)
     if not target or not target.table or consistent or target.consistency == "ignore":
         # TODO: why is nrows on config root and not in source
         # this is the only place where nrows is passed to pull_frame
-        source_df = pull_frame(source, config.nrows, False)
+        source_df = pull_frame(source, False)
         source_df = apply_transforms(source_df, transform)
         return push_frame(source_df, target)
     else:
@@ -533,8 +371,9 @@ def table_exists(target: ec.Target) -> Optional[bool]:
     #     with sa.create_engine(target.db_connection_string).connect() as sqeng:
     #         inspector = sa.inspect(sqeng)
     #         res = inspector.has_table(target.table, target.dbschema)
+    assert target.url
     if target.type_is_db:
-        sql_container = el.fetch_df_container(sq.SQLDBContainer, target.url)
+        sql_container = el.fetch_df_container(sq.SQLContainer, target.url)
         return target.table in sql_container
     elif target.type in (".csv", ".tsv"):
         res = target.file_exists
@@ -542,12 +381,12 @@ def table_exists(target: ec.Target) -> Optional[bool]:
         target.type in (".xlsx") and target.file_exists
     ):  # TODO: add other file types supported by Calamine, be careful not to support legacy excel
         # check if sheet exists
-        xl_io = el.fetch_df_container(xl.ExcelIO, target.url)
+        xl_io = el.fetch_df_container(xl.XLContainer, target.url)
         res = target.sheet_name in xl_io
     elif target.type == "dict":
         # TODO, make these method calls consistent
         # df_dict_io = el.fetch_df_dict_io(target.url)
-        df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, target.url)
+        df_dict_io = el.fetch_df_container(pn.DFContainer, target.url)
         res = target.table in df_dict_io
         # TODO, the empty check may no longer be necessary if fetch is changed for get/has child
         # if target.table in df_dict and not df_dict[target.table].empty:

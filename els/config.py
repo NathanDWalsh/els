@@ -1,15 +1,26 @@
+from __future__ import annotations
+
+import io
 import os
 import re
+import sys
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from enum import Enum
 from functools import cached_property
-from typing import Literal, NewType, Optional, Union
+from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
+import duckdb
+import pandas as pd
+import prqlc
 import yaml
 from pydantic import BaseModel, ConfigDict
 
 from els.pathprops import HumanPathPropertiesMixin
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
 
 
 # generate an enum in the format _rxcx for a 10 * 10 grid
@@ -40,11 +51,15 @@ class DynamicColumnValue(Enum):
     ROW_INDEX = "_row_index"
 
 
-class ToSql(BaseModel, extra="allow"):
+class ToSQL(BaseModel, extra="allow"):
     chunksize: Optional[int] = None
 
 
-class ToCsv(BaseModel, extra="allow"):
+class ToCSV(BaseModel, extra="allow"):
+    pass
+
+
+class ToXML(BaseModel, extra="allow"):
     pass
 
 
@@ -52,7 +67,7 @@ class ToExcel(BaseModel, extra="allow"):
     pass
 
 
-class Transform(BaseModel, extra="forbid"):
+class Transform(BaseModel, ABC, extra="forbid"):
     # THIS MAY BE USEFUL FOR CONTROLLING YAML INPUTS?
     # THE CODE BELOW WAS USED WHEN TRANSFORM CLASS HAD PROPERTIES INSTEAD OF A LIST
     # IT ONLY ALLOED EITHER MELT OR STACK TO BE SET (NOT BOTH)
@@ -63,6 +78,19 @@ class Transform(BaseModel, extra="forbid"):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._executed = False
+
+    def __call__(
+        self,
+        df: pd.DataFrame,
+        mark_as_executed: bool = True,
+    ) -> pd.DataFrame:
+        res = self.transform(df)
+        self.executed = mark_as_executed
+        return res
+
+    @abstractmethod
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        pass
 
     @property
     def executed(self):
@@ -78,6 +106,36 @@ class StackDynamic(Transform):
     stack_header: int = 0
     stack_name: str = "stack_column"
 
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        # Define the primary column headers based on the first columns
+        primary_headers = list(df.columns[: self.stack_fixed_columns])
+
+        # Extract the top-level column names from the primary headers
+        top_level_headers, _ = zip(*primary_headers)
+
+        # Set the DataFrame's index to the primary headers
+        df = df.set_index(primary_headers)
+
+        # Get the names of the newly set indices
+        current_index_names = list(df.index.names[: self.stack_fixed_columns])
+
+        # Create a dictionary to map the current index names to the top-level headers
+        index_name_mapping = dict(zip(current_index_names, top_level_headers))
+
+        # Rename the indices using the created mapping
+        df.index.rename(index_name_mapping, inplace=True)
+
+        # Stack the DataFrame based on the top-level columns
+        df = df.stack(level=self.stack_header, future_stack=True)  # type: ignore
+
+        # Rename the new index created by the stacking operation
+        df.index.rename({None: self.stack_name}, inplace=True)
+
+        # Reset the index for the resulting DataFrame
+        df.reset_index(inplace=True)
+
+        return df
+
 
 class Melt(Transform):
     melt_id_vars: list[str]
@@ -85,36 +143,82 @@ class Melt(Transform):
     melt_value_name: str = "value"
     melt_var_name: str = "variable"
 
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        return pd.melt(
+            df,
+            id_vars=self.melt_id_vars,
+            value_vars=self.melt_value_vars,
+            value_name=self.melt_value_name,
+            var_name=self.melt_var_name,
+        )
+
 
 class Pivot(Transform):
     pivot_columns: Optional[Union[str, list[str]]] = None
     pivot_values: Optional[Union[str, list[str]]] = None
     pivot_index: Optional[Union[str, list[str]]] = None
 
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        res = df.pivot(
+            columns=self.pivot_columns,
+            values=self.pivot_values,
+            index=self.pivot_index,
+        )
+        res.columns.name = None
+        res.index.name = None
+        return res
+
 
 class AsType(Transform):
     as_dtypes: dict[str, str]
 
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        return df.astype(self.as_dtypes)
+
 
 class AddColumns(Transform, extra="allow"):
-    additionalProperties: Optional[
+    additionalProperties: Optional[  # type: ignore
         Union[DynamicPathValue, DynamicColumnValue, DynamicCellValue, str, int, float]  # type: ignore
     ] = None
+
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        model_dump = self.model_dump(exclude={"additionalProperties"})
+        for k, v in model_dump.items():
+            if v != DynamicColumnValue.ROW_INDEX.value:
+                df[k] = v
+        return df
 
 
 class PrqlTransform(Transform):
     prql: str
 
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        if os.path.isfile(self.prql):
+            with io.open(self.prql) as file:
+                prql = file.read()
+        else:
+            prql = self.prql
+        prqlo = prqlc.CompileOptions(target="sql.duckdb")
+        dsql = prqlc.compile(prql, options=prqlo)
+        df = duckdb.sql(dsql).df()
+        return df
+
 
 class FilterTransform(Transform):
     filter: str
+
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        return df.query(self.filter)
 
 
 class SplitOnColumn(Transform):
     split_on_column: str
 
+    def transform(self, df: pd.DataFrame) -> list[str]:  # type: ignore
+        return list(df[self.split_on_column].drop_duplicates())
 
-def merge_configs(*configs: list[Union["Config", dict]]) -> "Config":
+
+def merge_configs(*configs: Union[Config, dict]) -> Config:
     dicts: list[dict] = []
     for config in configs:
         if isinstance(config, Config):
@@ -163,20 +267,9 @@ class Frame(BaseModel):
             res = None
         return res
 
-    @cached_property
-    def sqn(self) -> Optional[str]:
-        if self.type == "duckdb":
-            res = '"' + self.table + '"'
-        elif self.dbschema and self.table:
-            res = "[" + self.dbschema + "].[" + self.table + "]"
-        elif self.table:
-            res = "[" + self.table + "]"
-        else:
-            res = None
-        return res
-
     url: Optional[str] = None
-    # type: Optional[str] = None
+    # type: ignore
+    # Optional[str] = None
     # server: Optional[str] = None
     # database: Optional[str] = None
     dbschema: Optional[str] = None
@@ -249,7 +342,6 @@ class Target(Frame):
         replace_file=("replace", "append"),
         replace_database=("replace", "append"),
     )
-
     model_config = ConfigDict(
         extra="forbid",
         use_enum_values=True,
@@ -259,11 +351,14 @@ class Target(Frame):
                 {"required": ["to_sql"]},
                 {"required": ["to_csv"]},
                 {"required": ["to_excel"]},
+                {"required": ["to_xml"]},
             ]
         },
     )
-
-    consistency: Literal["strict", "ignore"] = "strict"
+    consistency: Literal[
+        "strict",
+        "ignore",
+    ] = "strict"
     if_exists: Optional[
         Literal[
             "fail",
@@ -274,13 +369,54 @@ class Target(Frame):
             "replace_database",
         ]
     ] = None
-    to_sql: Optional[ToSql] = None
-    to_csv: Optional[ToCsv] = None
+    to_sql: Optional[ToSQL] = None
+    to_csv: Optional[ToCSV] = None
     to_excel: Optional[ToExcel] = None
+    to_xml: Optional[ToXML] = None
 
     @property
     def kw_for_push(self):
-        return self.to_sql or self.to_csv or self.to_excel
+        return self.to_sql or self.to_csv or self.to_excel or self.to_xml
+
+    @property
+    def kw_for_pull(self):
+        to_x = self.to_excel
+
+        kwargs = {}
+        if to_x:
+            kwargs = to_x.model_dump(exclude_none=True)
+
+        root_kwargs = (
+            "nrows",
+            "dtype",
+            "sheet_name",
+            "names",
+            "encoding",
+            "low_memory",
+            "sep",
+        )
+        for k in root_kwargs:
+            if hasattr(self, k) and getattr(self, k):
+                kwargs[k] = getattr(self, k)
+        # TODO: rethink this for samples, should targets only be sampled?
+        if "nrows" not in kwargs:
+            kwargs["nrows"] = 100
+
+        if self.type in (".tsv"):
+            if "sep" not in kwargs.keys():
+                kwargs["sep"] = "\t"
+        if self.type in (".csv"):
+            if "sep" not in kwargs.keys():
+                kwargs["sep"] = ","
+        if self.type in (".csv", ".tsv"):
+            kwargs["clean_last_column"] = False
+
+        if self.type_is_excel:
+            if "startrow" in kwargs:
+                startrow = kwargs.pop("startrow")
+                if startrow > 0:
+                    kwargs["skiprows"] = startrow + 1
+        return kwargs
 
     @property
     def replace_container(self) -> bool:
@@ -304,7 +440,7 @@ class Target(Frame):
             return "fail"
 
 
-class ReadCsv(BaseModel, extra="allow"):
+class ReadCSV(BaseModel, extra="allow"):
     encoding: Optional[str] = None
     low_memory: Optional[bool] = None
     sep: Optional[str] = None
@@ -312,13 +448,17 @@ class ReadCsv(BaseModel, extra="allow"):
 
 
 class ReadExcel(BaseModel, extra="allow"):
-    sheet_name: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
+    sheet_name: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__  # type: ignore
     # dtype: Optional[dict] = None
     names: Optional[list] = None
 
 
-class ReadFwf(BaseModel, extra="allow"):
+class ReadFWF(BaseModel, extra="allow"):
     names: Optional[list] = None
+
+
+class ReadSQL(BaseModel, extra="allow"):
+    pass
 
 
 class LAParams(BaseModel):
@@ -331,7 +471,7 @@ class LAParams(BaseModel):
     all_texts: Optional[bool] = None
 
 
-class ExtractPagesPdf(BaseModel):
+class ExtractPagesPDF(BaseModel):
     password: Optional[str] = None
     page_numbers: Optional[Union[int, list[int], str]] = None
     maxpages: Optional[int] = None
@@ -339,7 +479,7 @@ class ExtractPagesPdf(BaseModel):
     laparams: Optional[LAParams] = None
 
 
-class ReadXml(BaseModel, extra="allow"):
+class ReadXML(BaseModel, extra="allow"):
     pass
 
 
@@ -350,6 +490,7 @@ class Source(Frame, extra="forbid"):
             "oneOf": [
                 {"required": ["read_csv"]},
                 {"required": ["read_excel"]},
+                {"required": ["read_sql"]},
                 {"required": ["read_fwf"]},
                 {"required": ["read_xml"]},
                 {"required": ["extract_pages_pdf"]},
@@ -359,16 +500,70 @@ class Source(Frame, extra="forbid"):
     load_parallel: bool = False
     nrows: Optional[int] = None
     dtype: Optional[dict] = None
-    read_csv: Optional[ReadCsv] = None
+    read_csv: Optional[ReadCSV] = None
     read_excel: Optional[ReadExcel] = None
-    read_fwf: Optional[ReadFwf] = None
-    read_xml: Optional[ReadXml] = None
-    extract_pages_pdf: Optional[Union[ExtractPagesPdf, list[ExtractPagesPdf]]] = None
+    read_sql: Optional[ReadSQL] = None
+    read_fwf: Optional[ReadFWF] = None
+    read_xml: Optional[ReadXML] = None
+    extract_pages_pdf: Optional[
+        Union[
+            ExtractPagesPDF,
+            list[ExtractPagesPDF],
+        ]
+    ] = None
+
+    @property
+    def kw_for_pull(self):
+        read_x = (
+            self.read_csv
+            or self.read_excel
+            or self.read_sql
+            or self.read_fwf
+            or self.read_xml
+            or self.extract_pages_pdf
+        )
+        kwargs = {}
+        if read_x:
+            kwargs = read_x.model_dump(exclude_none=True)
+
+        for k, v in kwargs.items():
+            if v == "None":
+                kwargs[k] = None
+
+        root_kwargs = (
+            "nrows",
+            "dtype",
+            "sheet_name",
+            "names",
+            "encoding",
+            "low_memory",
+            "sep",
+        )
+        for k in root_kwargs:
+            if hasattr(self, k) and getattr(self, k):
+                if k == "dtype":
+                    dtypes = getattr(self, "dtype")
+                    kwargs["dtype"] = {k: v for k, v in dtypes.items() if v != "date"}
+                else:
+                    kwargs[k] = getattr(self, k)
+
+        if self.nrows:
+            kwargs["nrows"] = self.nrows
+
+        if self.type in (".tsv"):
+            if "sep" not in kwargs.keys():
+                kwargs["sep"] = "\t"
+        if self.type in (".csv"):
+            if "sep" not in kwargs.keys():
+                kwargs["sep"] = ","
+        if self.type in (".csv", ".tsv"):
+            kwargs["clean_last_column"] = True
+
+        return kwargs
 
 
-TransformType = NewType(
-    "TransformType",
-    Union[
+if sys.version_info >= (3, 10):
+    TransformType: TypeAlias = Union[
         SplitOnColumn,
         FilterTransform,
         PrqlTransform,
@@ -377,8 +572,18 @@ TransformType = NewType(
         Melt,
         StackDynamic,
         AddColumns,
-    ],
-)
+    ]
+else:
+    TransformType = Union[
+        SplitOnColumn,
+        FilterTransform,
+        PrqlTransform,
+        Pivot,
+        AsType,
+        Melt,
+        StackDynamic,
+        AddColumns,
+    ]
 
 
 class Config(BaseModel):
@@ -387,15 +592,20 @@ class Config(BaseModel):
     # source: Union[Source,list[Source]] = Source()
     source: Source = Source()
     target: Target = Target()
-    transform: Optional[Union[TransformType, list[TransformType]]] = None  # type: ignore
+    transform: Optional[
+        Union[
+            TransformType,  # type: ignore
+            list[TransformType],  # type: ignore
+        ]
+    ] = None
     children: Union[dict[str, Optional["Config"]], list[str], str, None] = None
 
     @property
-    def transform_list(self) -> list[Transform]:
+    def transform_list(self) -> list[TransformType]:
         if isinstance(self.transform, list):
             return self.transform
         else:
-            return [self.transform]
+            return [self.transform]  # type: ignore
 
     @property
     def transforms_affect_target_count(self) -> bool:
@@ -411,18 +621,21 @@ class Config(BaseModel):
             return False
 
     @property
-    def transforms_to_determine_target(self) -> list[Transform]:
-        res = []
+    def transforms_to_determine_target(self) -> list[TransformType]:
+        res: list = []
         for t in reversed(self.transform_list):
             if isinstance(t, SplitOnColumn) or res:
                 res.append(t)
         res = list(reversed(res))
         return res
 
-    def schema_pop_children(s):
-        s["properties"].pop("children")
+    def schema_pop_children(s) -> None:
+        s["properties"].pop("children")  # type: ignore
 
-    model_config = ConfigDict(extra="forbid", json_schema_extra=schema_pop_children)
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra=schema_pop_children,  # type: ignore
+    )
 
     @cached_property
     def nrows(self) -> Optional[int]:
@@ -432,19 +645,23 @@ class Config(BaseModel):
             res = 100
         return res
 
-    @cached_property
-    def pipe_id(self) -> Optional[str]:
-        if self.source and self.source.address and self.target and self.target.address:
-            res = (self.source.address, self.target.address)
-        elif self.source and self.source.address:
-            res = (self.source.address,)
-        elif self.target and self.target.address:
-            res = (self.target.address,)
-        else:
-            res = None
-        return res
+    # @cached_property
+    # def pipe_id(self) -> Optional[str]:
+    #     if self.source and self.source.address and self.target and self.target.address:
+    #         res = (self.source.address, self.target.address)
+    #     elif self.source and self.source.address:
+    #         res = (self.source.address,)
+    #     elif self.target and self.target.address:
+    #         res = (self.target.address,)
+    #     else:
+    #         res = None
+    #     return res
 
-    def merge_with(self, config: "Config", in_place=False):
+    def merge_with(
+        self,
+        config: Config,
+        in_place: bool = False,
+    ):
         merged = merge_configs(self, config)
         if in_place:
             self = merged

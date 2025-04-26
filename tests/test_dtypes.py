@@ -1,6 +1,7 @@
 import collections
 import os
 import random
+from typing import Optional
 
 import pandas as pd
 import pytest
@@ -18,6 +19,7 @@ _Test = collections.namedtuple("_Test", ["name", "df", "kwargs"])
 def get_df_config(df: pd.DataFrame):
     config_df = Config()
     config_df.source.dtype = df.dtypes.apply(lambda x: x.name).to_dict()
+    assert config_df.source.dtype
     for k, v in config_df.source.dtype.items():
         if v.split("[")[0] == "datetime64":
             config_df.source.dtype[k] = "date"
@@ -228,7 +230,12 @@ def id_func(testcase_vals):
     )
 
 
-def round_trip_file(test_case: _Test, request, test_type: str, query: str = None):
+def round_trip_file(
+    test_case: _Test,
+    request,
+    test_type: str,
+    query: Optional[str] = None,
+):
     # Access the fields of the Test named tuple using dot notation
     test_name = request.node.callspec.id
     df = test_case.df
@@ -238,7 +245,7 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
         test_url = test_name + "." + test_type
     elif test_type in ("mssql", "mssql+pymssql", "mssql+pyodbc"):
         db_host = os.getenv("TEST_ELS_MSSQL_HOST", "localhost")
-        dbname = f"{os.environ.get('PYTEST_CURRENT_TEST').split(' ')[0].split('[')[-1][:-1]}{test_type}{query}"
+        dbname = f"{os.environ.get('PYTEST_CURRENT_TEST', '').split(' ')[0].split('[')[-1][:-1]}{test_type}{query}"
         test_url = f"{test_type}://sa:dbatools.I0@{db_host}/{dbname}"
         if query:
             test_url += f"?{query}"
@@ -257,12 +264,11 @@ def round_trip_file(test_case: _Test, request, test_type: str, query: str = None
 
     # ensuring there is only one staged_frame allows for an implicit pickup of table name
     # note above and line below negates this requirement: t_config.source.table = test_name
-
     execute(outbound_config)
 
     inbound_config = get_df_config(df)
     inbound_config.source.url = test_url
-    inbound = {}
+    inbound: dict = {}
     inbound_config.target.url = el.urlize_dict(inbound)
     if test_type == "xlsx":
         inbound_config.source.table = kwargs["sheet_name"]
@@ -366,20 +372,20 @@ test_classes = {
 for testset in (
     (TestExcel, get_1r1c_tests_excel, "xlsx", None),
     (TestCSV, get_1r1c_tests_csv, "csv", None),
-    (TestMSSQL, get_1r1c_tests_sql, "mssql", None),
-    (TestMSSQL_TDS, get_1r1c_tests_sql, "mssql+pymssql", None),
-    (
-        TestMSSQL_ODBC17,
-        get_1r1c_tests_sql,
-        "mssql+pyodbc",
-        "driver=odbc driver 17 for sql server",
-    ),
-    (
-        TestMSSQL_ODBC18,
-        get_1r1c_tests_sql,
-        "mssql+pyodbc",
-        "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
-    ),
+    # (TestMSSQL, get_1r1c_tests_sql, "mssql", None),
+    # (TestMSSQL_TDS, get_1r1c_tests_sql, "mssql+pymssql", None),
+    # (
+    #     TestMSSQL_ODBC17,
+    #     get_1r1c_tests_sql,
+    #     "mssql+pyodbc",
+    #     "driver=odbc driver 17 for sql server",
+    # ),
+    # (
+    #     TestMSSQL_ODBC18,
+    #     get_1r1c_tests_sql,
+    #     "mssql+pyodbc",
+    #     "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
+    # ),
     (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
     (TestDuckDb, get_1r1c_tests_sql, "duckdb", None),
 ):

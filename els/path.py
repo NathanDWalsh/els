@@ -1,23 +1,29 @@
+from __future__ import annotations
+
 import logging
 import os
 import sys
+from collections.abc import MutableSequence
 from copy import deepcopy
 
 # from collections.abc import Generator
 from enum import Enum
+from itertools import groupby
+from operator import itemgetter
 from pathlib import Path
-from stat import FILE_ATTRIBUTE_HIDDEN
-from typing import Callable, Optional, Union
+from stat import FILE_ATTRIBUTE_HIDDEN  # type: ignore
+from typing import Any, Callable, Iterable, NamedTuple, Optional, Union
 
 import pandas as pd
 import typer
 import yaml
-from anytree import NodeMixin, PreOrderIter, RenderTree
+from anytree import NodeMixin, PreOrderIter, RenderTree  # type: ignore
 
 import els.config as ec
 import els.core as el
 import els.execute as ee
 import els.flow as ef
+import els.io.base as eio
 import els.io.pd as pn
 import els.io.sql as sq
 import els.io.xl as xl
@@ -28,6 +34,15 @@ FOLDER_CONFIG_FILE_STEM = "_"
 ROOT_CONFIG_FILE_STEM = "__"
 
 # config_dict_type: TypeAlias = dict[str, dict[str, str]]
+
+
+class FlowAtom(NamedTuple):
+    # first two attributes cannot change relative position
+    source_url: str
+    source_container_class: type[eio.ContainerWriterABC]
+    ###
+    # leaf_name: str
+    config: ec.Config
 
 
 class NodeType(Enum):
@@ -110,7 +125,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                     # do not add dirs with no leaf nodes which are tables
                     self.parent = None
 
-        elif self.is_config_file:
+        elif self.is_config_file:  # type: ignore
             # TODO, brin back adjacent logic?
             # elif self.node_type == NodeType.CONFIG_ADJACENT:
             # self.config_local = ec.Config(source=ec.Source(url=self.adjacent_file_path))
@@ -122,7 +137,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             raise Exception("Unknown node cannot be configured.")
 
     @property
-    def children(self) -> tuple["ConfigPath"]:
+    def children(self) -> tuple[ConfigPath]:
         return super().children
 
     def grow_dir_branches(self):
@@ -194,15 +209,17 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 docs.clear()
                 if not first_config.source.table:
                     for p in Path(self).parent.glob(first_config.source.url):
-                        cp = deepcopy(first_config)
-                        cp.source.url = str(p)
-                        docs.append(cp)
+                        first_config_copy: ec.Config = deepcopy(first_config)
+                        first_config_copy.source.url = str(p)
+                        docs.append(first_config_copy)
                 else:
                     tables = el.listify(first_config.source.table)
                     for t in tables:
-                        cp = deepcopy(first_config)
-                        cp.source.url = first_config.source.url.replace("*", t)
-                        docs.append(cp)
+                        first_config_copy = deepcopy(first_config)
+                        first_config_copy.source.url = first_config.source.url.replace(
+                            "*", t
+                        )
+                        docs.append(first_config_copy)
             return [ec.Config.model_validate(c) for c in docs]
         elif self.config_local:
             return [self.config_local]
@@ -210,7 +227,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             return [ec.Config()]
 
     def get_table_docs(
-        self, source: ec.Source, url_parent: "ConfigPath", config: ec.Config
+        self, source: ec.Source, url_parent: ConfigPath, config: ec.Config
     ) -> dict[str, ec.Config]:
         table_docs = dict()
         if (
@@ -237,7 +254,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             # if no source table defined explicitly, assumes to be last element in url
             # (after last / and (before first .))
             # TODO: consider relocating to config
-            if not source.table:
+            if not source.table and source.url:
                 source.table = source.url.split("/")[-1].split(".")[0]
             if isinstance(source.table, str):
                 table_docs[source.table] = config
@@ -245,6 +262,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 for t in source.table:
                     if (
                         source.type == ".csv"
+                        and source.url
                         and not t == source.url.split("/")[-1].split(".")[0]
                     ):
                         continue
@@ -253,7 +271,11 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                     table_docs[t] = config_copy
         return table_docs
 
-    def transform_splits(self, config: ec.Config, ca_path: "ConfigPath"):
+    def transform_splits(
+        self,
+        config: ec.Config,
+        ca_path: ConfigPath,
+    ):
         if config.transforms_affect_target_count:
             transforms = config.transforms_to_determine_target
 
@@ -268,12 +290,13 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             df = ee.pull_frame(config.source)
             df_dict = None
             if len(transforms) > 1:
-                df = ee.apply_transforms(df, transform=transforms[:-1])
+                df = ee.apply_transforms(df, transforms=transforms[:-1])  # type: ignore
                 df_dict = dict(transformed=df)
-            split_transform: ec.SplitOnColumn = transforms[-1]
+            split_transform: ec.SplitOnColumn = transforms[-1]  # type: ignore
             split_on_column = split_transform.split_on_column
-            transforms[-1].executed = True
-            sub_tables = list(df[split_on_column].drop_duplicates())
+            # transforms[-1].executed = True
+            # sub_tables = list(df[split_on_column].drop_duplicates())
+            sub_tables: list[str] = split_transform(df)  # type: ignore
             for sub_table in sub_tables:
                 if isinstance(sub_table, str):
                     column_eq = f"'{sub_table}'"
@@ -336,11 +359,11 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             return NodeType.DATA_TABLE
 
     @property
-    def leaves(self) -> tuple["ConfigPath"]:
+    def leaves(self) -> tuple[ConfigPath]:
         return super().leaves
 
     @property
-    def get_leaf_tables(self) -> list["ConfigPath"]:
+    def get_leaf_tables(self) -> list[ConfigPath]:
         leaf_tables = []
         for leaf in self.leaves:
             if leaf.node_type == NodeType.DATA_TABLE:
@@ -352,7 +375,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return not self.get_leaf_tables
 
     @property
-    def ancestors_to_self(self) -> tuple["ConfigPath"]:
+    def ancestors_to_self(self) -> tuple[ConfigPath]:
         return self.ancestors + (self,)
 
     @property
@@ -573,6 +596,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     def get_url_leaf_names(self) -> list[str]:
         if self.config.source.url:
             return [self.config.source.url]
+        else:
+            raise Exception("No url leaf names to get")
 
     def is_hidden(self) -> bool:
         """Check if the given Path object is hidden."""
@@ -584,7 +609,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         if os.name == "nt":
             try:
                 attrs = os.stat(self)
-                return bool(attrs.st_file_attributes & FILE_ATTRIBUTE_HIDDEN)
+                return bool(attrs.st_file_attributes & FILE_ATTRIBUTE_HIDDEN)  # type: ignore
             except AttributeError:
                 # If FILE_ATTRIBUTE_HIDDEN not defined,
                 # assume it's not hidden
@@ -593,11 +618,11 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return False
 
     @property
-    def abs(self) -> "ConfigPath":
+    def abs(self) -> ConfigPath:
         return ConfigPath(self.absolute())
 
     @property  # fs = filesystem, can return a File or Dir but not content
-    def fs(self) -> "ConfigPath":
+    def fs(self) -> ConfigPath:
         if self.node_type == NodeType.DATA_TABLE:
             res = self.parent
         else:
@@ -605,7 +630,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @property
-    def dir(self) -> "ConfigPath":
+    def dir(self) -> ConfigPath:
         if self.node_type == NodeType.DATA_TABLE and self.parent:
             res = self.parent.dir
         elif self.is_file():
@@ -618,7 +643,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @property
-    def file(self) -> "ConfigPath":
+    def file(self) -> ConfigPath:
         if self.node_type == NodeType.DATA_TABLE:
             res = self.parent
         elif self.is_file():
@@ -635,68 +660,68 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         else:
             return ""
 
-    @property
-    def get_leaf_df(self) -> pd.DataFrame:
-        def leaf_to_dict(leaf):
-            data = {}
-            data["name"] = leaf.name
-            data["file_path"] = leaf.config.source.url
-            data["type"] = leaf.config.source.type
-            data["table"] = leaf.config.target.table
-            data["load_parallel"] = leaf.config.source.load_parallel
-            data["config"] = leaf.config
-
-            return data
-
-        data = [
-            leaf_to_dict(leaf)
-            for leaf in self.leaves
-            if leaf.node_type == NodeType.DATA_TABLE
-        ]
-        df = pd.DataFrame(data)
-        return df
-
     @staticmethod
     def apply_file_wrappers(
         parent: Optional[ef.FlowNodeMixin],
-        df: pd.DataFrame,
+        flow_atoms: Iterable[FlowAtom],
         execute_fn: Callable[[ec.Config], bool],
     ) -> None:
         ingest_files = ef.ElsFlow(parent=parent, n_jobs=1)
-        for file, file_gb in df.groupby(["file_path", "type"]):
-            if file[1] in (".xlsx", ".xls", ".xlsm", ".xlsb"):
-                file_wrapper = ef.ElsXlsxWrapper(parent=ingest_files, file_path=file[0])
-            else:
-                file_wrapper = ef.ElsFileWrapper(parent=ingest_files, file_path=file[0])
+        keys = itemgetter(0, 1)
+        flow_atoms = sorted(
+            flow_atoms,
+            key=keys,
+        )
+        for url_container, atoms in groupby(
+            flow_atoms,
+            keys,
+        ):
+            file_wrapper = ef.ElsContainerWrapper(
+                parent=ingest_files,
+                url=url_container[0],
+                container_class=url_container[1],
+            )
             exe_flow = ef.ElsFlow(parent=file_wrapper, n_jobs=1)
-            for task_row in file_gb[["name", "config"]].itertuples():
+            for atom in atoms:
                 ef.ElsExecute(
                     parent=exe_flow,
-                    name=task_row.name,
-                    config=task_row.config,
+                    name=atom.source_url,
+                    config=atom.config,
                     execute_fn=execute_fn,
                 )
 
+    @property
+    def target_table_flow_atoms(self) -> dict[str, list[FlowAtom]]:
+        res: dict[str, list[FlowAtom]] = {}
+        for leaf in self.leaves:
+            if leaf.node_type == NodeType.DATA_TABLE:
+                res.setdefault(leaf.config.target.table, []).append(  # type: ignore
+                    FlowAtom(
+                        # leaf_name=leaf.name,
+                        source_url=leaf.config.source.url,  # type: ignore
+                        # source_type=leaf.config.source.type,
+                        source_container_class=ee.get_container_class(
+                            leaf.config.source
+                        ),
+                        # TODO, should consider when same table name exists in different targets?
+                        # target_table=leaf.config.target.table,
+                        # load_parallel=leaf.config.source.load_parallel,
+                        config=leaf.config,
+                    )
+                )
+        return res
+
     def get_ingest_taskflow(self) -> ef.ElsFlow:
         root_flow = ef.ElsFlow()
-        df = self.get_leaf_df
-        for table, table_gb in df.groupby("table", dropna=False):
+        tt_flow_atoms = self.target_table_flow_atoms
+        for target_table, flow_atoms in tt_flow_atoms.items():
             file_group_wrapper = ef.ElsTargetTableWrapper(
-                parent=root_flow, name=str(table)
+                parent=root_flow, name=target_table
             )
             ConfigPath.apply_file_wrappers(
-                parent=file_group_wrapper, df=table_gb, execute_fn=ee.ingest
+                parent=file_group_wrapper, flow_atoms=flow_atoms, execute_fn=ee.ingest
             )
-
         return root_flow
-
-    def get_detect_taskflow(self) -> ef.ElsFlow:
-        df = self.get_leaf_df
-        root_flows = ConfigPath.apply_file_wrappers(
-            parent=None, df=df, execute_fn=ee.detect
-        )
-        res = ef.ElsFlow(root_flows, 1)
-        return res
 
     def get_els_yml_preview(self, diff: bool = True) -> list[dict]:
         ymls = []
@@ -730,7 +755,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         #     yaml.safe_dump_all(ymls, file, sort_keys=False, allow_unicode=True)
 
     @property
-    def then_descendants(self) -> tuple["ConfigPath"]:
+    def then_descendants(self) -> tuple[ConfigPath]:
         return PreOrderIter(self)
 
     def set_pandas_target(self, force=False):
@@ -747,9 +772,9 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             node.config_local.source.nrows = nrows
 
 
-def get_root_inheritance(start_dir: Path) -> Union[list[Path], None]:
-    if start_dir:
-        start_dir = Path(start_dir)
+def get_root_inheritance(str_dir: str) -> list[Path]:
+    if str_dir:
+        start_dir = Path(str_dir)
     else:
         start_dir = Path()
 
@@ -800,7 +825,7 @@ def plant_memory_tree(path, memory_config):
     return ca_path
 
 
-def plant_tree(path: ConfigPath) -> Optional[ConfigPath]:
+def plant_tree(path: Path) -> ConfigPath:
     root_paths = list(reversed(get_root_inheritance(str(path))))
     root_path = Path(root_paths[0])
     if root_path.is_dir():
@@ -858,7 +883,12 @@ def dict_diff(dict1: dict, dict2: dict) -> dict:
     return diff
 
 
-def get_yml_docs(path: Union[ConfigPath, Path], expected: int = None) -> list[dict]:
+def get_yml_docs(
+    path: Union[ConfigPath, Path],
+    expected: Optional[int] = None,
+) -> MutableSequence[
+    Union[dict[str, Any], ec.Config]
+]:  # including ec.Config in Union satisfies return
     if path.exists():
         with path.open() as file:
             yaml_text = file.read()
@@ -887,7 +917,7 @@ def get_configs(ymls: list[dict]) -> list[ec.Config]:
     return configs
 
 
-def config_path_valid(path: ConfigPath) -> bool:
+def config_path_valid(path: Path) -> bool:
     if path.is_dir():
         return True
     if path.is_file() or ConfigPath(path).is_config_file():
@@ -898,12 +928,15 @@ def config_path_valid(path: ConfigPath) -> bool:
 
 
 def get_content_leaf_names(source: ec.Source) -> list[str]:
+    # print(f"sauce url:{source.url}")
+    if not source.url:
+        raise Exception("Missing url, cannot get content leafs for missing url")
     if source.type_is_db:
         # return get_table_names(source)
-        sql_container = el.fetch_df_container(sq.SQLDBContainer, source.url)
+        sql_container = el.fetch_df_container(sq.SQLContainer, source.url)
         return sql_container.child_names
     elif source.type_is_excel:
-        xl_io = el.fetch_df_container(xl.ExcelIO, source.url)
+        xl_io = el.fetch_df_container(xl.XLContainer, source.url)
         return xl_io.child_names
     elif source.type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
         # return root file name without path and suffix
@@ -921,7 +954,7 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
         #         )
         # else:
         # TODO: fix this to account for targeting of specific tables in dict instead of all
-        df_dict_io = el.fetch_df_container(pn.DataFrameDictIO, source.url)
+        df_dict_io = el.fetch_df_container(pn.DFContainer, source.url)
         return list(df_dict_io.df_dict)
     else:
         return [source.url]

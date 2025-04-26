@@ -9,9 +9,10 @@ from typing import Optional, Union
 import pandas as pd
 import ruamel.yaml as yaml
 import typer
-from anytree import PreOrderIter
+from anytree import PreOrderIter  # type: ignore
 
 import els.core as el
+import els.io.base as eio
 from els.config import Config
 from els.path import (
     CONFIG_FILE_EXT,
@@ -37,7 +38,7 @@ def start_logging():
     logging.info("Getting Started")
 
 
-def get_ca_path(path: str = None) -> Path:
+def get_ca_path(path: Optional[str] = None) -> Path:
     if path:
         # may be related to "seemingly redundant" lines fix above
         pl_path = Path() / Path(path)
@@ -53,13 +54,14 @@ def get_ca_path(path: str = None) -> Path:
 class TaskFlow:
     def __init__(
         self,
-        config_like: Union[str, Config] = None,
+        config_like: Optional[Union[str, Config]] = None,
         force_pandas_target: bool = False,
-        nrows: Optional[bool] = None,
+        nrows: Optional[int] = None,
     ):
         self.config_like = config_like
         self.force_pandas_target = force_pandas_target
         self.nrows = nrows
+        self.taskflow = self.build()
 
     def __enter__(self):
         return self
@@ -67,18 +69,7 @@ class TaskFlow:
     def __exit__(self, exc_type, exc_value, traceback):
         self.cleanup()
 
-    def cleanup(self):
-        for container in el.df_containers.values():
-            container.write()
-            container.close()
-        el.df_containers.clear()
-
-        # just in case files still open
-        for file in el.io_files.values():
-            file.close()
-        el.io_files.clear()
-
-    def execute(self):
+    def build(self):
         start_logging()
         if isinstance(self.config_like, str):
             ca_path = get_ca_path(self.config_like)
@@ -95,10 +86,27 @@ class TaskFlow:
         if self.nrows:
             tree.set_nrows(self.nrows)
         if tree:
-            taskflow = tree.get_ingest_taskflow()
-            taskflow.execute()
+            return tree.get_ingest_taskflow()
         else:
             raise Exception("TaskFlow not built")
+
+    def cleanup(self):
+        for container in el.df_containers.values():
+            if isinstance(container, eio.ContainerWriterABC):
+                container.write()
+            container.close()
+        el.df_containers.clear()
+
+        # just in case files still open
+        for file in el.io_files.values():
+            file.close()
+        el.io_files.clear()
+
+    def display_tree(self):
+        self.taskflow.display_tree()
+
+    def execute(self):
+        self.taskflow.execute()
 
 
 # remove node and assign children grandparent
@@ -183,9 +191,9 @@ def generate(
 
 def organize_yaml_files_for_output(
     yamls, table_filter: Optional[list[str]] = None
-) -> dict[list[dict]]:
+) -> dict[str, list[dict]]:
     current_path = None
-    res = dict()
+    res: dict[str, list[dict]] = dict()
     previous_path = ""
     for yml in yamls:
         if "config_path" in yml:
@@ -207,6 +215,7 @@ def organize_yaml_files_for_output(
             and "table" in yml["target"]
             and yml["target"]["table"] in table_filter
         ):
+            assert current_path
             res[current_path].append(yml)
     return res
 
@@ -254,7 +263,11 @@ def preview(
     transpose: bool = False,
 ):
     path = clean_none_path(path)
-    with TaskFlow(path, force_pandas_target=True, nrows=nrows) as taskflow:
+    with TaskFlow(
+        path,
+        force_pandas_target=True,
+        nrows=nrows,
+    ) as taskflow:
         taskflow.execute()
 
     if el.default_target:
@@ -276,7 +289,7 @@ def preview(
 
 
 @app.command()
-def execute(path: Optional[str] = typer.Argument(None)):
+def execute(path: Optional[Union[str, Config]] = typer.Argument(None)):
     if isinstance(path, str):
         path = clean_none_path(path)
 
@@ -362,6 +375,7 @@ def new(
         typer.echo("Project name is required in yes mode.")
         raise typer.Exit()
 
+    assert name
     project_path = Path(os.getcwd()) / name
     try:
         project_path.mkdir()

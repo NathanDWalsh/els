@@ -1,5 +1,6 @@
 import os
-from typing import Literal, NewType, Union
+import sys
+from typing import Literal, Union
 
 import pandas as pd
 import yaml
@@ -7,16 +8,24 @@ import yaml
 import els.cli as ei
 import els.config as ec
 
-TestMedium = NewType(
-    "TestMedium",
-    Literal[
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+
+    TestMedium: TypeAlias = Literal[
         "pandas",
         "excel",
         "sqlite",
         "duckdb",
         "mssql",
-    ],
-)
+    ]
+else:
+    TestMedium = Literal[
+        "pandas",
+        "excel",
+        "sqlite",
+        "duckdb",
+        "mssql",
+    ]
 
 
 def assert_dfs_equal(df0: pd.DataFrame, df1: pd.DataFrame):
@@ -31,7 +40,7 @@ def assert_dfs_equal(df0: pd.DataFrame, df1: pd.DataFrame):
 
 
 def assert_expected(expected, actual):
-    assert id(expected) != id(actual)
+    assert expected is not actual
     assert len(expected) > 0
     for k in expected.keys():
         if k not in actual:
@@ -117,4 +126,5 @@ def config_execute(config: ec.Config, as_yaml_file_name=None):
         execute = config
 
     ei.tree(execute)
+    ei.flow(execute)
     ei.execute(execute)

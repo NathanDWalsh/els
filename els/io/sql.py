@@ -1,20 +1,22 @@
+from __future__ import annotations
+
 import logging
-from typing import Generator, Literal, Optional
+from typing import Any, Generator, Literal, Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pandas as pd
-import pyodbc
+import pyodbc  # type: ignore
 import sqlalchemy as sa
-from sqlalchemy_utils import create_database, drop_database
-from sqlalchemy_utils.functions.orm import quote
+from sqlalchemy_utils import create_database, drop_database  # type: ignore
+from sqlalchemy_utils.functions.orm import quote  # type: ignore
 
 import els.config as ec
-import els.core as el
-import els.io.pd as epd
 from els.sa_utils_fork import database_exists
 
+from . import base as eio
 
-def lcase_dict_keys(_dict: dict[str]):
+
+def lcase_dict_keys(_dict: dict[str, Any]):
     return {k.lower(): v for k, v in _dict.items()}
 
 
@@ -65,7 +67,7 @@ def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
     return res
 
 
-class SQLTable(epd.DataFrameIOMixin):
+class SQLFrame(eio.FrameABC):
     def __init__(
         self,
         name,
@@ -75,7 +77,7 @@ class SQLTable(epd.DataFrameIOMixin):
         df=pd.DataFrame(),
         kw_for_pull={},
         kw_for_push={},
-    ):
+    ) -> None:
         super().__init__(
             df=df,
             name=name,
@@ -84,7 +86,7 @@ class SQLTable(epd.DataFrameIOMixin):
             if_exists=if_exists,
         )
         self.kw_for_pull = kw_for_pull
-        self.kw_for_push: ec.ToSql = kw_for_push
+        self.kw_for_push: ec.ToSQL = kw_for_push
 
     @property
     def sqn(self) -> str:
@@ -125,21 +127,19 @@ class SQLTable(epd.DataFrameIOMixin):
             self.df = pd.read_sql(stmt, con=sqeng, **kwargs)
 
     @property
-    def parent(self) -> "SQLDBContainer":
+    def parent(self) -> SQLContainer:
         return super().parent
 
     @parent.setter
     def parent(self, v):
-        epd.DataFrameIOMixin.parent.fset(self, v)
+        eio.FrameABC.parent.fset(self, v)
 
 
-class SQLDBContainer(epd.DataFrameContainerMixinIO):
+class SQLContainer(eio.ContainerWriterABC):
     def __init__(self, url, replace=False):
-        # self.child_class = SQLTable
-        # self.url = url
-        super().__init__(SQLTable, url, replace)
+        super().__init__(SQLFrame, url, replace)
 
-    def __iter__(self) -> Generator[SQLTable, None, None]:
+    def __iter__(self) -> Generator[SQLFrame, None, None]:
         for child in super().children:
             yield child
 
@@ -192,7 +192,7 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
             url_parsed = urlparse(self.url)._replace(scheme="mssql+pyodbc")
             if self.odbc_driver_supported_available:
                 # TODO: fix el.
-                query = el.lcase_query_keys(url_parsed.query)
+                query = lcase_query_keys(url_parsed.query)
                 query["driver"] = query["driver"][0]
                 if query["driver"].lower() == "odbc driver 18 for sql server":
                     query["TrustServerCertificate"] = "yes"
@@ -222,11 +222,15 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
     @property
     def dialect_name(
         self,
-    ) -> Literal[
-        "mssql",
-        "duckdb",
-        "sqlite",
+    ) -> Union[
+        Literal[
+            "mssql",
+            "duckdb",
+            "sqlite",
+        ],
+        str,
     ]:
+        assert self.db_connection_string
         url = sa.make_url(self.db_connection_string)
         dialect = url.get_dialect()
         return dialect.name
@@ -243,12 +247,12 @@ class SQLDBContainer(epd.DataFrameContainerMixinIO):
         else:
             return "server"
 
-    def _children_init(self):
+    def _children_init(self) -> None:
         self.sa_engine: sa.Engine = fetch_sa_engine(self.db_connection_string)
         with self.sa_engine.connect() as sqeng:
             inspector = sa.inspect(sqeng)
             [
-                SQLTable(
+                SQLFrame(
                     name=n,
                     parent=self,
                 )

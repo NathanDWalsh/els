@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Generator
@@ -6,10 +8,11 @@ import pandas as pd
 
 import els.config as ec
 import els.core as el
-import els.io.pd as epd
+
+from . import base as eio
 
 
-class CSVContent(epd.DataFrameIOMixin):
+class CSVFrame(eio.FrameABC):
     def __init__(
         self,
         name,
@@ -20,7 +23,7 @@ class CSVContent(epd.DataFrameIOMixin):
         # startrow=0,
         kw_for_pull={},
         kw_for_push={},
-    ):
+    ) -> None:
         super().__init__(
             df=df,
             name=name,
@@ -35,12 +38,12 @@ class CSVContent(epd.DataFrameIOMixin):
         self.clean_last_column = False
 
     @property
-    def parent(self) -> "CSVIO":
+    def parent(self) -> CSVContainer:
         return super().parent
 
     @parent.setter
     def parent(self, v):
-        epd.DataFrameIOMixin.parent.fset(self, v)
+        eio.FrameABC.parent.fset(self, v)
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
@@ -67,11 +70,11 @@ class CSVContent(epd.DataFrameIOMixin):
             self.kw_for_pull = kwargs
 
 
-class CSVIO(epd.DataFrameContainerMixinIO):
+class CSVContainer(eio.ContainerWriterABC):
     def __init__(self, url, replace=False):
-        super().__init__(CSVContent, url, replace)
+        super().__init__(CSVFrame, url, replace)
 
-    def __iter__(self) -> Generator[CSVContent, None, None]:
+    def __iter__(self) -> Generator[CSVFrame, None, None]:
         for child in super().children:
             yield child
 
@@ -84,7 +87,7 @@ class CSVIO(epd.DataFrameContainerMixinIO):
 
     def _children_init(self):
         self.file_io = el.fetch_file_io(self.url, replace=self.create_or_replace)
-        CSVContent(
+        CSVFrame(
             name=Path(self.url).stem,
             parent=self,
         )
@@ -102,7 +105,7 @@ class CSVIO(epd.DataFrameContainerMixinIO):
                     kwargs = {}
                 # TODO integrate better into write method?
                 if isinstance(df.columns, pd.MultiIndex):
-                    df = epd.multiindex_to_singleindex(df)
+                    df = eio.multiindex_to_singleindex(df)
 
                 if df_io.if_exists == "truncate":
                     #     df_io.mode = "w"

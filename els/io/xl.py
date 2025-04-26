@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 import io
 import os
-from typing import Generator
+from typing import Generator, Optional
 
 import pandas as pd
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 
 import els.config as ec
 import els.core as el
-import els.io.pd as epd
+
+from . import base as eio
 
 
 def get_sheet_names(
@@ -28,7 +31,7 @@ def get_sheet_names(
 def get_sheet_height(
     xl_io: io.BytesIO,
     sheet_name: str,
-) -> int:
+) -> Optional[int]:
     xl_io.seek(0)
     with CalamineWorkbook.from_filelike(xl_io) as workbook:
         if sheet_name in workbook.sheet_names:
@@ -41,7 +44,7 @@ def get_sheet_row(
     xl_io: io.BytesIO,
     sheet_name: str,
     row_index: int,
-) -> list:
+) -> Optional[list]:
     xl_io.seek(0)
     with CalamineWorkbook.from_filelike(xl_io) as workbook:
         if sheet_name in workbook.sheet_names:
@@ -52,7 +55,7 @@ def get_sheet_row(
             return None
 
 
-class ExcelSheetIO(epd.DataFrameIOMixin):
+class XLFrame(eio.FrameABC):
     def __init__(
         self,
         name,
@@ -99,12 +102,12 @@ class ExcelSheetIO(epd.DataFrameIOMixin):
         self._startrow = v
 
     @property
-    def parent(self) -> "ExcelIO":
+    def parent(self) -> XLContainer:
         return super().parent
 
     @parent.setter
     def parent(self, v):
-        epd.DataFrameIOMixin.parent.fset(self, v)
+        eio.FrameABC.parent.fset(self, v)
 
     def _read(self, kwargs):
         if kwargs.get("nrows") and kwargs.get("skipfooter"):
@@ -120,13 +123,13 @@ class ExcelSheetIO(epd.DataFrameIOMixin):
             self.kw_for_pull = kwargs
 
 
-class ExcelIO(epd.DataFrameContainerMixinIO):
+class XLContainer(eio.ContainerWriterABC):
     def __init__(self, url, replace=False):
         # self.child_class = ExcelSheetIO
         # self.url = url
-        super().__init__(ExcelSheetIO, url, replace)
+        super().__init__(XLFrame, url, replace)
 
-    def __iter__(self) -> Generator[ExcelSheetIO, None, None]:
+    def __iter__(self) -> Generator[XLFrame, None, None]:
         for child in super().children:
             yield child
 
@@ -148,7 +151,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
         self.file_io = el.fetch_file_io(self.url)
         with CalamineWorkbook.from_filelike(self.file_io) as workbook:
             return [
-                ExcelSheetIO(
+                XLFrame(
                     startrow=workbook.get_sheet_by_name(sheet.name).total_height + 1,
                     name=sheet.name,
                     parent=self,
@@ -173,7 +176,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                         kwargs = {}
                     # TODO integrate better into write method?
                     if isinstance(df.columns, pd.MultiIndex):
-                        df = epd.multiindex_to_singleindex(df)
+                        df = eio.multiindex_to_singleindex(df)
                     df.to_excel(writer, index=False, sheet_name=df_io.name, **kwargs)
                 for sheet in writer.sheets.values():
                     sheet.autofit(500)
@@ -206,7 +209,7 @@ class ExcelIO(epd.DataFrameContainerMixinIO):
                                 kwargs = {}
                             # TODO integrate better into write method?
                             if isinstance(df.columns, pd.MultiIndex):
-                                df = epd.multiindex_to_singleindex(df)
+                                df = eio.multiindex_to_singleindex(df)
                             df.to_excel(
                                 writer,
                                 index=False,

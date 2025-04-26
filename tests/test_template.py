@@ -10,7 +10,7 @@ import els.core as el
 
 from . import helpers as th
 
-inflight = {}
+inflight: dict[str, pd.DataFrame] = {}
 
 
 def get_flight_url(test_medium):
@@ -29,6 +29,8 @@ def get_flight_url(test_medium):
         dbname = os.environ.get("PYTEST_CURRENT_TEST").split(" ")[0].split("[")[-1][:-1]
         test_url = f"mssql://sa:dbatools.I0@{db_host}/{dbname}"
         return test_url
+    elif test_medium == "xml":
+        return "*.xml"
 
 
 def test_xl_skiprows(tmp_path):

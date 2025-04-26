@@ -1,28 +1,14 @@
 import io
 import os
-from typing import Union
 
 import pandas as pd
 
-import els.io.csv as csv
-import els.io.pd as pn
-import els.io.sql as sq
-import els.io.xl as xl
+import els.io.base as eio
 
 default_target: dict[str, pd.DataFrame] = {}
 url_dicts: dict[str, dict[str, pd.DataFrame]] = {}
-
 io_files: dict[str, io.BytesIO] = {}
-
-df_containers: dict[
-    str,
-    Union[
-        xl.ExcelIO,
-        csv.CSVIO,
-        pn.DataFrameDictIO,
-        sq.SQLDBContainer,
-    ],
-] = {}
+df_containers: dict[str, eio.ContainerWriterABC] = {}
 
 
 def fetch_df_dict(
@@ -43,20 +29,18 @@ def urlize_dict(df_dict: dict[str, pd.DataFrame]):
 
 
 def fetch_df_container(
-    container_class: Union[
-        xl.ExcelIO,
-        csv.CSVIO,
-        pn.DataFrameDictIO,
-        sq.SQLDBContainer,
-    ],
+    container_class: type[eio.ContainerWriterABC],
     url: str,
     replace: bool = False,
-):
+) -> eio.ContainerWriterABC:
     if isinstance(url, str):
         if url in df_containers:
             res = df_containers[url]
         else:
-            res = container_class(url, replace)
+            res = container_class(
+                url=url,
+                replace=replace,
+            )  # type: ignore
     else:
         raise Exception(f"Cannot fetch {type(container_class)} from: {url}")
     df_containers[url] = res

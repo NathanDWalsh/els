@@ -1,20 +1,28 @@
+from __future__ import annotations
+
 import logging
 from typing import Callable, Optional
 
-from anytree import NodeMixin, RenderTree
-from joblib import Parallel, delayed
-from joblib.externals.loky import get_reusable_executor
+from anytree import NodeMixin, RenderTree  # type: ignore
+from joblib import Parallel, delayed  # type: ignore
+from joblib.externals.loky import get_reusable_executor  # type: ignore
 
 import els.config as ec
 import els.core as el
 import els.execute as ee
-import els.io.xl as xl
+import els.io.base as eio
 
 
 class FlowNodeMixin(NodeMixin):
+    def __getitem__(self, child_index) -> FlowNodeMixin:
+        return self.children[child_index]
+
     def display_tree(self):
         for pre, fill, node in RenderTree(self):
             print("%s%s" % (pre, node.name))
+
+    def execute(self):
+        pass
 
 
 class SerialNodeMixin:
@@ -34,12 +42,12 @@ class ElsExecute(FlowNodeMixin):
         if not isinstance(config, ec.Config):
             logging.error("INGEST without config")
         self.parent = parent
-        source_name = config.source.table if execute_fn.__name__ == "ingest" else ""
-        target_name = (
-            config.target.table + "(" + config.target.type + ")"
-            if execute_fn.__name__ == "ingest"
-            else ""
-        )
+        if execute_fn.__name__ == "ingest":
+            source_name = config.source.table
+            target_name = f"{config.target.table}({config.target.type})"
+        else:
+            source_name = ""
+            target_name = ""
         self.name = f"{name} ({execute_fn.__name__}) {source_name} → {target_name}"
         self.config = config
         self.execute_fn = execute_fn
@@ -58,21 +66,21 @@ class ElsFlow(FlowNodeMixin):
 
     def execute(self):
         with Parallel(n_jobs=self.n_jobs, backend="loky") as parallel:
-            parallel(delayed(t.execute)() for t in self.children)
+            parallel(delayed(t.execute)() for t in self)
             get_reusable_executor().shutdown(wait=True)
 
     @property
     def name(self):
         if self.is_root:
-            return ""
+            return "FlowRoot"
         else:
             return f"flow ({self.n_jobs} jobs)"
 
 
 class BuildWrapperMixin(FlowNodeMixin):
     def build_target(self) -> bool:
-        flow_child = self.children[0]
-        build_item = flow_child.children[0]
+        flow_child = self[0]
+        build_item: ElsExecute = flow_child[0]
         if ee.build(build_item.config):
             res = True
         else:
@@ -81,44 +89,33 @@ class BuildWrapperMixin(FlowNodeMixin):
         return res
 
 
-class ElsFileWrapper(BuildWrapperMixin, SerialNodeMixin):
-    def __init__(self, parent: FlowNodeMixin, file_path: str) -> None:
+class ElsContainerWrapper(BuildWrapperMixin, SerialNodeMixin):
+    def __init__(
+        self,
+        parent: FlowNodeMixin,
+        url: str,
+        container_class: eio.ContainerWriterABC,
+    ) -> None:
         self.parent = parent
-        self.file_path = file_path
+        self.url = url
+        self.container_class = container_class
 
     def open(self):
-        pass
+        el.fetch_df_container(self.container_class, self.url)
 
     def execute(self):
         self.open()
-        self.children[0].execute()
-        self.close()
+        self[0].execute()
+        # self.close()
 
-    def close(self):
-        pass
+    # def close(self):
+    #     file = el.df_containers[self.file_path]
+    #     file.close()
+    #     del el.df_containers[self.file_path]
 
     @property
     def name(self):
-        return f"{self.file_path} ({type(self).__name__})"
-
-
-class ElsXlsxWrapper(ElsFileWrapper):
-    def __init__(self, parent: FlowNodeMixin, file_path: str) -> None:
-        super().__init__(parent, file_path)
-
-    def open(self):
-        if self.file_path not in el.df_containers:
-            el.fetch_df_container(xl.ExcelIO, self.file_path)
-
-    def execute(self):
-        self.open()
-        self.children[0].execute()
-        self.close()
-
-    def close(self):
-        file = el.df_containers[self.file_path]
-        file.close()
-        del el.df_containers[self.file_path]
+        return f"{self.url} ({type(self).__name__})"
 
 
 # groups files together that share a common target table so that target can be built once
@@ -127,11 +124,11 @@ class ElsTargetTableWrapper(FlowNodeMixin, SerialNodeMixin):
         self.parent = parent
         self.name = f"{name} ({self.__class__.__name__})"
 
-    def execute(self):
-        flow_child = self.children[0]
-        file_child = flow_child.children[0]
+    def execute(self) -> None:
+        flow_child: ElsExecute = self[0]
+        file_child: ElsContainerWrapper = flow_child[0]
         file_child.open()
         if file_child.build_target():
             flow_child.execute()
-        else:
-            file_child.close()
+        # else:
+        #     file_child.close()

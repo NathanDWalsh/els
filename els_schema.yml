@@ -150,7 +150,7 @@ $defs:
     - _parent_folder_name
     title: DynamicPathValue
     type: string
-  ExtractPagesPdf:
+  ExtractPagesPDF:
     properties:
       caching:
         anyOf:
@@ -185,7 +185,7 @@ $defs:
         - type: 'null'
         default: null
         title: Password
-    title: ExtractPagesPdf
+    title: ExtractPagesPDF
     type: object
   FilterTransform:
     additionalProperties: false
@@ -313,7 +313,7 @@ $defs:
     - prql
     title: PrqlTransform
     type: object
-  ReadCsv:
+  ReadCSV:
     additionalProperties: true
     properties:
       encoding:
@@ -334,7 +334,7 @@ $defs:
         - type: 'null'
         default: null
         title: Sep
-    title: ReadCsv
+    title: ReadCSV
     type: object
   ReadExcel:
     additionalProperties: true
@@ -354,7 +354,7 @@ $defs:
         title: Sheet Name
     title: ReadExcel
     type: object
-  ReadFwf:
+  ReadFWF:
     additionalProperties: true
     properties:
       names:
@@ -364,12 +364,17 @@ $defs:
         - type: 'null'
         default: null
         title: Names
-    title: ReadFwf
+    title: ReadFWF
     type: object
-  ReadXml:
+  ReadSQL:
     additionalProperties: true
     properties: {}
-    title: ReadXml
+    title: ReadSQL
+    type: object
+  ReadXML:
+    additionalProperties: true
+    properties: {}
+    title: ReadXML
     type: object
   Source:
     additionalProperties: false
@@ -378,6 +383,8 @@ $defs:
       - read_csv
     - required:
       - read_excel
+    - required:
+      - read_sql
     - required:
       - read_fwf
     - required:
@@ -399,9 +406,9 @@ $defs:
         title: Dtype
       extract_pages_pdf:
         anyOf:
-        - $ref: '#/$defs/ExtractPagesPdf'
+        - $ref: '#/$defs/ExtractPagesPDF'
         - items:
-            $ref: '#/$defs/ExtractPagesPdf'
+            $ref: '#/$defs/ExtractPagesPDF'
           type: array
         - type: 'null'
         default: null
@@ -418,7 +425,7 @@ $defs:
         title: Nrows
       read_csv:
         anyOf:
-        - $ref: '#/$defs/ReadCsv'
+        - $ref: '#/$defs/ReadCSV'
         - type: 'null'
         default: null
       read_excel:
@@ -428,12 +435,17 @@ $defs:
         default: null
       read_fwf:
         anyOf:
-        - $ref: '#/$defs/ReadFwf'
+        - $ref: '#/$defs/ReadFWF'
+        - type: 'null'
+        default: null
+      read_sql:
+        anyOf:
+        - $ref: '#/$defs/ReadSQL'
         - type: 'null'
         default: null
       read_xml:
         anyOf:
-        - $ref: '#/$defs/ReadXml'
+        - $ref: '#/$defs/ReadXML'
         - type: 'null'
         default: null
       table:
@@ -490,6 +502,8 @@ $defs:
       - to_csv
     - required:
       - to_excel
+    - required:
+      - to_xml
     properties:
       consistency:
         default: strict
@@ -528,7 +542,7 @@ $defs:
         title: Table
       to_csv:
         anyOf:
-        - $ref: '#/$defs/ToCsv'
+        - $ref: '#/$defs/ToCSV'
         - type: 'null'
         default: null
       to_excel:
@@ -538,7 +552,12 @@ $defs:
         default: null
       to_sql:
         anyOf:
-        - $ref: '#/$defs/ToSql'
+        - $ref: '#/$defs/ToSQL'
+        - type: 'null'
+        default: null
+      to_xml:
+        anyOf:
+        - $ref: '#/$defs/ToXML'
         - type: 'null'
         default: null
       url:
@@ -549,17 +568,17 @@ $defs:
         title: Url
     title: Target
     type: object
-  ToCsv:
+  ToCSV:
     additionalProperties: true
     properties: {}
-    title: ToCsv
+    title: ToCSV
     type: object
   ToExcel:
     additionalProperties: true
     properties: {}
     title: ToExcel
     type: object
-  ToSql:
+  ToSQL:
     additionalProperties: true
     properties:
       chunksize:
@@ -568,7 +587,12 @@ $defs:
         - type: 'null'
         default: null
         title: Chunksize
-    title: ToSql
+    title: ToSQL
+    type: object
+  ToXML:
+    additionalProperties: true
+    properties: {}
+    title: ToXML
     type: object
 additionalProperties: false
 properties:
@@ -589,6 +613,7 @@ properties:
       read_csv: null
       read_excel: null
       read_fwf: null
+      read_sql: null
       read_xml: null
       table: null
       url: null
@@ -602,6 +627,7 @@ properties:
       to_csv: null
       to_excel: null
       to_sql: null
+      to_xml: null
       url: null
   transform:
     anyOf:
