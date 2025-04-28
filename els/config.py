@@ -84,6 +84,8 @@ class Transform(BaseModel, ABC, extra="forbid"):
         df: pd.DataFrame,
         mark_as_executed: bool = True,
     ) -> pd.DataFrame:
+        if df.empty:
+            raise Exception("Trying to transform an empty dataframe")
         res = self.transform(df)
         self.executed = mark_as_executed
         return res

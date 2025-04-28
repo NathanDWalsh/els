@@ -5,10 +5,10 @@ from typing import Generator
 
 import pandas as pd
 
-from . import base as eio
+from .base import ContainerReaderABC, FrameABC
 
 
-class FWFFrame(eio.FrameABC):
+class FWFFrame(FrameABC):
     def __init__(
         self,
         name,
@@ -33,7 +33,7 @@ class FWFFrame(eio.FrameABC):
 
     @parent.setter
     def parent(self, v):
-        eio.FrameABC.parent.fset(self, v)
+        FrameABC.parent.fset(self, v)
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
@@ -45,7 +45,7 @@ class FWFFrame(eio.FrameABC):
             self.kw_for_pull = kwargs
 
 
-class FWFContainer(eio.ContainerReaderABC):
+class FWFContainer(ContainerReaderABC):
     def __init__(self, url, replace=False):
         super().__init__(FWFFrame, url)
 

@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import os
+from io import StringIO
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Literal
 
 import pandas as pd
 
 import els.config as ec
 import els.core as el
 
-from . import base as eio
+from .base import ContainerWriterABC, FrameABC, append_into, get_column_frame
 
 
-class XMLFrame(eio.FrameABC):
+class XMLFrame(FrameABC):
     def __init__(
         self,
         name,
@@ -35,10 +36,6 @@ class XMLFrame(eio.FrameABC):
         # self._startrow = startrow
         self.kw_for_pull = kw_for_pull
         self.kw_for_push: ec.ToXML = kw_for_push
-        # self.clean_last_column = False
-        # print(f"BEFORE READ:{self.df}")
-        # self.read()
-        # print(f"AFTER READ:{self.df}")
 
     @property
     def parent(self) -> XMLContainer:
@@ -46,62 +43,34 @@ class XMLFrame(eio.FrameABC):
 
     @parent.setter
     def parent(self, v):
-        eio.FrameABC.parent.fset(self, v)
-
-    # def append(self, df):
-    #     print("DO NOT TRUNCATE")
-    #     self._append(df, truncate_first=True)
-
-    # def _append(self, df, truncate_first=False):
-    #     self.read()
-
-    #     self.df = pd.read_xml(self.parent.file_io)
-    #     self.df_target = self.df
-    # print(self.df)
-    # print("READ BEFORE APPEND")
-    # self.read()
-    # print("BEFORE APPEND")
-    # print(self.df)
-    # self.df = eio.append_into([self.df, df])
-    # print("AFTER APPEND")
-    # print(self.df)
-
-    # def _build(self, df):
-    #     df = eio.get_column_frame(df)
-    #     # self.read()
-    #     self.df_target = eio.append_into([df, self.df_target])
-    #     self.df = self.df_target
-    #     return df
-
-    # self.read()
-    # return self.df
-    # print("JUST READ")
-    # print(self.df)
+        FrameABC.parent.fset(self, v)
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
     def _read(self, kwargs: dict):
-        # print(f"READ,mode:{self.mode}")
         if not kwargs:
             kwargs = self.kw_for_pull
-        # print(f"kwargs:{[self.kw_for_pull, kwargs]}")
-        print("FUCK")
-        if self.mode in ("r", "s", "m") and (self.kw_for_pull != kwargs):
-            # if self.mode in ("s", "m") or self.kw_for_pull != kwargs:
+        if self.mode in ("r", "s", "m") or (self.kw_for_pull != kwargs):
             if "nrows" in kwargs:
                 kwargs.pop("nrows")
                 self.parent.file_io.seek(0)
-            # print(f"READ,mode:{kwargs}")
-            # print(f"READ,mode:{self.parent.file_io.name}")
-            print("READ XML")
-            self.df = pd.read_xml(self.parent.file_io, **kwargs)
-            print(f"READ {self.df}")
-            # self.df_target = self.df
-            # print(f"df: {self.df}")
+            self.parent.file_io.seek(0)
+            self.df = pd.read_xml(
+                StringIO(self.parent.file_io.getvalue().decode("utf-8")), **kwargs
+            )
             self.kw_for_pull = kwargs
 
+    @property
+    def append_method(
+        self,
+    ) -> Literal[
+        "frame",
+        "file",
+    ]:
+        return "frame"
 
-class XMLContainer(eio.ContainerWriterABC):
+
+class XMLContainer(ContainerWriterABC):
     def __init__(self, url, replace=False):
         super().__init__(XMLFrame, url, replace)
 
@@ -117,7 +86,7 @@ class XMLContainer(eio.ContainerWriterABC):
             return False
 
     def _children_init(self):
-        self.file_io = el.fetch_file_io(self.url, replace=self.create_or_replace)
+        self.file_io = el.fetch_file_io(self.url, replace=False)
         XMLFrame(
             name=Path(self.url).stem,
             parent=self,
@@ -136,12 +105,22 @@ class XMLContainer(eio.ContainerWriterABC):
                     kwargs = {}
                 # TODO: relevant for XML?
                 # if isinstance(df.columns, pd.MultiIndex):
-                #     df = eio.multiindex_to_singleindex(df)
+                #     df = multiindex_to_singleindex(df)
 
                 if df_io.if_exists == "truncate":
-                    #     df_io.mode = "w"
-                    # self.file_io.seek(0)
-                    pass
+                    self.file_io.seek(0)
+                    stringit = StringIO(self.file_io.getvalue().decode("utf-8"))
+                    for_append = pd.read_xml(stringit)
+                    self.file_io.seek(0)
+                    df = append_into([get_column_frame(for_append), df])
+
+                if df_io.if_exists == "append" and len(self.file_io.getbuffer()):
+                    self.file_io.seek(0)
+                    stringit = StringIO(self.file_io.getvalue().decode("utf-8"))
+                    for_append = pd.read_xml(stringit)
+                    self.file_io.seek(0)
+                    df = append_into([for_append, df])
+
                 df.to_xml(
                     self.file_io,
                     index=False,

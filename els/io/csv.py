@@ -9,10 +9,10 @@ import pandas as pd
 import els.config as ec
 import els.core as el
 
-from . import base as eio
+from .base import ContainerWriterABC, FrameABC, multiindex_to_singleindex
 
 
-class CSVFrame(eio.FrameABC):
+class CSVFrame(FrameABC):
     def __init__(
         self,
         name,
@@ -43,7 +43,7 @@ class CSVFrame(eio.FrameABC):
 
     @parent.setter
     def parent(self, v):
-        eio.FrameABC.parent.fset(self, v)
+        FrameABC.parent.fset(self, v)
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
@@ -70,7 +70,7 @@ class CSVFrame(eio.FrameABC):
             self.kw_for_pull = kwargs
 
 
-class CSVContainer(eio.ContainerWriterABC):
+class CSVContainer(ContainerWriterABC):
     def __init__(self, url, replace=False):
         super().__init__(CSVFrame, url, replace)
 
@@ -105,7 +105,7 @@ class CSVContainer(eio.ContainerWriterABC):
                     kwargs = {}
                 # TODO integrate better into write method?
                 if isinstance(df.columns, pd.MultiIndex):
-                    df = eio.multiindex_to_singleindex(df)
+                    df = multiindex_to_singleindex(df)
 
                 if df_io.if_exists == "truncate":
                     #     df_io.mode = "w"

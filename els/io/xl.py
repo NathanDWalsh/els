@@ -10,7 +10,7 @@ from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 import els.config as ec
 import els.core as el
 
-from . import base as eio
+from .base import ContainerWriterABC, FrameABC, multiindex_to_singleindex
 
 
 def get_sheet_names(
@@ -55,7 +55,7 @@ def get_sheet_row(
             return None
 
 
-class XLFrame(eio.FrameABC):
+class XLFrame(FrameABC):
     def __init__(
         self,
         name,
@@ -66,7 +66,7 @@ class XLFrame(eio.FrameABC):
         startrow=0,
         kw_for_pull={},
         kw_for_push={},
-    ):
+    ) -> None:
         super().__init__(
             df=df,
             name=name,
@@ -107,7 +107,7 @@ class XLFrame(eio.FrameABC):
 
     @parent.setter
     def parent(self, v):
-        eio.FrameABC.parent.fset(self, v)
+        FrameABC.parent.fset(self, v)
 
     def _read(self, kwargs):
         if kwargs.get("nrows") and kwargs.get("skipfooter"):
@@ -123,7 +123,7 @@ class XLFrame(eio.FrameABC):
             self.kw_for_pull = kwargs
 
 
-class XLContainer(eio.ContainerWriterABC):
+class XLContainer(ContainerWriterABC):
     def __init__(self, url, replace=False):
         # self.child_class = ExcelSheetIO
         # self.url = url
@@ -176,7 +176,7 @@ class XLContainer(eio.ContainerWriterABC):
                         kwargs = {}
                     # TODO integrate better into write method?
                     if isinstance(df.columns, pd.MultiIndex):
-                        df = eio.multiindex_to_singleindex(df)
+                        df = multiindex_to_singleindex(df)
                     df.to_excel(writer, index=False, sheet_name=df_io.name, **kwargs)
                 for sheet in writer.sheets.values():
                     sheet.autofit(500)
@@ -209,7 +209,7 @@ class XLContainer(eio.ContainerWriterABC):
                                 kwargs = {}
                             # TODO integrate better into write method?
                             if isinstance(df.columns, pd.MultiIndex):
-                                df = eio.multiindex_to_singleindex(df)
+                                df = multiindex_to_singleindex(df)
                             df.to_excel(
                                 writer,
                                 index=False,

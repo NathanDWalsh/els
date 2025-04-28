@@ -13,7 +13,7 @@ from sqlalchemy_utils.functions.orm import quote  # type: ignore
 import els.config as ec
 from els.sa_utils_fork import database_exists
 
-from . import base as eio
+from .base import ContainerWriterABC, FrameABC
 
 
 def lcase_dict_keys(_dict: dict[str, Any]):
@@ -67,7 +67,7 @@ def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
     return res
 
 
-class SQLFrame(eio.FrameABC):
+class SQLFrame(FrameABC):
     def __init__(
         self,
         name,
@@ -132,10 +132,10 @@ class SQLFrame(eio.FrameABC):
 
     @parent.setter
     def parent(self, v):
-        eio.FrameABC.parent.fset(self, v)
+        FrameABC.parent.fset(self, v)
 
 
-class SQLContainer(eio.ContainerWriterABC):
+class SQLContainer(ContainerWriterABC):
     def __init__(self, url, replace=False):
         super().__init__(SQLFrame, url, replace)
 

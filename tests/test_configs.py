@@ -21,9 +21,9 @@ from . import test_template as tt
         ("excel"),
         ("sqlite"),
         ("duckdb"),
-        # ("mssql"),
+        ("mssql"),
         ("csv"),
-        # ("xml"),
+        ("xml"),
     ],
 )
 @pytest.mark.parametrize(
@@ -34,22 +34,22 @@ from . import test_template as tt
         tt.double_together2,
         tt.double_separate,
         tt.append_together,
-        tt.append_separate,  # x
+        tt.append_separate,
         tt.append_mixed,
         tt.append_minus,
-        tt.split_on_col_explicit_tab,  # x
+        tt.split_on_col_explicit_tab,
         tt.filter,
         tt.prql,
-        tt.prql_split,  # x
+        tt.prql_split,
         tt.add_columns,
         tt.pivot,
-        tt.prql_split_pivot,  # x
-        tt.prql_col_split_pivot,  # x
+        tt.prql_split_pivot,
+        tt.prql_col_split_pivot,
         tt.melt,
-        tt.replace,  # x
-        tt.prql_col_split,  # x
-        tt.truncate_single,  # x
-        tt.truncate_double,  # x
+        tt.replace,
+        tt.prql_col_split,
+        tt.truncate_single,
+        tt.truncate_double,
         tt.append_plus,
     ],
 )
@@ -65,7 +65,7 @@ def test_sc(tmp_path, test_name, func, config_for):
         ("excel"),
         ("sqlite"),
         ("duckdb"),
-        # ("mssql"),
+        ("mssql"),
         ("csv"),
     ],
 )

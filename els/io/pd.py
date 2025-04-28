@@ -1,15 +1,15 @@
 import els.core as el
 
-from . import base as eio
+from .base import ContainerWriterABC, FrameABC
 
 
-class DFFrame(eio.FrameABC):
+class DFFrame(FrameABC):
     def _read(self, kwargs={}):
         self.df = self.parent.df_dict[self.name]
         self.df_target = self.parent.df_dict[self.name]
 
 
-class DFContainer(eio.ContainerWriterABC):
+class DFContainer(ContainerWriterABC):
     def __init__(
         self,
         url,

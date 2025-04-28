@@ -261,7 +261,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             elif isinstance(source.table, list):
                 for t in source.table:
                     if (
-                        source.type == ".csv"
+                        # TODO: make this dynamic
+                        source.type in (".csv", ".xml")
                         and source.url
                         and not t == source.url.split("/")[-1].split(".")[0]
                     ):
@@ -288,6 +289,10 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 remaining_transforms = []
 
             df = ee.pull_frame(config.source)
+            if df.empty:
+                raise Exception(
+                    f"Empty dataframe when transforming splits on {config.source.url}"
+                )
             df_dict = None
             if len(transforms) > 1:
                 df = ee.apply_transforms(df, transforms=transforms[:-1])  # type: ignore
@@ -472,8 +477,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     @staticmethod
     def swap_dict_vals(
-        dictionary: dict,
-        find_replace_dict: dict,
+        dictionary: dict[str, str],
+        find_replace_dict: dict[str, str],
     ) -> None:
         for key, value in dictionary.items():
             if isinstance(value, dict):
@@ -526,7 +531,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             if (
                 node.node_type == NodeType.DATA_TABLE and node.config.target.url
             ) and not node.config.target.type == "dict":
-                if node.config.target.type == ".csv":
+                if node.config.target.type in (".csv", ".xml"):
                     target_path = os.path.relpath(node.config.target.url)
                 else:
                     target_path = f"{node.config.target.url.split('?')[0]}#{node.config.target.table}"
@@ -928,7 +933,6 @@ def config_path_valid(path: Path) -> bool:
 
 
 def get_content_leaf_names(source: ec.Source) -> list[str]:
-    # print(f"sauce url:{source.url}")
     if not source.url:
         raise Exception("Missing url, cannot get content leafs for missing url")
     if source.type_is_db:

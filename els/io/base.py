@@ -14,7 +14,7 @@ def multiindex_to_singleindex(df: pd.DataFrame, separator: str = "_") -> pd.Data
     return df
 
 
-def append_into(dfs: list[pd.DataFrame]):
+def append_into(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     # appends subsequent dfs into the first df, keeping only the columns from the first
     ncols = len(dfs[0].columns)
     return pd.concat(dfs, ignore_index=True).iloc[:, 0:ncols]
@@ -82,16 +82,34 @@ class FrameABC(NodeMixin, ABC):
     def column_frame(self):
         return get_column_frame(self.df)
 
+    @property
+    def append_method(
+        self,
+    ) -> Literal[
+        "frame",
+        "file",
+    ]:
+        return "file"
+
     def _append(self, df, truncate_first=False):
-        if truncate_first:
+        if truncate_first and self.append_method == "file":
             self.df = append_into([self.column_frame, df])
         else:
             self.df = append_into([self.df, df])
 
     def _build(self, df):
+        print("before build:")
+        print(type(self))
+        if self.append_method == "frame":
+            self.read()
+        print(self.df_target)
+        print(self.df)
         df = get_column_frame(df)
         self.df_target = df
         self.df = df
+        print("after build:")
+        print(self.df_target)
+        print(self.df)
         return df
 
     def set_df(
@@ -108,6 +126,7 @@ class FrameABC(NodeMixin, ABC):
         if build:
             df = self._build(df)
         if self.mode not in ("a", "w"):  # if in read mode, code below is first write
+            print("DF SET")
             if if_exists == "fail":
                 raise Exception(
                     f"Failing: dataframe {self.name} already exists with mode {self.mode}"
