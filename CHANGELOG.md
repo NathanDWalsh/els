@@ -1,6 +1,36 @@
 # CHANGELOG
 
 
+## v0.6.0 (2025-04-29)
+
+### Bug Fixes
+
+- **requirements**: Lxml
+  ([`3ca6c98`](https://github.com/NathanDWalsh/els/commit/3ca6c98f28b84f74ce37ce7b3a3e4ed82147959d))
+
+### Features
+
+- **io**: Xml read/write
+  ([`6fae9d8`](https://github.com/NathanDWalsh/els/commit/6fae9d83546a7adfa1dc9025541643af0b9b5ce8))
+
+### Refactoring
+
+- **io**: Consolidate push methods
+  ([`63e6458`](https://github.com/NathanDWalsh/els/commit/63e64584d6d2ed831012139bdff63e54d217bb2c))
+
+- **io**: Csv io object
+  ([`4eaa490`](https://github.com/NathanDWalsh/els/commit/4eaa49030e43fddfb588fd7e2732e42963440300))
+
+- **io**: Df_containers
+  ([`1aef9a6`](https://github.com/NathanDWalsh/els/commit/1aef9a62c862481be34a9344f15c94ce4e0cce40))
+
+- **io**: Df_dict url
+  ([`a1beb50`](https://github.com/NathanDWalsh/els/commit/a1beb50f0901aa04fc8d57b5c127fb4059b9de16))
+
+- **io**: Frame containers
+  ([`d1a81b2`](https://github.com/NathanDWalsh/els/commit/d1a81b24a261c6dd29d7238d37175a2e85efbf27))
+
+
 ## v0.5.1 (2025-04-09)
 
 ### Bug Fixes
