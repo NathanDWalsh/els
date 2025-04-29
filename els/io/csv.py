@@ -21,7 +21,7 @@ class CSVFrame(FrameABC):
         mode="s",
         df=pd.DataFrame(),
         # startrow=0,
-        kw_for_pull={},
+        kw_for_pull=None,
         kw_for_push={},
     ) -> None:
         super().__init__(
@@ -30,10 +30,11 @@ class CSVFrame(FrameABC):
             parent=parent,
             mode=mode,
             if_exists=if_exists,
+            kw_for_pull=kw_for_pull,
         )
         # TODO: maybe use skiprows instead?
         # self._startrow = startrow
-        self.kw_for_pull = kw_for_pull
+        # self.kw_for_pull = kw_for_pull
         self.kw_for_push: ec.ToExcel = kw_for_push
         self.clean_last_column = False
 

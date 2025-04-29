@@ -99,11 +99,12 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         self,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         if sys.version_info < (3, 12):
             pass
         else:
             super().__init__(*args, **kwargs)
+        self.config_local: Optional[ec.Config] = None
         # self.parent = parent
 
     # called from plant_tree() to build:
@@ -343,6 +344,22 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 ca_path.parent = url_parent
                 ca_path.config_local = config
                 self.transform_splits(config, ca_path)
+        # This for block splits read args in lists into individual nodes
+        for leaf in self.leaves:
+            if (
+                leaf.config.source
+                and leaf.config.source.read_x
+                and isinstance(leaf.config.source.read_x, list)
+            ):
+                # TODO: not sure why this is not working
+                # if len(leaf.config.source.read_x) == 1:
+                #     leaf.config.source.read_x = leaf.config.source.read_x[0]
+                # else:
+                for i, kw in enumerate(leaf.config.source.read_x):
+                    subset = ConfigPath(leaf / f"subset_{i}")
+                    subset.parent = leaf
+                    subset.config_local = leaf.config
+                    subset.config_local.source.read_x = kw
 
     @property
     def node_type(self) -> NodeType:
@@ -580,23 +597,23 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return str(self).endswith(CONFIG_FILE_EXT)
 
     # TODO, dead code, consider ressurecting support for wildcards
-    @property
-    def subdir_patterns(self) -> list[str]:
-        # TODO patterns may overlap
-        children = self.config_local.children
-        if children is None or children == {}:
-            res = ["*"]
-        elif isinstance(children, str):
-            res = [str(children)]  # recasting as str for linter
-        elif isinstance(children, dict):
-            # get key of each dict as list entries
-            res = list(children.keys())
-        elif isinstance(children, list):
-            res = children
-        # if list of dicts
-        else:
-            raise Exception("Unexpected children")
-        return res
+    # @property
+    # def subdir_patterns(self) -> list[str]:
+    #     # TODO patterns may overlap
+    #     children = self.config_local.children
+    #     if children is None or children == {}:
+    #         res = ["*"]
+    #     elif isinstance(children, str):
+    #         res = [str(children)]  # recasting as str for linter
+    #     elif isinstance(children, dict):
+    #         # get key of each dict as list entries
+    #         res = list(children.keys())
+    #     elif isinstance(children, list):
+    #         res = children
+    #     # if list of dicts
+    #     else:
+    #         raise Exception("Unexpected children")
+    #     return res
 
     def get_url_leaf_names(self) -> list[str]:
         if self.config.source.url:
@@ -702,9 +719,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             if leaf.node_type == NodeType.DATA_TABLE:
                 res.setdefault(leaf.config.target.table, []).append(  # type: ignore
                     FlowAtom(
-                        # leaf_name=leaf.name,
                         source_url=leaf.config.source.url,  # type: ignore
-                        # source_type=leaf.config.source.type,
                         source_container_class=ee.get_container_class(
                             leaf.config.source
                         ),

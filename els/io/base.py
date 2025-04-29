@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Generator, Literal
+from typing import Generator, Literal, Optional
 
 import pandas as pd
 from anytree import NodeMixin  # type: ignore
@@ -36,6 +36,7 @@ class FrameABC(NodeMixin, ABC):
         if_exists="fail",
         mode: Literal["s", "r", "a", "w", "m"] = "s",
         df: pd.DataFrame = pd.DataFrame(),
+        kw_for_pull: Optional[dict] = None,
         # (s)oftread: only loads the name
         # (m)edium read: sample/meta read reads the first rows_for_sampling
         # (r)ead    : nothing yet to be written
@@ -49,14 +50,23 @@ class FrameABC(NodeMixin, ABC):
         self.parent: ContainerWriterABC = parent
         self.mode: Literal["s", "r", "a", "w", "m"] = mode
         self.if_exists: str = if_exists
+        if kw_for_pull is None:
+            self.kw_for_pull = {}
+        else:
+            self.kw_for_pull = kw_for_pull
 
         # If an orphan, name could be optional
         self.name = name
 
-    def read(self, kwargs={}, sample: bool = False) -> pd.DataFrame:
+    def read(
+        self,
+        kwargs=None,
+        sample: bool = False,
+    ) -> pd.DataFrame:
+        if kwargs is None:
+            kwargs = {}
         if sample:
             kwargs["nrows"] = nrows_for_sampling
-        print(f"READ MODE:{self.mode}")
         if self.mode in ("s"):
             self._read(kwargs)
             # when len of df != nrows: sample is assumed to be ignored or small dataset
@@ -98,18 +108,11 @@ class FrameABC(NodeMixin, ABC):
             self.df = append_into([self.df, df])
 
     def _build(self, df):
-        print("before build:")
-        print(type(self))
         if self.append_method == "frame":
             self.read()
-        print(self.df_target)
-        print(self.df)
         df = get_column_frame(df)
         self.df_target = df
         self.df = df
-        print("after build:")
-        print(self.df_target)
-        print(self.df)
         return df
 
     def set_df(
@@ -126,7 +129,6 @@ class FrameABC(NodeMixin, ABC):
         if build:
             df = self._build(df)
         if self.mode not in ("a", "w"):  # if in read mode, code below is first write
-            print("DF SET")
             if if_exists == "fail":
                 raise Exception(
                     f"Failing: dataframe {self.name} already exists with mode {self.mode}"

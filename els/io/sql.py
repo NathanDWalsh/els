@@ -75,7 +75,7 @@ class SQLFrame(FrameABC):
         if_exists="fail",
         mode="s",
         df=pd.DataFrame(),
-        kw_for_pull={},
+        kw_for_pull=None,  # TODO: fix mutable default
         kw_for_push={},
     ) -> None:
         super().__init__(
@@ -84,8 +84,8 @@ class SQLFrame(FrameABC):
             parent=parent,
             mode=mode,
             if_exists=if_exists,
+            kw_for_pull=kw_for_pull,
         )
-        self.kw_for_pull = kw_for_pull
         self.kw_for_push: ec.ToSQL = kw_for_push
 
     @property

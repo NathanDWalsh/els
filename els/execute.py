@@ -4,8 +4,6 @@ from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
-from pdfminer.high_level import LAParams, extract_pages
-from pdfminer.layout import LTChar, LTTextBox
 
 import els.config as ec
 import els.core as el
@@ -200,128 +198,21 @@ def get_sql_data_type(dtype):
         return "VARCHAR(MAX)"
 
 
-def text_range_to_list(text: str):
-    result: list = []
-    segments = text.split(",")
-    for segment in segments:
-        if "-" in segment:
-            start, end = map(int, segment.split("-"))
-            result.extend(range(start, end + 1))
-        else:
-            result.append(int(segment))
-    return result
-
-
-def clean_page_numbers(page_numbers):
-    if isinstance(page_numbers, int):
-        res = [page_numbers]
-    if isinstance(page_numbers, str):
-        res = text_range_to_list(page_numbers)
-    else:
-        res = page_numbers
-    return sorted(res)
-
-
-def pull_pdf(
-    file,
-    laparams: Optional[dict],
-    **kwargs,
-) -> pd.DataFrame:
-    def get_first_char_from_text_box(tb) -> LTChar:  # type: ignore
-        for line in tb:
-            for char in line:
-                return char
-
-    lap = LAParams()
-    if laparams:
-        for k, v in laparams.items():
-            lap.__setattr__(k, v)
-
-    if "page_numbers" in kwargs:
-        kwargs["page_numbers"] = clean_page_numbers(kwargs["page_numbers"])
-
-    pm_pages = extract_pages(file, laparams=lap, **kwargs)
-
-    dict_res: dict[str, list] = {
-        "page_index": [],
-        "y0": [],
-        "y1": [],
-        "x0": [],
-        "x1": [],
-        "height": [],
-        "width": [],
-        "font_name": [],
-        "font_size": [],
-        "font_color": [],
-        "text": [],
-    }
-
-    for p in pm_pages:
-        for e in p:
-            if isinstance(e, LTTextBox):
-                first_char = get_first_char_from_text_box(e)
-                dict_res["page_index"].append(
-                    kwargs["page_numbers"][p.pageid - 1]
-                    if "page_numbers" in kwargs
-                    else p.pageid
-                )
-                dict_res["x0"].append(e.x0)
-                dict_res["x1"].append(e.x1)
-                dict_res["y0"].append(e.y0)
-                dict_res["y1"].append(e.y1)
-                dict_res["height"].append(e.height)
-                dict_res["width"].append(e.width)
-                dict_res["font_name"].append(first_char.fontname)
-                dict_res["font_size"].append(first_char.height)
-                dict_res["font_color"].append(
-                    str(first_char.graphicstate.ncolor)
-                    if not isinstance(first_char.graphicstate.ncolor, tuple)
-                    else str(first_char.graphicstate.ncolor)
-                )
-                dict_res["text"].append(e.get_text().replace("\n", " ").rstrip())
-
-    return pd.DataFrame(dict_res)
-
-
 def pull_frame(
     frame: Union[ec.Source, ec.Target],
     # nrows: Optional[int] = None,
     sample: bool = False,
 ) -> pd.DataFrame:
     container_class = get_container_class(frame)
-    if (
-        frame.type_is_db
-        or frame.type_is_excel
-        or frame.type in (".csv", ".tsv", "dict", ".fwf", ".xml")
-    ):
-        df_container = el.fetch_df_container(
-            container_class=container_class,
-            url=frame.url,  # type: ignore
-        )
-        df_table = df_container[frame.table]
-        df = df_table.read(
-            kwargs=frame.kw_for_pull,
-            sample=sample,
-            # nrows=nrows,
-        )
-    elif frame.type == ".pdf":
-        assert isinstance(frame, ec.Source)
-        # TODO parallelize, break job into page chunks
-        df = None
-        for extract_props in el.listify(frame.extract_pages_pdf):
-            if extract_props:
-                kwargs = extract_props.model_dump(exclude_none=True)
-                laparams = None
-                if "laparams" in kwargs:
-                    laparams = kwargs.pop("laparams")
-            else:
-                kwargs = {}
-            if df is None:
-                df = pull_pdf(frame.url, laparams=laparams, **kwargs)
-            else:
-                df = pd.concat([df, pull_pdf(frame.url, laparams=laparams, **kwargs)])
-    else:
-        raise Exception("unable to pull df")
+    df_container = el.fetch_df_container(
+        container_class=container_class,
+        url=frame.url,  # type: ignore
+    )
+    df_table = df_container[frame.table]
+    df = df_table.read(
+        kwargs=frame.kw_for_pull,
+        sample=sample,
+    )
 
     if frame and hasattr(frame, "dtype") and frame.dtype:
         assert df is not None

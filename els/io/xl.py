@@ -64,7 +64,7 @@ class XLFrame(FrameABC):
         mode="s",
         df=pd.DataFrame(),
         startrow=0,
-        kw_for_pull={},
+        kw_for_pull=None,
         kw_for_push={},
     ) -> None:
         super().__init__(
@@ -73,9 +73,9 @@ class XLFrame(FrameABC):
             parent=parent,
             mode=mode,
             if_exists=if_exists,
+            kw_for_pull=kw_for_pull,
         )
         self._startrow = startrow
-        self.kw_for_pull = kw_for_pull
         self.kw_for_push: ec.ToExcel = kw_for_push
 
     @property

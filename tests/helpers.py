@@ -8,24 +8,19 @@ import yaml
 import els.cli as ei
 import els.config as ec
 
+TestMedium_ = Literal[
+    "pandas",
+    "excel",
+    "sqlite",
+    "duckdb",
+    "mssql",
+]
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
 
-    TestMedium: TypeAlias = Literal[
-        "pandas",
-        "excel",
-        "sqlite",
-        "duckdb",
-        "mssql",
-    ]
+    TestMedium: TypeAlias = TestMedium_
 else:
-    TestMedium = Literal[
-        "pandas",
-        "excel",
-        "sqlite",
-        "duckdb",
-        "mssql",
-    ]
+    TestMedium = TestMedium_
 
 
 def assert_dfs_equal(df0: pd.DataFrame, df1: pd.DataFrame):
@@ -46,7 +41,10 @@ def assert_expected(expected, actual):
         if k not in actual:
             raise Exception([expected, actual])
         assert k in actual
-        assert_dfs_equal(expected[k], actual[k])
+        if isinstance(expected, dict):
+            assert_dfs_equal(expected[k], actual[k])
+        else:
+            assert_dfs_equal(expected[[k]], actual[[k]])
 
 
 def listify(x):

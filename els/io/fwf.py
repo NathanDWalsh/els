@@ -16,7 +16,7 @@ class FWFFrame(FrameABC):
         if_exists="fail",
         mode="s",
         df=pd.DataFrame(),
-        kw_for_pull={},
+        kw_for_pull=None,
     ):
         super().__init__(
             df=df,
@@ -24,8 +24,8 @@ class FWFFrame(FrameABC):
             parent=parent,
             mode=mode,
             if_exists=if_exists,
+            kw_for_pull=kw_for_pull,
         )
-        self.kw_for_pull = kw_for_pull
 
     @property
     def parent(self) -> FWFContainer:
@@ -39,6 +39,7 @@ class FWFFrame(FrameABC):
     # TODO sample should not be optional since it is always called by super.read()
     def _read(self, kwargs: dict):
         if not kwargs:
+            assert self.kw_for_pull
             kwargs = self.kw_for_pull
         if self.mode in ("r", "s") and self.kw_for_pull != kwargs:
             self.df = pd.read_fwf(self.parent.url, **kwargs)

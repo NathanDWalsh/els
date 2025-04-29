@@ -473,7 +473,7 @@ class LAParams(BaseModel):
     all_texts: Optional[bool] = None
 
 
-class ExtractPagesPDF(BaseModel):
+class ReadPDF(BaseModel):
     password: Optional[str] = None
     page_numbers: Optional[Union[int, list[int], str]] = None
     maxpages: Optional[int] = None
@@ -495,38 +495,54 @@ class Source(Frame, extra="forbid"):
                 {"required": ["read_sql"]},
                 {"required": ["read_fwf"]},
                 {"required": ["read_xml"]},
-                {"required": ["extract_pages_pdf"]},
+                {"required": ["read_pdf"]},
             ]
         },
     )
     load_parallel: bool = False
     nrows: Optional[int] = None
     dtype: Optional[dict] = None
-    read_csv: Optional[ReadCSV] = None
-    read_excel: Optional[ReadExcel] = None
-    read_sql: Optional[ReadSQL] = None
-    read_fwf: Optional[ReadFWF] = None
-    read_xml: Optional[ReadXML] = None
-    extract_pages_pdf: Optional[
-        Union[
-            ExtractPagesPDF,
-            list[ExtractPagesPDF],
-        ]
-    ] = None
+    read_csv: Optional[Union[ReadCSV, list[ReadCSV]]] = None
+    read_excel: Optional[Union[ReadExcel, list[ReadExcel]]] = None
+    read_sql: Optional[Union[ReadSQL, list[ReadSQL]]] = None
+    read_fwf: Optional[Union[ReadFWF, list[ReadFWF]]] = None
+    read_xml: Optional[Union[ReadXML, list[ReadXML]]] = None
+    read_pdf: Optional[Union[ReadPDF, list[ReadPDF]]] = None
 
     @property
-    def kw_for_pull(self):
-        read_x = (
+    def read_x(self):
+        return (
             self.read_csv
             or self.read_excel
             or self.read_sql
             or self.read_fwf
             or self.read_xml
-            or self.extract_pages_pdf
+            or self.read_pdf
         )
+
+    @read_x.setter
+    def read_x(self, x):
+        if self.read_csv:
+            self.read_csv = x
+        elif self.read_excel:
+            self.read_excel = x
+        elif self.read_sql:
+            self.read_sql = x
+        elif self.read_fwf:
+            self.read_fwf = x
+        elif self.read_xml:
+            self.read_xml = x
+        elif self.read_pdf:
+            self.read_pdf = x
+
+    @property
+    def kw_for_pull(self):
+        if self.read_pdf:
+            return self.read_pdf.model_dump(exclude_none=True)
+
         kwargs = {}
-        if read_x:
-            kwargs = read_x.model_dump(exclude_none=True)
+        if self.read_x:
+            kwargs = self.read_x.model_dump(exclude_none=True)
 
         for k, v in kwargs.items():
             if v == "None":
@@ -564,28 +580,20 @@ class Source(Frame, extra="forbid"):
         return kwargs
 
 
+TransformType_ = Union[
+    SplitOnColumn,
+    FilterTransform,
+    PrqlTransform,
+    Pivot,
+    AsType,
+    Melt,
+    StackDynamic,
+    AddColumns,
+]
 if sys.version_info >= (3, 10):
-    TransformType: TypeAlias = Union[
-        SplitOnColumn,
-        FilterTransform,
-        PrqlTransform,
-        Pivot,
-        AsType,
-        Melt,
-        StackDynamic,
-        AddColumns,
-    ]
+    TransformType: TypeAlias = TransformType_
 else:
-    TransformType = Union[
-        SplitOnColumn,
-        FilterTransform,
-        PrqlTransform,
-        Pivot,
-        AsType,
-        Melt,
-        StackDynamic,
-        AddColumns,
-    ]
+    TransformType = TransformType_
 
 
 class Config(BaseModel):
