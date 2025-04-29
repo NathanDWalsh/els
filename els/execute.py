@@ -9,30 +9,33 @@ from pdfminer.layout import LTChar, LTTextBox
 
 import els.config as ec
 import els.core as el
-import els.io.base as eio
-import els.io.csv as csv
-import els.io.fwf as fwf
-import els.io.pd as pn
-import els.io.sql as sq
-import els.io.xl as xl
-import els.io.xml as xml
+from els.io.base import ContainerReaderABC, ContainerWriterABC
+from els.io.csv import CSVContainer
+from els.io.fwf import FWFContainer
+from els.io.pd import DFContainer
+from els.io.pdf import PDFContainer
+from els.io.sql import SQLContainer
+from els.io.xl import XLContainer
+from els.io.xml import XMLContainer
 
 
 def get_container_class(
     frame: ec.Frame,
-) -> type[eio.ContainerWriterABC]:
+) -> type[Union[ContainerWriterABC, ContainerReaderABC]]:
     if frame.type == ".csv":
-        return csv.CSVContainer
+        return CSVContainer
     elif frame.type_is_excel:
-        return xl.XLContainer
+        return XLContainer
     elif frame.type_is_db:
-        return sq.SQLContainer
+        return SQLContainer
     elif frame.type == "dict":
-        return pn.DFContainer
+        return DFContainer
     elif frame.type == ".fwf":
-        return fwf.FWFContainer
+        return FWFContainer
     elif frame.type == ".xml":
-        return xml.XMLContainer
+        return XMLContainer
+    elif frame.type == ".pdf":
+        return PDFContainer
     else:
         raise Exception(
             f"unknown {[type(frame), frame.model_dump(exclude_none=True)]} type: {frame.type}"
@@ -280,11 +283,6 @@ def pull_pdf(
     return pd.DataFrame(dict_res)
 
 
-# def pull_xml(file, **kwargs):
-#     df = pd.read_xml(file, **kwargs)
-#     return df
-
-
 def pull_frame(
     frame: Union[ec.Source, ec.Target],
     # nrows: Optional[int] = None,
@@ -322,16 +320,6 @@ def pull_frame(
                 df = pull_pdf(frame.url, laparams=laparams, **kwargs)
             else:
                 df = pd.concat([df, pull_pdf(frame.url, laparams=laparams, **kwargs)])
-    # elif frame.type == ".xml":
-    #     if isinstance(frame, ec.Source):
-    #         kwargs = frame.kw_for_pull
-    #     else:
-    #         kwargs = {}
-    #     if "nrows" in kwargs:
-    #         kwargs.pop("nrows")
-    #     df = pull_xml(frame.url, **kwargs)
-    #     if nrows:
-    #         df = df.head(nrows)
     else:
         raise Exception("unable to pull df")
 
@@ -373,7 +361,7 @@ def table_exists(target: ec.Target) -> Optional[bool]:
     #         res = inspector.has_table(target.table, target.dbschema)
     assert target.url
     if target.type_is_db:
-        sql_container = el.fetch_df_container(sq.SQLContainer, target.url)
+        sql_container = el.fetch_df_container(SQLContainer, target.url)
         return target.table in sql_container
     elif target.type in (".csv", ".tsv"):
         res = target.file_exists
@@ -381,12 +369,12 @@ def table_exists(target: ec.Target) -> Optional[bool]:
         target.type in (".xlsx") and target.file_exists
     ):  # TODO: add other file types supported by Calamine, be careful not to support legacy excel
         # check if sheet exists
-        xl_io = el.fetch_df_container(xl.XLContainer, target.url)
+        xl_io = el.fetch_df_container(XLContainer, target.url)
         res = target.sheet_name in xl_io
     elif target.type == "dict":
         # TODO, make these method calls consistent
         # df_dict_io = el.fetch_df_dict_io(target.url)
-        df_dict_io = el.fetch_df_container(pn.DFContainer, target.url)
+        df_dict_io = el.fetch_df_container(DFContainer, target.url)
         res = target.table in df_dict_io
         # TODO, the empty check may no longer be necessary if fetch is changed for get/has child
         # if target.table in df_dict and not df_dict[target.table].empty:
