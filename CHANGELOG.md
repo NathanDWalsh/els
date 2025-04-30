@@ -1,12 +1,20 @@
 # CHANGELOG
 
 
+## v0.7.0 (2025-04-30)
+
+
 ## v0.6.1 (2025-04-30)
 
 ### Bug Fixes
 
 - **io**: Pdf font_color tox test bug
   ([`38a7805`](https://github.com/NathanDWalsh/els/commit/38a780570ba1f303c10134f2bc74c430393f52c7))
+
+### Features
+
+- **io**: Header/footer cells for csv and excel
+  ([`605d609`](https://github.com/NathanDWalsh/els/commit/605d609458edb1680885d2a7dbe4245382cfa438))
 
 
 ## v0.6.0 (2025-04-29)
