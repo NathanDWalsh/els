@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.6.1 (2025-04-30)
+
+### Bug Fixes
+
+- **io**: Pdf font_color tox test bug
+  ([`38a7805`](https://github.com/NathanDWalsh/els/commit/38a780570ba1f303c10134f2bc74c430393f52c7))
+
+
 ## v0.6.0 (2025-04-29)
 
 ### Bug Fixes
@@ -29,6 +37,9 @@
 
 - **io**: Frame containers
   ([`d1a81b2`](https://github.com/NathanDWalsh/els/commit/d1a81b24a261c6dd29d7238d37175a2e85efbf27))
+
+- **io**: Pdf
+  ([`ab2cda4`](https://github.com/NathanDWalsh/els/commit/ab2cda41f5852eef7d1df107a0bd6b96b49237ae))
 
 
 ## v0.5.1 (2025-04-09)
