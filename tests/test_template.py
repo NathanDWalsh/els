@@ -1,8 +1,10 @@
 import datetime
 import os
+from copy import deepcopy
 from functools import wraps
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 
 import els.config as ec
@@ -31,60 +33,6 @@ def get_flight_url(test_medium):
         return test_url
     elif test_medium == "xml":
         return "*.xml"
-
-
-def test_xl_skiprows(tmp_path):
-    os.chdir(tmp_path)
-    outbound = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
-    expected = outbound.copy()
-    config = ec.Config(
-        target=ec.Target(
-            to_excel=ec.ToExcel(startrow=2),
-        )
-    )
-    push(
-        test_medium="excel",
-        config=config,
-        outbound=outbound,
-    )
-
-    config = ec.Config(
-        source=ec.Source(
-            read_excel=ec.ReadExcel(skiprows=2),
-        )
-    )
-    inbound = pull(
-        test_medium="excel",
-        config=config,
-    )
-
-    th.assert_expected(expected, inbound)
-
-    inbound = pull(test_medium="excel")
-    df1 = inbound["df"]
-    assert len(df1) == 5
-
-
-def test_xl_sheet_skipfooter(tmp_path):
-    os.chdir(tmp_path)
-    df0 = pd.DataFrame({"a": [1, 2, 3]})
-    df0f = pd.DataFrame({"a": [1, 2, 3, None, None, "Footer"]})
-
-    outbound = dict(df1=df0f)
-
-    push(test_medium="excel", outbound=outbound)
-
-    inbound = pull(test_medium="excel")
-    df1 = inbound["df1"]
-    assert len(df1) == 6
-    th.assert_dfs_equal(df0f, df1)
-
-    inbound = pull(
-        test_medium="excel",
-        config=ec.Config(source=ec.Source(read_excel=ec.ReadExcel(skipfooter=3))),
-    )
-    df1 = inbound["df1"]
-    th.assert_dfs_equal(df0, df1)
 
 
 def configify(config, test_medium, pp: Literal["push", "pull"]):
@@ -121,6 +69,247 @@ def oneway_config(test_medium, config_for, outbound, expected, config):
     else:
         assert False
     th.assert_expected(expected, actual=inbound)
+
+
+def twoway_config(test_medium, outbound, expected, config_push, config_pull):
+    inflight.clear()
+    for cc in configify(config_push, test_medium=test_medium, pp="push"):
+        push(test_medium=test_medium, config=cc, outbound=outbound)
+    inbound = {}
+    for cc in configify(config_pull, test_medium=test_medium, pp="pull"):
+        inbound = pull(test_medium=test_medium, config=cc, inbound=inbound)
+    th.assert_expected(expected, actual=inbound)
+
+
+def config_push_pull(func):
+    @wraps(func)
+    def wrapper(test_medium):
+        outbound, expected, config_push, config_pull = func()
+        twoway_config(test_medium, outbound, expected, config_push, config_pull)
+
+    return wrapper
+
+
+@config_push_pull
+def skiprows_csv1():
+    outbound = dict(
+        df=pd.DataFrame(
+            {
+                "no header in this export": [
+                    np.nan,
+                    np.nan,
+                    "a",
+                    "b",
+                    "c",
+                    "d",
+                ]
+            }
+        )
+    )
+    expected = dict(
+        df=pd.DataFrame(
+            {
+                "Unnamed: 0": [
+                    np.nan,
+                    "a",
+                    "b",
+                    "c",
+                    "d",
+                ]
+            }
+        )
+    )
+    config_push = ec.Config(target=ec.Target(to_csv=ec.ToCSV(header=False)))
+    config_pull = ec.Config()
+    return outbound, expected, config_push, config_pull
+
+
+@config_push_pull
+def skiprows_csv2():
+    outbound = dict(
+        df=pd.DataFrame(
+            {
+                "no header in this export": [
+                    np.nan,
+                    np.nan,
+                    "a",
+                    "b",
+                    "c",
+                    "d",
+                ]
+            }
+        )
+    )
+    expected = dict(
+        df=pd.DataFrame(
+            {
+                "a": [
+                    "b",
+                    "c",
+                    "d",
+                ]
+            }
+        )
+    )
+    config_push = ec.Config(
+        target=ec.Target(
+            to_csv=ec.ToCSV(header=False),
+        )
+    )
+    config_pull = ec.Config(
+        source=ec.Source(
+            read_csv=ec.ReadCSV(skiprows=2),
+        )
+    )
+    return outbound, expected, config_push, config_pull
+
+
+@config_push_pull
+def skiprows_csv3():
+    outbound = dict(
+        df=pd.DataFrame(
+            {
+                "no header in this export": [
+                    np.nan,
+                    np.nan,
+                    "a",
+                    "b",
+                    "c",
+                    "d",
+                ]
+            }
+        )
+    )
+    expected = dict(
+        df=pd.DataFrame(
+            {
+                "a": [
+                    "b",
+                    "c",
+                    "d",
+                ]
+            }
+        )
+    )
+    expected["df"]["_header"] = str([[""], [""]])
+    config_push = ec.Config(
+        target=ec.Target(
+            to_csv=ec.ToCSV(header=False),
+        )
+    )
+    config_pull = ec.Config(
+        source=ec.Source(
+            read_csv=ec.ReadCSV(
+                skiprows=2,
+                capture_header=True,
+            ),
+        )
+    )
+    return outbound, expected, config_push, config_pull
+
+
+@config_push_pull
+def skipfoot_csv1():
+    outbound = dict(df=pd.DataFrame({"a": [1, 2, 3, None, None, "footer"]}))
+    expected = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
+    config_push = ec.Config()
+    config_pull = ec.Config(source=ec.Source(read_csv=ec.ReadCSV(skipfooter=3)))
+    return outbound, expected, config_push, config_pull
+
+
+@config_push_pull
+def skipfoot_csv2():
+    outbound = dict(df=pd.DataFrame({"a": [1, 2, 3, None, None, "footer"]}))
+    expected = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
+    expected["df"]["_footer"] = str([[""], [""], ["footer"]])
+    config_push = ec.Config()
+    config_pull = ec.Config(
+        source=ec.Source(
+            read_csv=ec.ReadCSV(
+                skipfooter=3,
+                capture_footer=True,
+            )
+        )
+    )
+    return outbound, expected, config_push, config_pull
+
+
+@config_push_pull
+def skiprows_xl1():
+    outbound = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
+    expected = dict(df=pd.DataFrame({"Unnamed: 0": [np.nan, "a", 1, 2, 3]}))
+    config_push = ec.Config(
+        target=ec.Target(
+            to_excel=ec.ToExcel(startrow=2),
+        )
+    )
+
+    config_pull = ec.Config()
+    return outbound, expected, config_push, config_pull
+
+
+@config_push_pull
+def skiprows_xl2():
+    outbound = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
+    expected = outbound.copy()
+    config_push = ec.Config(
+        target=ec.Target(
+            to_excel=ec.ToExcel(startrow=2),
+        )
+    )
+    config_pull = ec.Config(
+        source=ec.Source(
+            read_excel=ec.ReadExcel(skiprows=2),
+        )
+    )
+    return outbound, expected, config_push, config_pull
+
+
+@config_push_pull
+def skiprows_xl3():
+    outbound = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
+    expected = deepcopy(outbound)
+    expected["df"]["_header"] = str([[""], [""]])
+    config_push = ec.Config(
+        target=ec.Target(
+            to_excel=ec.ToExcel(startrow=2),
+        )
+    )
+    config_pull = ec.Config(
+        source=ec.Source(
+            read_excel=ec.ReadExcel(
+                skiprows=2,
+                capture_header=True,
+            ),
+        )
+    )
+    return outbound, expected, config_push, config_pull
+
+
+@config_push_pull
+def skipfoot_xl1():
+    outbound = dict(df=pd.DataFrame({"a": [1, 2, 3, None, None, "footer"]}))
+    expected = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
+    config_push = ec.Config()
+    config_pull = ec.Config(source=ec.Source(read_excel=ec.ReadExcel(skipfooter=3)))
+    return outbound, expected, config_push, config_pull
+
+
+@config_push_pull
+def skipfoot_xl2():
+    outbound = dict(df=pd.DataFrame({"a": [1, 2, 3, None, None, "footer"]}))
+    expected = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
+    expected["df"]["_footer"] = str([[""], [""], ["footer"]])
+    config_push = ec.Config()
+    config_pull = ec.Config(
+        source=ec.Source(
+            read_excel=ec.ReadExcel(
+                skipfooter=3,
+                capture_footer=True,
+            )
+        )
+    )
+    return outbound, expected, config_push, config_pull
 
 
 def config_symmetrical(func):
@@ -823,7 +1012,7 @@ def add_columns():
 
 
 @config_push
-def xl_replace_file():
+def replace_file():
     outbound = dict(
         df1=pd.DataFrame({"a": [1, 2, 3]}), df2=pd.DataFrame({"b": [4, 5, 6]})
     )
@@ -840,7 +1029,7 @@ def xl_replace_file():
 
 
 @config_push
-def xl_multiindex_column():
+def multiindex_column():
     outbound = dict(
         dfx=pd.DataFrame(
             columns=pd.MultiIndex.from_product([["A", "B"], ["c", "d", "e"]]),

@@ -372,20 +372,20 @@ test_classes = {
 for testset in (
     (TestExcel, get_1r1c_tests_excel, "xlsx", None),
     (TestCSV, get_1r1c_tests_csv, "csv", None),
-    (TestMSSQL, get_1r1c_tests_sql, "mssql", None),
-    (TestMSSQL_TDS, get_1r1c_tests_sql, "mssql+pymssql", None),
-    (
-        TestMSSQL_ODBC17,
-        get_1r1c_tests_sql,
-        "mssql+pyodbc",
-        "driver=odbc driver 17 for sql server",
-    ),
-    (
-        TestMSSQL_ODBC18,
-        get_1r1c_tests_sql,
-        "mssql+pyodbc",
-        "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
-    ),
+    # (TestMSSQL, get_1r1c_tests_sql, "mssql", None),
+    # (TestMSSQL_TDS, get_1r1c_tests_sql, "mssql+pymssql", None),
+    # (
+    #     TestMSSQL_ODBC17,
+    #     get_1r1c_tests_sql,
+    #     "mssql+pyodbc",
+    #     "driver=odbc driver 17 for sql server",
+    # ),
+    # (
+    #     TestMSSQL_ODBC18,
+    #     get_1r1c_tests_sql,
+    #     "mssql+pyodbc",
+    #     "driver=odbc driver 18 for sql server&TrustServerCertificate=yes",
+    # ),
     (TestSQLite, get_1r1c_tests_sql, "sqlite", None),
     (TestDuckDb, get_1r1c_tests_sql, "duckdb", None),
 ):

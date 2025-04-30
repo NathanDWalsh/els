@@ -28,16 +28,16 @@ def get_sheet_names(
         return worksheet_names
 
 
-def get_sheet_height(
-    xl_io: io.BytesIO,
-    sheet_name: str,
-) -> Optional[int]:
-    xl_io.seek(0)
-    with CalamineWorkbook.from_filelike(xl_io) as workbook:
-        if sheet_name in workbook.sheet_names:
-            return workbook.get_sheet_by_name(sheet_name).total_height
-        else:
-            return None
+# def get_sheet_height(
+#     xl_io: io.BytesIO,
+#     sheet_name: str,
+# ) -> Optional[int]:
+#     xl_io.seek(0)
+#     with CalamineWorkbook.from_filelike(xl_io) as workbook:
+#         if sheet_name in workbook.sheet_names:
+#             return workbook.get_sheet_by_name(sheet_name).total_height
+#         else:
+#             return None
 
 
 def get_sheet_row(
@@ -53,6 +53,46 @@ def get_sheet_row(
             )[-1]
         else:
             return None
+
+
+def get_header_cell(
+    xl_io: io.BytesIO,
+    sheet_name: str,
+    nrows: int,
+) -> str:
+    xl_io.seek(0)
+    with CalamineWorkbook.from_filelike(xl_io) as wb:
+        rows = wb.get_sheet_by_name(sheet_name).to_python(
+            nrows=nrows,
+            skip_empty_area=False,
+        )
+        return str(rows)
+
+
+def get_footer_cell(
+    xl_io: io.BytesIO,
+    sheet_name: str,
+    nrows: int,
+) -> str:
+    xl_io.seek(0)
+    with CalamineWorkbook.from_filelike(xl_io) as wb:
+        rows = wb.get_sheet_by_name(sheet_name).to_python()[-nrows:]
+        return str(rows)
+
+
+# def get_xl_dynamic_cell_value(frame: ec.Source, add_cols):
+#     for k, v in add_cols.items():
+#         # check if the value is a DynamicCellValue
+#         if (
+#             v
+#             and isinstance(v, str)
+#             and v[1:].upper() in ec.DynamicCellValue.__members__.keys()
+#         ):
+#             row, col = v[1:].upper().strip("R").split("C")
+#             row = int(row)
+#             col = int(col)
+#             # get the cell value corresponding to the row/col
+#             add_cols[k] = get_sheet_row(xl_io.file_io, frame.sheet_name, row)[col]
 
 
 class XLFrame(FrameABC):
@@ -77,6 +117,8 @@ class XLFrame(FrameABC):
         )
         self._startrow = startrow
         self.kw_for_push: ec.ToExcel = kw_for_push
+        self.header_cell = None
+        self.footer_cell = None
 
     @property
     def if_sheet_exists(self):
@@ -114,19 +156,40 @@ class XLFrame(FrameABC):
             del kwargs["nrows"]
         if not kwargs:
             kwargs = self.kw_for_pull
+        capture_header = kwargs.pop("capture_header", False)
+        capture_footer = kwargs.pop("capture_footer", False)
         if self.mode in ("r", "s") and self.kw_for_pull != kwargs:
             if "engine" not in kwargs:
                 kwargs["engine"] = "calamine"
             if "sheet_name" not in kwargs:
                 kwargs["sheet_name"] = self.name
             self.df = pd.read_excel(self.parent.file_io, **kwargs)
+
+            skiprows = kwargs.get("skiprows", 0)
+            if skiprows > 0 and capture_header:
+                if not self.header_cell:
+                    self.header_cell = get_header_cell(
+                        self.parent.file_io,
+                        self.name,
+                        nrows=skiprows,
+                    )
+                self.df["_header"] = self.header_cell
+
+            skipfooter = kwargs.get("skipfooter", 0)
+            if skipfooter > 0 and capture_footer:
+                if not self.footer_cell:
+                    self.footer_cell = get_footer_cell(
+                        self.parent.file_io,
+                        self.name,
+                        nrows=skipfooter,
+                    )
+                self.df["_footer"] = self.footer_cell
+
             self.kw_for_pull = kwargs
 
 
 class XLContainer(ContainerWriterABC):
     def __init__(self, url, replace=False):
-        # self.child_class = ExcelSheetIO
-        # self.url = url
         super().__init__(XLFrame, url, replace)
 
     def __iter__(self) -> Generator[XLFrame, None, None]:

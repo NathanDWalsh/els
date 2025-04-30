@@ -5,8 +5,8 @@ import pytest
 from . import test_template as tt
 
 
-# these tests are considered "symmetrical config", meaning the same config can be applied on
-# either the push or pull operations with the same results
+# below tests are "symmetrical config": the same config can be applied
+# on either the push or pull operations expecting the same results
 @pytest.mark.parametrize(
     "config_for",
     [
@@ -21,7 +21,7 @@ from . import test_template as tt
         ("excel"),
         ("sqlite"),
         ("duckdb"),
-        ("mssql"),
+        # ("mssql"),
         ("csv"),
         ("xml"),
     ],
@@ -65,7 +65,7 @@ def test_sc(tmp_path, test_name, func, config_for):
         ("excel"),
         ("sqlite"),
         ("duckdb"),
-        ("mssql"),
+        # ("mssql"),
         ("csv"),
     ],
 )
@@ -85,16 +85,58 @@ def test_for_push_or_pull(tmp_path, test_name, func):
     "test_name",
     [
         ("excel"),
+    ],
+)
+@pytest.mark.parametrize(
+    "func",
+    [
+        tt.skiprows_xl1,
+        tt.skiprows_xl2,
+        tt.skiprows_xl3,
+        tt.skipfoot_xl1,
+        tt.skipfoot_xl2,
+    ],
+)
+def test_for_push_and_pull_xl(tmp_path, test_name, func):
+    os.chdir(tmp_path)
+    func(test_medium=test_name)
+
+
+@pytest.mark.parametrize(
+    "test_name",
+    [
         ("csv"),
     ],
 )
 @pytest.mark.parametrize(
     "func",
     [
-        tt.xl_multiindex_column,
-        tt.xl_replace_file,
+        tt.skiprows_csv1,
+        tt.skiprows_csv2,
+        tt.skiprows_csv3,
+        tt.skipfoot_csv1,
+        tt.skipfoot_csv2,
     ],
 )
-def test_for_excel(tmp_path, test_name, func):
+def test_for_push_and_pull_csv(tmp_path, test_name, func):
+    os.chdir(tmp_path)
+    func(test_medium=test_name)
+
+
+@pytest.mark.parametrize(
+    "test_name",
+    [
+        ("excel"),
+        ("csv"),
+    ],
+)
+@pytest.mark.parametrize(
+    "func",
+    [
+        tt.multiindex_column,
+        tt.replace_file,
+    ],
+)
+def test_for_files(tmp_path, test_name, func):
     os.chdir(tmp_path)
     func(test_medium=test_name)

@@ -23,7 +23,7 @@ def _set_url_database(url: sa.engine.url.URL, database):
         ret = url._replace(database=database)
     else:  # SQLAlchemy <1.4
         url = copy(url)
-        url.database = database
+        url.database = database  # type: ignore
         ret = url
     assert ret.database == database, ret
     return ret

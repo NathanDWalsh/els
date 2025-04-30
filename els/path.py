@@ -789,6 +789,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def set_nrows(self, nrows: int):
         for node in self.then_descendants:
+            assert node.config_local
             node.config_local.source.nrows = nrows
 
 

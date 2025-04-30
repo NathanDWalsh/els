@@ -59,8 +59,10 @@ def fetch_file_io(url: str, replace: bool = False):
     elif os.path.isfile(url):
         with open(url, "rb") as file:
             res = io.BytesIO(file.read())
+            # res = io.StringIO(file.read())
     else:
         res = io.BytesIO()
+        # res = io.StringIO()
     io_files[url] = res
     return res
 
