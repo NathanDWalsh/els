@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Optional
 
 import pandas as pd
 from pdfminer.high_level import LAParams, extract_pages
 from pdfminer.layout import LTChar, LTTextBox
 
-from .base import ContainerReaderABC, FrameABC
+from .base import ContainerReaderABC, FrameABC, KWArgsIO
 
 
 def text_range_to_list(text: str):
@@ -102,7 +102,7 @@ class PDFFrame(FrameABC):
         if_exists="fail",
         mode="s",
         df=pd.DataFrame(),
-        kw_for_pull=None,
+        kwargs_pull=None,
     ):
         super().__init__(
             df=df,
@@ -110,24 +110,15 @@ class PDFFrame(FrameABC):
             parent=parent,
             mode=mode,
             if_exists=if_exists,
-            kw_for_pull=kw_for_pull,
+            kwargs_pull=kwargs_pull,
         )
-        # self.kw_for_pull = kw_for_pull
-
-    @property
-    def parent(self) -> PDFContainer:
-        return super().parent
-
-    @parent.setter
-    def parent(self, v):
-        FrameABC.parent.fset(self, v)
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
-    def _read(self, kwargs: dict):
+    def _read(self, kwargs: KWArgsIO):
         if not kwargs:
-            kwargs = self.kw_for_pull
-        if self.mode in ("r", "s") and self.kw_for_pull != kwargs:
+            kwargs = self.kwargs_pull
+        if self.mode in ("r", "s") and self.kwargs_pull != kwargs:
             kw_copy = deepcopy(kwargs)
             laparams = None
             if "laparams" in kw_copy:
@@ -135,26 +126,24 @@ class PDFFrame(FrameABC):
             if "nrows" in kw_copy:
                 del kw_copy["nrows"]
             self.df = pull_pdf(self.parent.url, laparams, **kw_copy)
-            self.kw_for_pull = kwargs
+            self.kwargs_pull = kwargs
 
 
 class PDFContainer(ContainerReaderABC):
     def __init__(self, url, replace=False):
         super().__init__(PDFFrame, url)
 
-    def __iter__(self) -> Generator[PDFFrame, None, None]:
-        for child in super().children:
-            yield child
-
     @property
     def create_or_replace(self):
         return False
 
     def _children_init(self):
-        PDFFrame(
-            name=Path(self.url).stem,
-            parent=self,
-        )
+        self.children = [
+            PDFFrame(
+                name=Path(self.url).stem,
+                parent=self,
+            )
+        ]
 
     def persist(self):
         pass  # not supported

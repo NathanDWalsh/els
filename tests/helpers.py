@@ -124,5 +124,5 @@ def config_execute(config: ec.Config, as_yaml_file_name=None):
         execute = config
 
     ei.tree(execute)
-    ei.flow(execute)
+    # ei.flow(execute)
     ei.execute(execute)

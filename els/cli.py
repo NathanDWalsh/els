@@ -115,7 +115,6 @@ def remove_node_and_adopt_orphans(node: ConfigPath):
     if parent is not None:
         for child in node.children:
             # retain existing config chain
-            child.config_local = child.config
             child.parent = parent
         node.parent = None  # Detach the node from the tree
 
@@ -314,7 +313,6 @@ def execute(path: Optional[Union[str, Config]] = typer.Argument(None)):
 
 
 def write_yaml_str(yaml_str):
-    # TODO, check the colors issues with pwsh
     # if sys.stdout.isatty() and 1 == 2:
     #     colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
     #     sys.stdout.write(colored_yaml)

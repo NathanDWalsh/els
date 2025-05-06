@@ -23,6 +23,10 @@ if sys.version_info >= (3, 10):
     from typing import TypeAlias
 
 
+def listify(v):
+    return v if isinstance(v, (list, tuple)) else [v]
+
+
 # generate an enum in the format _rxcx for a 10 * 10 grid
 def generate_enum_from_grid(cls, enum_name):
     properties = {f"R{r}C{c}": f"_r{r}c{c}" for r in range(10) for c in range(10)}
@@ -67,7 +71,7 @@ class ToExcel(BaseModel, extra="allow"):
     pass
 
 
-class Transform(BaseModel, ABC, extra="forbid"):
+class TransformABC(BaseModel, ABC, extra="forbid"):
     # THIS MAY BE USEFUL FOR CONTROLLING YAML INPUTS?
     # THE CODE BELOW WAS USED WHEN TRANSFORM CLASS HAD PROPERTIES INSTEAD OF A LIST
     # IT ONLY ALLOED EITHER MELT OR STACK TO BE SET (NOT BOTH)
@@ -103,7 +107,7 @@ class Transform(BaseModel, ABC, extra="forbid"):
         self._executed = v
 
 
-class StackDynamic(Transform):
+class StackDynamic(TransformABC):
     stack_fixed_columns: int
     stack_header: int = 0
     stack_name: str = "stack_column"
@@ -139,7 +143,7 @@ class StackDynamic(Transform):
         return df
 
 
-class Melt(Transform):
+class Melt(TransformABC):
     melt_id_vars: list[str]
     melt_value_vars: Optional[list[str]] = None
     melt_value_name: str = "value"
@@ -155,7 +159,7 @@ class Melt(Transform):
         )
 
 
-class Pivot(Transform):
+class Pivot(TransformABC):
     pivot_columns: Optional[Union[str, list[str]]] = None
     pivot_values: Optional[Union[str, list[str]]] = None
     pivot_index: Optional[Union[str, list[str]]] = None
@@ -171,14 +175,14 @@ class Pivot(Transform):
         return res
 
 
-class AsType(Transform):
+class AsType(TransformABC):
     as_dtypes: dict[str, str]
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         return df.astype(self.as_dtypes)
 
 
-class AddColumns(Transform, extra="allow"):
+class AddColumns(TransformABC, extra="allow"):
     additionalProperties: Optional[  # type: ignore
         Union[DynamicPathValue, DynamicColumnValue, DynamicCellValue, str, int, float]  # type: ignore
     ] = None
@@ -191,7 +195,7 @@ class AddColumns(Transform, extra="allow"):
         return df
 
 
-class PrqlTransform(Transform):
+class PrqlTransform(TransformABC):
     prql: str
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -206,14 +210,14 @@ class PrqlTransform(Transform):
         return df
 
 
-class FilterTransform(Transform):
+class FilterTransform(TransformABC):
     filter: str
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         return df.query(self.filter)
 
 
-class SplitOnColumn(Transform):
+class SplitOnColumn(TransformABC):
     split_on_column: str
 
     def transform(self, df: pd.DataFrame) -> list[str]:  # type: ignore
@@ -262,12 +266,11 @@ def merge_dicts_by_top_level_keys(*dicts: dict) -> dict:
 
 class Frame(BaseModel):
     @cached_property
-    def file_exists(self) -> Optional[bool]:
+    def file_exists(self) -> bool:
         if self.url:
-            res = os.path.exists(self.url)
+            return os.path.exists(self.url)
         else:
-            res = None
-        return res
+            return False
 
     url: Optional[str] = None
     # type: ignore
@@ -277,6 +280,15 @@ class Frame(BaseModel):
     dbschema: Optional[str] = None
     # table: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__
     table: Optional[Union[str, list[str]]] = None
+
+    @property
+    def table_list(self) -> list[str]:
+        # if no source table defined explicitly, assumes to be last element in url
+        # (after last / and (before first .))
+        if not self.table and self.url:
+            return [self.url.split("/")[-1].split(".")[0]]
+        else:
+            return listify(self.table)
 
     @cached_property
     def type(self):
@@ -335,6 +347,21 @@ class Frame(BaseModel):
             return None
 
 
+_IfExistsLiteral = Literal[
+    "fail",
+    "truncate",
+    "append",
+    "replace",
+    "replace_file",
+    "replace_database",
+]
+
+if sys.version_info >= (3, 10):
+    IfExistsLiteral: TypeAlias = _IfExistsLiteral
+else:
+    IfExistsLiteral = _IfExistsLiteral
+
+
 class Target(Frame):
     _if_exists_map = dict(
         fail=("append", "fail"),
@@ -361,27 +388,18 @@ class Target(Frame):
         "strict",
         "ignore",
     ] = "strict"
-    if_exists: Optional[
-        Literal[
-            "fail",
-            "truncate",
-            "append",
-            "replace",
-            "replace_file",
-            "replace_database",
-        ]
-    ] = None
+    if_exists: Optional[IfExistsLiteral] = None
     to_sql: Optional[ToSQL] = None
     to_csv: Optional[ToCSV] = None
     to_excel: Optional[ToExcel] = None
     to_xml: Optional[ToXML] = None
 
     @property
-    def kw_for_push(self):
+    def kwargs_push(self):
         return self.to_sql or self.to_csv or self.to_excel or self.to_xml
 
     @property
-    def kw_for_pull(self):
+    def kwargs_pull(self):
         to_x = self.to_excel
 
         kwargs = {}
@@ -400,9 +418,6 @@ class Target(Frame):
         for k in root_kwargs:
             if hasattr(self, k) and getattr(self, k):
                 kwargs[k] = getattr(self, k)
-        # TODO: rethink this for samples, should targets only be sampled?
-        if "nrows" not in kwargs:
-            kwargs["nrows"] = 100
 
         if self.type in (".tsv"):
             if "sep" not in kwargs.keys():
@@ -536,7 +551,7 @@ class Source(Frame, extra="forbid"):
             self.read_pdf = x
 
     @property
-    def kw_for_pull(self):
+    def kwargs_pull(self):
         if self.read_pdf:
             return self.read_pdf.model_dump(exclude_none=True)
 
@@ -608,24 +623,39 @@ class Config(BaseModel):
             list[TransformType],  # type: ignore
         ]
     ] = None
-    children: Union[dict[str, Optional["Config"]], list[str], str, None] = None
+    children: Union[
+        dict[str, Optional[Config]],
+        list[str],
+        str,
+        None,
+    ] = None
 
     @property
     def transform_list(self) -> list[TransformType]:
-        if isinstance(self.transform, list):
-            return self.transform
+        return listify(self.transform)
+
+    @property
+    def transforms_vary_target_columns(self) -> bool:
+        pivot_count = 0
+        for t in self.transform_list:
+            if isinstance(t, Pivot):
+                pivot_count += 1
+        # if pivot_count > 1:
+        #     raise Exception("More then one pivot per source table not supported")
+        if pivot_count == 1:
+            return True
         else:
-            return [self.transform]  # type: ignore
+            return False
 
     @property
     def transforms_affect_target_count(self) -> bool:
-        split_transform_count = 0
+        split_count = 0
         for t in self.transform_list:
             if isinstance(t, SplitOnColumn):
-                split_transform_count += 1
-        if split_transform_count > 1:
+                split_count += 1
+        if split_count > 1:
             raise Exception("More then one split per source table not supported")
-        elif split_transform_count == 1:
+        elif split_count == 1:
             return True
         else:
             return False
@@ -646,26 +676,6 @@ class Config(BaseModel):
         extra="forbid",
         json_schema_extra=schema_pop_children,  # type: ignore
     )
-
-    @cached_property
-    def nrows(self) -> Optional[int]:
-        if self.target:
-            res = self.source.nrows
-        else:
-            res = 100
-        return res
-
-    # @cached_property
-    # def pipe_id(self) -> Optional[str]:
-    #     if self.source and self.source.address and self.target and self.target.address:
-    #         res = (self.source.address, self.target.address)
-    #     elif self.source and self.source.address:
-    #         res = (self.source.address,)
-    #     elif self.target and self.target.address:
-    #         res = (self.target.address,)
-    #     else:
-    #         res = None
-    #     return res
 
     def merge_with(
         self,

@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import io
 import os
-from typing import Generator, Optional
+from typing import Optional
 
 import pandas as pd
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 
-import els.config as ec
 import els.core as el
 
 from .base import ContainerWriterABC, FrameABC, multiindex_to_singleindex
+
+# TODO: add/test support for other workbook types
 
 
 def get_sheet_names(
@@ -26,18 +27,6 @@ def get_sheet_names(
             and (sheet.typ == SheetTypeEnum.WorkSheet)
         ]
         return worksheet_names
-
-
-# def get_sheet_height(
-#     xl_io: io.BytesIO,
-#     sheet_name: str,
-# ) -> Optional[int]:
-#     xl_io.seek(0)
-#     with CalamineWorkbook.from_filelike(xl_io) as workbook:
-#         if sheet_name in workbook.sheet_names:
-#             return workbook.get_sheet_by_name(sheet_name).total_height
-#         else:
-#             return None
 
 
 def get_sheet_row(
@@ -80,21 +69,6 @@ def get_footer_cell(
         return str(rows)
 
 
-# def get_xl_dynamic_cell_value(frame: ec.Source, add_cols):
-#     for k, v in add_cols.items():
-#         # check if the value is a DynamicCellValue
-#         if (
-#             v
-#             and isinstance(v, str)
-#             and v[1:].upper() in ec.DynamicCellValue.__members__.keys()
-#         ):
-#             row, col = v[1:].upper().strip("R").split("C")
-#             row = int(row)
-#             col = int(col)
-#             # get the cell value corresponding to the row/col
-#             add_cols[k] = get_sheet_row(xl_io.file_io, frame.sheet_name, row)[col]
-
-
 class XLFrame(FrameABC):
     def __init__(
         self,
@@ -104,8 +78,8 @@ class XLFrame(FrameABC):
         mode="s",
         df=pd.DataFrame(),
         startrow=0,
-        kw_for_pull=None,
-        kw_for_push={},
+        kwargs_pull=None,
+        kwargs_push={},
     ) -> None:
         super().__init__(
             df=df,
@@ -113,10 +87,10 @@ class XLFrame(FrameABC):
             parent=parent,
             mode=mode,
             if_exists=if_exists,
-            kw_for_pull=kw_for_pull,
+            kwargs_pull=kwargs_pull,
         )
         self._startrow = startrow
-        self.kw_for_push: ec.ToExcel = kw_for_push
+        self.kwargs_push = kwargs_push
         self.header_cell = None
         self.footer_cell = None
 
@@ -133,7 +107,7 @@ class XLFrame(FrameABC):
     def startrow(self):
         if self.if_exists == "truncate" or self.mode == "w":
             # consider changing 0 to skiprows value if exists?
-            # kw_for_push['skiprows']
+            # kwargs_push['skiprows']
             # TODO: test skiprow and truncate combinations
             return 0
         else:
@@ -143,27 +117,21 @@ class XLFrame(FrameABC):
     def startrow(self, v):
         self._startrow = v
 
-    @property
-    def parent(self) -> XLContainer:
-        return super().parent
-
-    @parent.setter
-    def parent(self, v):
-        FrameABC.parent.fset(self, v)
-
-    def _read(self, kwargs):
+    def _read(self, kwargs=None):
         if kwargs.get("nrows") and kwargs.get("skipfooter"):
             del kwargs["nrows"]
-        if not kwargs:
-            kwargs = self.kw_for_pull
+        if kwargs is None:
+            assert self.kwargs_pull
+            kwargs = self.kwargs_pull
         capture_header = kwargs.pop("capture_header", False)
         capture_footer = kwargs.pop("capture_footer", False)
-        if self.mode in ("r", "s") and self.kw_for_pull != kwargs:
-            if "engine" not in kwargs:
-                kwargs["engine"] = "calamine"
-            if "sheet_name" not in kwargs:
-                kwargs["sheet_name"] = self.name
-            self.df = pd.read_excel(self.parent.file_io, **kwargs)
+        if self.mode in ("s", "m") or (self.kwargs_pull != kwargs):
+            self.df = pd.read_excel(
+                self.parent.file_io,
+                engine=kwargs.pop("engine", "calamine"),
+                sheet_name=kwargs.pop("sheet_name", self.name),
+                **kwargs,
+            )
 
             skiprows = kwargs.get("skiprows", 0)
             if skiprows > 0 and capture_header:
@@ -185,16 +153,12 @@ class XLFrame(FrameABC):
                     )
                 self.df["_footer"] = self.footer_cell
 
-            self.kw_for_pull = kwargs
+            self.kwargs_pull = kwargs
 
 
 class XLContainer(ContainerWriterABC):
     def __init__(self, url, replace=False):
         super().__init__(XLFrame, url, replace)
-
-    def __iter__(self) -> Generator[XLFrame, None, None]:
-        for child in super().children:
-            yield child
 
     @property
     def create_or_replace(self):
@@ -213,7 +177,7 @@ class XLContainer(ContainerWriterABC):
     def _children_init(self):
         self.file_io = el.fetch_file_io(self.url)
         with CalamineWorkbook.from_filelike(self.file_io) as workbook:
-            return [
+            self.children = [
                 XLFrame(
                     startrow=workbook.get_sheet_by_name(sheet.name).total_height + 1,
                     name=sheet.name,
@@ -232,7 +196,7 @@ class XLContainer(ContainerWriterABC):
             ) as writer:
                 for df_io in self:
                     df = df_io.df_target
-                    to_excel = df_io.kw_for_push
+                    to_excel = df_io.kwargs_push
                     if to_excel:
                         kwargs = to_excel.model_dump(exclude_none=True)
                     else:
@@ -261,7 +225,7 @@ class XLContainer(ContainerWriterABC):
                             and df_io.if_sheet_exists == sheet_exist
                         ):
                             df = df_io.df_target
-                            to_excel = df_io.kw_for_push
+                            to_excel = df_io.kwargs_push
                             if df_io.mode == "a":
                                 header = False
                             else:

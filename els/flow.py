@@ -42,7 +42,7 @@ class ElsExecute(FlowNodeMixin):
         if not isinstance(config, ec.Config):
             logging.error("INGEST without config")
         self.parent = parent
-        if execute_fn.__name__ == "ingest":
+        if execute_fn.__qualname__ == ee.ingest.__qualname__:
             source_name = config.source.table
             target_name = f"{config.target.table}({config.target.type})"
         else:

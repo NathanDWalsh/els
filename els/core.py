@@ -1,5 +1,6 @@
 import io
 import os
+from typing import Union
 
 import pandas as pd
 
@@ -29,7 +30,7 @@ def urlize_dict(df_dict: dict[str, pd.DataFrame]):
 
 
 def fetch_df_container(
-    container_class: type[eio.ContainerWriterABC],
+    container_class: type[Union[eio.ContainerReaderABC, eio.ContainerWriterABC]],
     url: str,
     replace: bool = False,
 ) -> eio.ContainerWriterABC:

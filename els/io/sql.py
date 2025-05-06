@@ -1,28 +1,32 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Generator, Literal, Optional, Union
+from collections.abc import MutableMapping
+from typing import Any, Literal, Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pandas as pd
 import pyodbc  # type: ignore
 import sqlalchemy as sa
-from sqlalchemy_utils import create_database, drop_database  # type: ignore
+from sqlalchemy_utils import (  # type: ignore
+    create_database,
+    drop_database,
+)
 from sqlalchemy_utils.functions.orm import quote  # type: ignore
 
 import els.config as ec
-from els.sa_utils_fork import database_exists
+from els.sa_utils_patch import database_exists
 
-from .base import ContainerWriterABC, FrameABC
-
-
-def lcase_dict_keys(_dict: dict[str, Any]):
-    return {k.lower(): v for k, v in _dict.items()}
+from .base import ContainerWriterABC, FrameABC, FrameModeLiteral
 
 
-def lcase_query_keys(query):
+def lcase_mapping_keys(mapping: MutableMapping[str, Any]) -> dict[str, Any]:
+    return {k.lower(): v for k, v in mapping.items()}
+
+
+def lcase_query_keys(query: str) -> dict[str, Any]:
     query_parsed = parse_qs(query)
-    return lcase_dict_keys(query_parsed)
+    return lcase_mapping_keys(query_parsed)
 
 
 supported_mssql_odbc_drivers = {
@@ -32,13 +36,13 @@ supported_mssql_odbc_drivers = {
 }
 
 
-def available_odbc_drivers():
+def available_odbc_drivers() -> set[str]:
     available = pyodbc.drivers()
     lcased = {v.lower() for v in available}
     return lcased
 
 
-def supported_available_odbc_drivers():
+def supported_available_odbc_drivers() -> set[str]:
     supported = supported_mssql_odbc_drivers
     available = available_odbc_drivers()
     return supported.intersection(available)
@@ -70,13 +74,13 @@ def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
 class SQLFrame(FrameABC):
     def __init__(
         self,
-        name,
-        parent,
-        if_exists="fail",
-        mode="s",
+        name: str,
+        parent: SQLContainer,
+        if_exists: ec.IfExistsLiteral = "fail",
+        mode: FrameModeLiteral = "s",
         df=pd.DataFrame(),
-        kw_for_pull=None,  # TODO: fix mutable default
-        kw_for_push={},
+        kwargs_pull=None,  # TODO: fix mutable default
+        kwargs_push={},
     ) -> None:
         super().__init__(
             df=df,
@@ -84,13 +88,13 @@ class SQLFrame(FrameABC):
             parent=parent,
             mode=mode,
             if_exists=if_exists,
-            kw_for_pull=kw_for_pull,
+            kwargs_pull=kwargs_pull,
         )
-        self.kw_for_push: ec.ToSQL = kw_for_push
+        self.kwargs_push = kwargs_push
 
     @property
     def sqn(self) -> str:
-        if self.parent.dialect_name == "duckdb":
+        if self.parent.dialect_name == "duckdb":  # type:ignore
             res = '"' + self.name + '"'
         # elif self.dbschema and self.table:
         #     res = "[" + self.dbschema + "].[" + self.table + "]"
@@ -107,9 +111,9 @@ class SQLFrame(FrameABC):
 
     def _read(self, kwargs):
         if not kwargs:
-            kwargs = self.kw_for_pull
+            kwargs = self.kwargs_pull
         else:
-            self.kw_for_pull = kwargs
+            self.kwargs_pull = kwargs
         if "nrows" in kwargs:
             nrows = kwargs.pop("nrows")
         else:
@@ -126,22 +130,10 @@ class SQLFrame(FrameABC):
             )
             self.df = pd.read_sql(stmt, con=sqeng, **kwargs)
 
-    @property
-    def parent(self) -> SQLContainer:
-        return super().parent
-
-    @parent.setter
-    def parent(self, v):
-        FrameABC.parent.fset(self, v)
-
 
 class SQLContainer(ContainerWriterABC):
     def __init__(self, url, replace=False):
         super().__init__(SQLFrame, url, replace)
-
-    def __iter__(self) -> Generator[SQLFrame, None, None]:
-        for child in super().children:
-            yield child
 
     @property
     def query_lcased(self):
@@ -251,7 +243,7 @@ class SQLContainer(ContainerWriterABC):
         self.sa_engine: sa.Engine = fetch_sa_engine(self.db_connection_string)
         with self.sa_engine.connect() as sqeng:
             inspector = sa.inspect(sqeng)
-            [
+            self.children = [
                 SQLFrame(
                     name=n,
                     parent=self,
@@ -275,9 +267,9 @@ class SQLContainer(ContainerWriterABC):
         with self.sa_engine.connect() as sqeng:
             for df_io in self:
                 if df_io.mode in ("a", "w"):
-                    if df_io.kw_for_push:
-                        kwargs = df_io.kw_for_push
-                    else:  # TODO: else maybe not needed when default for kw_for_push
+                    if df_io.kwargs_push:
+                        kwargs = df_io.kwargs_push
+                    else:  # TODO: else maybe not needed when default for kwargs_push
                         kwargs = {}
                     if df_io.if_exists == "truncate":
                         sqeng.execute(sa.text(df_io.truncate_stmt))

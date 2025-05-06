@@ -1,5 +1,5 @@
 import logging
-import os
+from collections.abc import Iterable
 from typing import Optional, Union
 
 import numpy as np
@@ -55,6 +55,7 @@ def push_frame(
             url=target.url,
             replace=target.replace_container,
         )
+        assert isinstance(target.table, str)
         df_table = df_container.fetch_child(
             df_name=target.table,
             df=df,
@@ -63,16 +64,9 @@ def push_frame(
             df=df,
             if_exists=target.if_table_exists,
             build=build,
-            kw_for_push=target.kw_for_push,
+            kwargs_push=target.kwargs_push,
         )
     return True
-
-
-# TODO: integrate into the container objects?
-def create_directory_if_not_exists(file_path: str):
-    directory = os.path.dirname(file_path)
-    if directory and not os.path.exists(directory):
-        os.makedirs(directory)
 
 
 # TODO: add tests for this:
@@ -96,9 +90,9 @@ def config_frames_consistent(config: ec.Config) -> bool:
 
 def apply_transforms(
     df: pd.DataFrame,
-    transforms: list[ec.Transform],
+    transforms: Iterable[ec.TransformType],
     mark_as_executed: bool = True,
-):
+) -> pd.DataFrame:
     if not transforms == [None]:
         for transform in transforms:
             if not transform.executed:
@@ -109,58 +103,20 @@ def apply_transforms(
     return df
 
 
-# CAN BE RESSURECTED FOR CSV AND EXCEL DYNAMIC CELL RESOLVING
-# def get_csv_dynamic_cell_value(frame: ec.Source, add_cols):
-#     # read first 10 rows of csv file with python csv reader into a list of rows
-#     kwargs=frame.read_csv
-#     with open(frame.url, "r", encoding="utf-8-sig") as f:
-#         row_scan_max = 10
-#         # get row count and update line_number for each line read
-#         row_scan = sum(
-#             1 for line_number, row in enumerate(f, 1) if line_number <= row_scan_max
-#         )
-#         f.seek(0)
-#         # take min of row count and 10
-#         # row_scan = 2
-#         reader = csv.reader(f, delimiter=kwargs["sep"])
-#         rows_n = [next(reader) for _ in range(row_scan)]
-#     for k, v in add_cols.items():
-#         # check if the value is a DynamicCellValue
-#         if (
-#             v
-#             and isinstance(v, str)
-#             and v[1:].upper() in ec.DynamicCellValue.__members__.keys()
-#         ):
-#             row, col = v[1:].upper().strip("R").split("C")
-#             row = int(row)
-#             col = int(col)
-#             # if v == "_r1c1":
-#             # get the cell value corresponding to the rxcx
-#             add_cols[k] = rows_n[row][col]
-#
-# def get_xl_dynamic_cell_value(frame: ec.Source, add_cols):
-#     for k, v in add_cols.items():
-#         # check if the value is a DynamicCellValue
-#         if (
-#             v
-#             and isinstance(v, str)
-#             and v[1:].upper() in ec.DynamicCellValue.__members__.keys()
-#         ):
-#             row, col = v[1:].upper().strip("R").split("C")
-#             row = int(row)
-#             col = int(col)
-#             # get the cell value corresponding to the row/col
-#             add_cols[k] = xl.get_sheet_row(xl_io.file_io, frame.sheet_name, row)[col]
-
-
 def data_frames_consistent(
-    df1: pd.DataFrame, df2: pd.DataFrame, ignore_cols: list = []
+    df1: pd.DataFrame,
+    df2: pd.DataFrame,
+    ignore_cols: Optional[Iterable[str]] = None,
 ) -> bool:
     res = True
-    ignore_cols_set = set(ignore_cols)
+    if ignore_cols is None:
+        ignore_cols = set()
+    else:
+        ignore_cols = set(ignore_cols)
+
     # Compare the column names and types
-    source_cols = set(df1.columns.tolist()) - ignore_cols_set
-    target_cols = set(df2.columns.tolist()) - ignore_cols_set
+    source_cols = set(df1.columns.tolist()) - ignore_cols
+    target_cols = set(df2.columns.tolist()) - ignore_cols
 
     if source_cols != target_cols:
         in_source = source_cols - target_cols
@@ -183,24 +139,8 @@ def data_frames_consistent(
     return res  # Table exists and has the same field names and types
 
 
-def get_sql_data_type(dtype):
-    if dtype == "int64":
-        return "INT"
-    elif dtype == "float64":
-        return "FLOAT"
-    elif dtype == "bool":
-        return "BIT"
-    elif dtype == "object":
-        return "VARCHAR(MAX)"
-    elif dtype == "datetime64":
-        return "DATETIME"
-    else:
-        return "VARCHAR(MAX)"
-
-
 def pull_frame(
     frame: Union[ec.Source, ec.Target],
-    # nrows: Optional[int] = None,
     sample: bool = False,
 ) -> pd.DataFrame:
     container_class = get_container_class(frame)
@@ -208,21 +148,28 @@ def pull_frame(
         container_class=container_class,
         url=frame.url,  # type: ignore
     )
+    assert isinstance(frame.table, str)
     df_table = df_container[frame.table]
     df = df_table.read(
-        kwargs=frame.kw_for_pull,
+        kwargs=frame.kwargs_pull,
         sample=sample,
     )
 
     if frame and hasattr(frame, "dtype") and frame.dtype:
-        assert df is not None
+        # assert df is not None
         for k, v in frame.dtype.items():
             if v == "date" and not isinstance(type(df[k]), np.dtypes.DateTime64DType):
                 df[k] = pd.to_datetime(df[k])
     return pd.DataFrame(df)
 
 
-def get_configs(config: ec.Config):
+def get_configs(
+    config: ec.Config,
+) -> tuple[
+    ec.Target,
+    ec.Source,
+    list[ec.TransformType],
+]:
     target = config.target
     source = config.source
     transform = config.transform_list
@@ -233,48 +180,31 @@ def get_configs(config: ec.Config):
 def ingest(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
     consistent = config_frames_consistent(config)
+    print("ingest")
     if not target or not target.table or consistent or target.consistency == "ignore":
-        # TODO: why is nrows on config root and not in source
-        # this is the only place where nrows is passed to pull_frame
-        source_df = pull_frame(source, False)
+        source_df = pull_frame(source, sample=False)
         source_df = apply_transforms(source_df, transform)
+        print(source_df)
         return push_frame(source_df, target)
     else:
         raise Exception(f"{target.table}: Inconsistent, not saved.")
 
 
-def table_exists(target: ec.Target) -> Optional[bool]:
-    # TODO, bring back schema logic in new objects
-    # if target.db_connection_string and target.table and target.dbschema:
-    #     db_exists(target)
-    #     with sa.create_engine(target.db_connection_string).connect() as sqeng:
-    #         inspector = sa.inspect(sqeng)
-    #         res = inspector.has_table(target.table, target.dbschema)
+def table_exists(target: ec.Target) -> bool:
     assert target.url
-    if target.type_is_db:
-        sql_container = el.fetch_df_container(SQLContainer, target.url)
-        return target.table in sql_container
-    elif target.type in (".csv", ".tsv"):
-        res = target.file_exists
+    if target.type in (".csv", ".tsv"):
+        return target.file_exists
     elif (
-        target.type in (".xlsx") and target.file_exists
-    ):  # TODO: add other file types supported by Calamine, be careful not to support legacy excel
-        # check if sheet exists
-        xl_io = el.fetch_df_container(XLContainer, target.url)
-        res = target.sheet_name in xl_io
-    elif target.type == "dict":
-        # TODO, make these method calls consistent
-        # df_dict_io = el.fetch_df_dict_io(target.url)
-        df_dict_io = el.fetch_df_container(DFContainer, target.url)
-        res = target.table in df_dict_io
-        # TODO, the empty check may no longer be necessary if fetch is changed for get/has child
-        # if target.table in df_dict and not df_dict[target.table].empty:
-        #     res = True
-        # else:
-        #     res = False
+        target.type_is_db
+        or (target.type_is_excel and target.file_exists)
+        or target.type in ("dict")
+    ):
+        container_class = get_container_class(target)
+        container = el.fetch_df_container(container_class, target.url)
+        assert isinstance(target.table, str)
+        return target.table in container
     else:
-        res = None
-    return res
+        return False
 
 
 def requires_build_action(
@@ -292,9 +222,10 @@ def requires_build_action(
 
 def build(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
+    print("build")
     if requires_build_action(target):
-        # TODO, use caching to avoid pulling the same data twice
-        df = pull_frame(source, sample=True)
+        sample = False if config.transforms_vary_target_columns else True
+        df = pull_frame(source, sample=sample)
         df = apply_transforms(df, transform, mark_as_executed=False)
         return push_frame(df, target, build=True)
     else:

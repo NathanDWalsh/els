@@ -3,14 +3,18 @@ from __future__ import annotations
 import os
 from io import StringIO
 from pathlib import Path
-from typing import Generator, Literal
 
 import pandas as pd
 
-import els.config as ec
 import els.core as el
 
-from .base import ContainerWriterABC, FrameABC, append_into, get_column_frame
+from .base import (
+    ContainerWriterABC,
+    FrameABC,
+    KWArgsIO,
+    append_into,
+    get_column_frame,
+)
 
 
 class XMLFrame(FrameABC):
@@ -22,8 +26,8 @@ class XMLFrame(FrameABC):
         mode="s",
         df=pd.DataFrame(),
         # startrow=0,
-        kw_for_pull=None,  # TODO: fix mutable default
-        kw_for_push={},
+        kwargs_pull=None,  # TODO: fix mutable default
+        kwargs_push={},
     ) -> None:
         super().__init__(
             df=df,
@@ -31,53 +35,31 @@ class XMLFrame(FrameABC):
             parent=parent,
             mode=mode,
             if_exists=if_exists,
-            kw_for_pull=kw_for_pull,
+            kwargs_pull=kwargs_pull,
         )
         # TODO: maybe use skiprows instead?
-        # self._startrow = startrow
-        # self.kw_for_pull = kw_for_pull
-        self.kw_for_push: ec.ToXML = kw_for_push
-
-    @property
-    def parent(self) -> XMLContainer:
-        return super().parent
-
-    @parent.setter
-    def parent(self, v):
-        FrameABC.parent.fset(self, v)
+        self.kwargs_push = kwargs_push
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
-    def _read(self, kwargs: dict):
+    def _read(self, kwargs: KWArgsIO):
         if not kwargs:
-            kwargs = self.kw_for_pull
-        if self.mode in ("r", "s", "m") or (self.kw_for_pull != kwargs):
+            kwargs = self.kwargs_pull
+        if self.mode in ("s", "m") or (self.kwargs_pull != kwargs):
+            parent: XMLContainer = self.parent  # type:ignore
             if "nrows" in kwargs:
                 kwargs.pop("nrows")
-                self.parent.file_io.seek(0)
-            self.parent.file_io.seek(0)
+                parent.file_io.seek(0)
+            parent.file_io.seek(0)
             self.df = pd.read_xml(
-                StringIO(self.parent.file_io.getvalue().decode("utf-8")), **kwargs
+                StringIO(parent.file_io.getvalue().decode("utf-8")), **kwargs
             )
-            self.kw_for_pull = kwargs
-
-    @property
-    def append_method(
-        self,
-    ) -> Literal[
-        "frame",
-        "file",
-    ]:
-        return "frame"
+            self.kwargs_pull = kwargs
 
 
 class XMLContainer(ContainerWriterABC):
     def __init__(self, url, replace=False):
         super().__init__(XMLFrame, url, replace)
-
-    def __iter__(self) -> Generator[XMLFrame, None, None]:
-        for child in super().children:
-            yield child
 
     @property
     def create_or_replace(self):
@@ -88,10 +70,12 @@ class XMLContainer(ContainerWriterABC):
 
     def _children_init(self):
         self.file_io = el.fetch_file_io(self.url, replace=False)
-        XMLFrame(
-            name=Path(self.url).stem,
-            parent=self,
-        )
+        self.children = [
+            XMLFrame(
+                name=Path(self.url).stem,
+                parent=self,
+            )
+        ]
 
     def persist(self):
         if self.mode in ("w", "a"):
@@ -99,7 +83,7 @@ class XMLContainer(ContainerWriterABC):
             # loop not required, only one child in XML
             for df_io in self:
                 df = df_io.df_target
-                to_xml = df_io.kw_for_push
+                to_xml = df_io.kwargs_push
                 if to_xml:
                     kwargs = to_xml.model_dump(exclude_none=True)
                 else:

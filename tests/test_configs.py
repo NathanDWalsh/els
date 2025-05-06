@@ -2,11 +2,20 @@ import os
 
 import pytest
 
+import els.io.base as io
+
 from . import test_template as tt
 
 
 # below tests are "symmetrical config": the same config can be applied
 # on either the push or pull operations expecting the same results
+@pytest.mark.parametrize(
+    "tiny_sample",
+    [
+        True,
+        # False,
+    ],
+)
 @pytest.mark.parametrize(
     "config_for",
     [
@@ -53,8 +62,10 @@ from . import test_template as tt
         tt.append_plus,
     ],
 )
-def test_sc(tmp_path, test_name, func, config_for):
+def test_sc(tmp_path, test_name, func, config_for, tiny_sample):
     os.chdir(tmp_path)
+    if tiny_sample:
+        io.nrows_for_sampling = 2
     func(test_medium=test_name, config_for=config_for)
 
 

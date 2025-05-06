@@ -1,42 +1,13 @@
-import os
 from copy import copy
 
 import sqlalchemy as sa
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import OperationalError, ProgrammingError
-
-
-def _get_scalar_result(engine, sql):
-    with engine.connect() as conn:
-        return conn.scalar(sql)
-
-
-def _set_url_database(url: sa.engine.url.URL, database):
-    """Set the database of an engine URL.
-
-    :param url: A SQLAlchemy engine URL.
-    :param database: New database to set.
-
-    """
-    if hasattr(url, "_replace"):
-        # Cannot use URL.set() as database may need to be set to None.
-        ret = url._replace(database=database)
-    else:  # SQLAlchemy <1.4
-        url = copy(url)
-        url.database = database  # type: ignore
-        ret = url
-    assert ret.database == database, ret
-    return ret
-
-
-def _sqlite_file_exists(database):
-    if not os.path.isfile(database) or os.path.getsize(database) < 100:
-        return False
-
-    with open(database, "rb") as f:
-        header = f.read(100)
-
-    return header[:16] == b"SQLite format 3\x00"
+from sqlalchemy_utils.functions.database import (
+    _get_scalar_result,
+    _set_url_database,
+    _sqlite_file_exists,
+)  # type: ignore
 
 
 def database_exists(url):
