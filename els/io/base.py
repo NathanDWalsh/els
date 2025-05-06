@@ -7,13 +7,14 @@ from typing import (
     Any,
     Literal,
     Optional,
-    TypeAlias,
 )
 
 import pandas as pd
 
 import els.config as ec
 
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
 nrows_for_sampling: int = 100
 
 
@@ -301,15 +302,6 @@ class ContainerWriterABC(ContainerReaderABC):
         return [child.name for child in self]
 
     @abstractmethod
-    def _children_init(self) -> None:
-        pass
-
-    @abstractmethod
     def persist(self) -> None:
         pass
         # persist dataframes to data store
-
-    @abstractmethod
-    def close(self) -> None:
-        pass
-        # perform closing operations on container (file, connection, etc)

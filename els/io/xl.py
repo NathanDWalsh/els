@@ -125,7 +125,7 @@ class XLFrame(FrameABC):
             kwargs = self.kwargs_pull
         capture_header = kwargs.pop("capture_header", False)
         capture_footer = kwargs.pop("capture_footer", False)
-        if self.mode in ("s", "m") or (self.kwargs_pull != kwargs):
+        if self.kwargs_pull != kwargs:
             self.df = pd.read_excel(
                 self.parent.file_io,
                 engine=kwargs.pop("engine", "calamine"),

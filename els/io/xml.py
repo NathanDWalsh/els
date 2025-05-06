@@ -43,13 +43,12 @@ class XMLFrame(FrameABC):
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
     def _read(self, kwargs: KWArgsIO):
-        if not kwargs:
+        if kwargs is None:
             kwargs = self.kwargs_pull
-        if self.mode in ("s", "m") or (self.kwargs_pull != kwargs):
+        if self.mode in ("s") or (self.kwargs_pull != kwargs):
             parent: XMLContainer = self.parent  # type:ignore
             if "nrows" in kwargs:
                 kwargs.pop("nrows")
-                parent.file_io.seek(0)
             parent.file_io.seek(0)
             self.df = pd.read_xml(
                 StringIO(parent.file_io.getvalue().decode("utf-8")), **kwargs
@@ -58,17 +57,17 @@ class XMLFrame(FrameABC):
 
 
 class XMLContainer(ContainerWriterABC):
-    def __init__(self, url, replace=False):
+    def __init__(self, url, replace=False) -> None:
         super().__init__(XMLFrame, url, replace)
 
     @property
-    def create_or_replace(self):
+    def create_or_replace(self) -> bool:
         if self.replace or not os.path.isfile(self.url):
             return True
         else:
             return False
 
-    def _children_init(self):
+    def _children_init(self) -> None:
         self.file_io = el.fetch_file_io(self.url, replace=False)
         self.children = [
             XMLFrame(
@@ -77,21 +76,16 @@ class XMLContainer(ContainerWriterABC):
             )
         ]
 
-    def persist(self):
+    def persist(self) -> None:
         if self.mode in ("w", "a"):
             self.file_io = el.fetch_file_io(self.url)
             # loop not required, only one child in XML
             for df_io in self:
                 df = df_io.df_target
-                to_xml = df_io.kwargs_push
-                if to_xml:
-                    kwargs = to_xml.model_dump(exclude_none=True)
-                else:
-                    kwargs = {}
+                kwargs = df_io.kwargs_push or {}
                 # TODO: relevant for XML?
                 # if isinstance(df.columns, pd.MultiIndex):
                 #     df = multiindex_to_singleindex(df)
-
                 if df_io.if_exists == "truncate":
                     self.file_io.seek(0)
                     stringit = StringIO(self.file_io.getvalue().decode("utf-8"))
@@ -116,6 +110,6 @@ class XMLContainer(ContainerWriterABC):
                 self.file_io.seek(0)
                 write_file.write(self.file_io.getbuffer())
 
-    def close(self):
+    def close(self) -> None:
         self.file_io.close()
         del el.io_files[self.url]

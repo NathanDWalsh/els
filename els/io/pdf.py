@@ -118,7 +118,7 @@ class PDFFrame(FrameABC):
     def _read(self, kwargs: KWArgsIO):
         if not kwargs:
             kwargs = self.kwargs_pull
-        if self.mode in ("r", "s") and self.kwargs_pull != kwargs:
+        if self.kwargs_pull != kwargs:
             kw_copy = deepcopy(kwargs)
             laparams = None
             if "laparams" in kw_copy:
