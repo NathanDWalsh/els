@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.7.1 (2025-05-06)
+
+### Bug Fixes
+
+- **io**: Typealias
+  ([`9570080`](https://github.com/NathanDWalsh/els/commit/9570080a0b1fb9bc8643a690f9203fd9235440e6))
+
+
 ## v0.7.0 (2025-04-30)
+
+### Bug Fixes
+
+- **io**: Sampling bug
+  ([`a0c4ca3`](https://github.com/NathanDWalsh/els/commit/a0c4ca33e73099d55a8c7ac3fe72ea21851c597d))
 
 
 ## v0.6.1 (2025-04-30)
