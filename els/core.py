@@ -41,7 +41,7 @@ def fetch_df_container(
             res = container_class(
                 url=url,
                 replace=replace,
-            )  # type: ignore
+            )
     else:
         raise Exception(f"Cannot fetch {type(container_class)} from: {url}")
     df_containers[url] = res

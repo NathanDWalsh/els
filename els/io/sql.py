@@ -71,7 +71,7 @@ def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
     return res
 
 
-class SQLFrame(FrameABC):
+class SQLFrame(FrameABC["SQLContainer"]):
     def __init__(
         self,
         name: str,
@@ -79,8 +79,8 @@ class SQLFrame(FrameABC):
         if_exists: ec.IfExistsLiteral = "fail",
         mode: FrameModeLiteral = "s",
         df=pd.DataFrame(),
-        kwargs_pull=None,  # TODO: fix mutable default
-        kwargs_push={},
+        kwargs_pull=None,
+        kwargs_push=None,
     ) -> None:
         super().__init__(
             df=df,
@@ -88,7 +88,7 @@ class SQLFrame(FrameABC):
             parent=parent,
             mode=mode,
             if_exists=if_exists,
-            kwargs_pull=kwargs_pull,
+            kwargs_pull=kwargs_pull or {},
         )
         self.kwargs_push = kwargs_push
 
@@ -110,14 +110,7 @@ class SQLFrame(FrameABC):
             return f"truncate table {self.sqn}"
 
     def _read(self, kwargs):
-        if not kwargs:
-            kwargs = self.kwargs_pull
-        else:
-            self.kwargs_pull = kwargs
-        if "nrows" in kwargs:
-            nrows = kwargs.pop("nrows")
-        else:
-            nrows = None
+        nrows = kwargs.pop("nrows", None)
         if not self.parent.url:
             raise Exception("invalid db_connection_string")
         if not self.name:
@@ -131,7 +124,7 @@ class SQLFrame(FrameABC):
             self.df = pd.read_sql(stmt, con=sqeng, **kwargs)
 
 
-class SQLContainer(ContainerWriterABC):
+class SQLContainer(ContainerWriterABC[SQLFrame]):
     def __init__(self, url, replace=False):
         super().__init__(SQLFrame, url, replace)
 
@@ -240,7 +233,7 @@ class SQLContainer(ContainerWriterABC):
             return "server"
 
     def _children_init(self) -> None:
-        self.sa_engine: sa.Engine = fetch_sa_engine(self.db_connection_string)
+        self.sa_engine = fetch_sa_engine(self.db_connection_string)
         with self.sa_engine.connect() as sqeng:
             inspector = sa.inspect(sqeng)
             self.children = [

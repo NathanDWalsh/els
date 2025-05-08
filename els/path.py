@@ -119,7 +119,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 if not self.has_leaf_table:
                     # do not add dirs with no leaf nodes which are tables
                     self.parent = None
-        elif self.is_config_file:  # type: ignore
+        elif self.is_config_file:
             self.config = ec.Config(source=ec.Source(url=self.adjacent_file_path))
             self.grow_config_branches()
         else:
@@ -278,13 +278,13 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 )
             df_dict = None
             if len(transforms) > 1:
-                df = ee.apply_transforms(df, transforms=transforms[:-1])  # type: ignore
+                df = ee.apply_transforms(df, transforms=transforms[:-1])
                 df_dict = dict(transformed=df)
-            split_transform: ec.SplitOnColumn = transforms[-1]  # type: ignore
+            split_transform: ec.SplitOnColumn = transforms[-1]
             split_on_column = split_transform.split_on_column
             # transforms[-1].executed = True
             # sub_tables = list(df[split_on_column].drop_duplicates())
-            sub_tables: list[str] = split_transform(df)  # type: ignore
+            sub_tables: list[str] = split_transform(df)
             for sub_table in sub_tables:
                 if isinstance(sub_table, str):
                     column_eq = f"'{sub_table}'"
@@ -698,12 +698,12 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         res: dict[str, list[FlowAtom]] = {}
         for leaf in self.leaves:
             if leaf.node_type == NodeType.DATA_TABLE:
-                res.setdefault(leaf.config.target.table, []).append(  # type: ignore
+                res.setdefault(leaf.config.target.table, []).append(
                     FlowAtom(
-                        source_url=leaf.config.source.url,  # type: ignore
+                        source_url=leaf.config.source.url,
                         source_container_class=ee.get_container_class(
                             leaf.config.source
-                        ),  # type: ignore
+                        ),
                         # TODO, should consider when same table name exists in different targets?
                         # target_table=leaf.config.target.table,
                         # load_parallel=leaf.config.source.load_parallel,

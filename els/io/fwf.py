@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 
-from .base import ContainerReaderABC, FrameABC, KWArgsIO
+from .base import ContainerReaderABC, FrameABC
 
 
-class FWFFrame(FrameABC):
+class FWFFrame(FrameABC["FWFContainer"]):
     def __init__(
         self,
         name,
@@ -27,16 +26,13 @@ class FWFFrame(FrameABC):
             kwargs_pull=kwargs_pull,
         )
 
-    def _read(self, kwargs: Optional[KWArgsIO] = None):
-        if kwargs is None:
-            assert self.kwargs_pull
-            kwargs = self.kwargs_pull
+    def _read(self, kwargs):
         if self.kwargs_pull != kwargs:
-            self.df = pd.read_fwf(self.parent.url, **kwargs)  # type: ignore
+            self.df = pd.read_fwf(self.parent.url, **kwargs)
             self.kwargs_pull = kwargs
 
 
-class FWFContainer(ContainerReaderABC):
+class FWFContainer(ContainerReaderABC[FWFFrame]):
     def __init__(self, url, replace=False):
         super().__init__(FWFFrame, url)
 

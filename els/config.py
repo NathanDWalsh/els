@@ -22,6 +22,8 @@ from els.pathprops import HumanPathPropertiesMixin
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
 
+from els.typing import IfExistsLiteral, KWArgsIO
+
 
 def listify(v):
     return v if isinstance(v, (list, tuple)) else [v]
@@ -132,7 +134,7 @@ class StackDynamic(TransformABC):
         df.index.rename(index_name_mapping, inplace=True)
 
         # Stack the DataFrame based on the top-level columns
-        df = df.stack(level=self.stack_header, future_stack=True)  # type: ignore
+        df = df.stack(level=self.stack_header, future_stack=True)
 
         # Rename the new index created by the stacking operation
         df.index.rename({None: self.stack_name}, inplace=True)
@@ -243,7 +245,7 @@ def merge_configs(*configs: Union[Config, dict]) -> Config:
         else:
             raise Exception("configs should be a list of Configs or dicts")
     dict_result = merge_dicts_by_top_level_keys(*dicts)
-    res = Config.model_validate(dict_result)  # type: ignore
+    res = Config.model_validate(dict_result)
     return res
 
 
@@ -273,7 +275,6 @@ class Frame(BaseModel):
             return False
 
     url: Optional[str] = None
-    # type: ignore
     # Optional[str] = None
     # server: Optional[str] = None
     # database: Optional[str] = None
@@ -347,21 +348,6 @@ class Frame(BaseModel):
             return None
 
 
-_IfExistsLiteral = Literal[
-    "fail",
-    "truncate",
-    "append",
-    "replace",
-    "replace_file",
-    "replace_database",
-]
-
-if sys.version_info >= (3, 10):
-    IfExistsLiteral: TypeAlias = _IfExistsLiteral
-else:
-    IfExistsLiteral = _IfExistsLiteral
-
-
 class Target(Frame):
     _if_exists_map = dict(
         fail=("append", "fail"),
@@ -395,8 +381,9 @@ class Target(Frame):
     to_xml: Optional[ToXML] = None
 
     @property
-    def kwargs_push(self):
-        return self.to_sql or self.to_csv or self.to_excel or self.to_xml
+    def kwargs_push(self) -> KWArgsIO:
+        to_x = self.to_sql or self.to_csv or self.to_excel or self.to_xml
+        return to_x.model_dump(exclude_none=True) if to_x else {}
 
     @property
     def kwargs_pull(self):

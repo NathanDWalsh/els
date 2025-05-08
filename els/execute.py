@@ -146,7 +146,7 @@ def pull_frame(
     container_class = get_container_class(frame)
     df_container = el.fetch_df_container(
         container_class=container_class,
-        url=frame.url,  # type: ignore
+        url=frame.url,
     )
     assert isinstance(frame.table, str)
     df_table = df_container[frame.table]

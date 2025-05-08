@@ -11,13 +11,12 @@ import els.core as el
 from .base import (
     ContainerWriterABC,
     FrameABC,
-    KWArgsIO,
     append_into,
     get_column_frame,
 )
 
 
-class XMLFrame(FrameABC):
+class XMLFrame(FrameABC["XMLContainer"]):
     def __init__(
         self,
         name,
@@ -25,9 +24,8 @@ class XMLFrame(FrameABC):
         if_exists="fail",
         mode="s",
         df=pd.DataFrame(),
-        # startrow=0,
-        kwargs_pull=None,  # TODO: fix mutable default
-        kwargs_push={},
+        kwargs_pull=None,
+        kwargs_push=None,
     ) -> None:
         super().__init__(
             df=df,
@@ -37,26 +35,24 @@ class XMLFrame(FrameABC):
             if_exists=if_exists,
             kwargs_pull=kwargs_pull,
         )
-        # TODO: maybe use skiprows instead?
-        self.kwargs_push = kwargs_push
+        self.kwargs_push = kwargs_push or {}
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
-    def _read(self, kwargs: KWArgsIO):
-        if kwargs is None:
-            kwargs = self.kwargs_pull
+    def _read(self, kwargs):
+        # if kwargs is None:
+        #     kwargs = self.kwargs_pull
         if self.mode in ("s") or (self.kwargs_pull != kwargs):
-            parent: XMLContainer = self.parent  # type:ignore
             if "nrows" in kwargs:
                 kwargs.pop("nrows")
-            parent.file_io.seek(0)
+            self.parent.file_io.seek(0)
             self.df = pd.read_xml(
-                StringIO(parent.file_io.getvalue().decode("utf-8")), **kwargs
+                StringIO(self.parent.file_io.getvalue().decode("utf-8")), **kwargs
             )
             self.kwargs_pull = kwargs
 
 
-class XMLContainer(ContainerWriterABC):
+class XMLContainer(ContainerWriterABC[XMLFrame]):
     def __init__(self, url, replace=False) -> None:
         super().__init__(XMLFrame, url, replace)
 

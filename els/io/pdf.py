@@ -8,7 +8,7 @@ import pandas as pd
 from pdfminer.high_level import LAParams, extract_pages
 from pdfminer.layout import LTChar, LTTextBox
 
-from .base import ContainerReaderABC, FrameABC, KWArgsIO
+from .base import ContainerReaderABC, FrameABC
 
 
 def text_range_to_list(text: str):
@@ -94,7 +94,7 @@ def pull_pdf(
     return pd.DataFrame(dict_res)
 
 
-class PDFFrame(FrameABC):
+class PDFFrame(FrameABC["PDFContainer"]):
     def __init__(
         self,
         name,
@@ -115,9 +115,7 @@ class PDFFrame(FrameABC):
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
-    def _read(self, kwargs: KWArgsIO):
-        if not kwargs:
-            kwargs = self.kwargs_pull
+    def _read(self, kwargs):
         if self.kwargs_pull != kwargs:
             kw_copy = deepcopy(kwargs)
             laparams = None
@@ -129,15 +127,15 @@ class PDFFrame(FrameABC):
             self.kwargs_pull = kwargs
 
 
-class PDFContainer(ContainerReaderABC):
+class PDFContainer(ContainerReaderABC[PDFFrame]):
     def __init__(self, url, replace=False):
         super().__init__(PDFFrame, url)
 
     @property
-    def create_or_replace(self):
+    def create_or_replace(self) -> bool:
         return False
 
-    def _children_init(self):
+    def _children_init(self) -> None:
         self.children = [
             PDFFrame(
                 name=Path(self.url).stem,

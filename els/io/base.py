@@ -2,16 +2,13 @@ from __future__ import annotations
 
 import sys
 from abc import ABC, abstractmethod
-from collections.abc import Generator, MutableMapping, Sequence
-from typing import (
-    Any,
-    Literal,
-    Optional,
-)
+from collections.abc import Generator, Sequence
+from typing import Generic, Literal, Optional, TypeVar
 
 import pandas as pd
 
 import els.config as ec
+from els.typing import IfExistsLiteral, KWArgsIO
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
@@ -22,7 +19,7 @@ def multiindex_to_singleindex(
     df: pd.DataFrame,
     separator: str = "_",
 ) -> pd.DataFrame:
-    df.columns = [separator.join(map(str, col)).strip() for col in df.columns.values]  # type: ignore
+    df.columns = [separator.join(map(str, col)).strip() for col in df.columns.values]
     return df
 
 
@@ -56,21 +53,17 @@ if sys.version_info >= (3, 10):
 else:
     ContainerModeLiteral = _ContainerModeLiteral
 
-_KWArgsIO = MutableMapping[str, Any]
-if sys.version_info >= (3, 10):
-    KWArgsIO: TypeAlias = _KWArgsIO
-else:
-    KWArgsIO = _KWArgsIO
+TContainer = TypeVar("TContainer", bound="ContainerReaderABC")
 
 
 # Stores a reference to a dataframe that is currently scoped,
 # Should be a child of a DataFrameContainerMixinIO
-class FrameABC(ABC):
+class FrameABC(ABC, Generic[TContainer]):
     def __init__(
         self,
         name: str,
-        parent: ContainerWriterABC,
-        if_exists: ec.IfExistsLiteral = "fail",
+        parent: TContainer,
+        if_exists: IfExistsLiteral = "fail",
         mode: FrameModeLiteral = "s",
         df: pd.DataFrame = pd.DataFrame(),
         kwargs_pull: Optional[KWArgsIO] = None,
@@ -80,14 +73,14 @@ class FrameABC(ABC):
         self.if_exists = if_exists
         self.mode = mode
         # where results will be written/appended to on self.write():
-        self.df_target: pd.DataFrame = df
+        self.df_target = df
         # where intermediate operations (truncate, append, etc) are performed:
-        self.df: pd.DataFrame = df
+        self.df = df
         self.kwargs_pull = kwargs_pull or {}
 
     def read(
         self,
-        kwargs=None,
+        kwargs: Optional[KWArgsIO] = None,
         sample: bool = False,
     ) -> pd.DataFrame:
         kwargs = kwargs or {}
@@ -124,7 +117,7 @@ class FrameABC(ABC):
     def append(
         self,
         df: pd.DataFrame,
-        truncate_first=False,
+        truncate_first: bool = False,
     ) -> None:
         if truncate_first:
             self.df = append_into([self.column_frame, df])
@@ -142,10 +135,10 @@ class FrameABC(ABC):
         df: pd.DataFrame,
         if_exists: ec.IfExistsLiteral,
         kwargs_push: Optional[KWArgsIO] = None,
-        build=False,
+        build: bool = False,
     ) -> None:
         self.if_exists = if_exists
-        self.kwargs_push = kwargs_push
+        self.kwargs_push = kwargs_push or {}
         # build always builds from the source, does not check against target
         # consistency check done separately
         if build:
@@ -179,16 +172,19 @@ class FrameABC(ABC):
         pass
 
 
-class ContainerReaderABC(ABC):
+TFrame = TypeVar("TFrame", bound=FrameABC)
+
+
+class ContainerReaderABC(ABC, Generic[TFrame]):
     def __init__(
         self,
-        child_class: type[FrameABC],
+        child_class: type[TFrame],
         url: str,
         # replace: bool,
     ) -> None:
+        self.children: list[TFrame] = []
         self.child_class = child_class
         self.url = url
-        self.children: list[FrameABC] = []
         self._children_init()
 
     def __contains__(self, child_name: str) -> bool:
@@ -197,13 +193,13 @@ class ContainerReaderABC(ABC):
                 return True
         return False
 
-    def __getitem__(self, child_name: str) -> FrameABC:
+    def __getitem__(self, child_name: str) -> TFrame:
         for c in self:
             if c.name == child_name:
                 return c
         raise Exception(f"{child_name} not found in {[n.name for n in self]}")
 
-    def __iter__(self) -> Generator[FrameABC, None, None]:
+    def __iter__(self) -> Generator[TFrame, None, None]:
         for child in self.children:
             yield child
 
@@ -219,26 +215,26 @@ class ContainerReaderABC(ABC):
         return [child.name for child in self]
 
     @abstractmethod
-    def _children_init(self):
+    def _children_init(self) -> None:
         pass
 
     @abstractmethod
-    def close(self):
+    def close(self) -> None:
         pass
         # perform closing operations on container (file, connection, etc)
 
 
-class ContainerWriterABC(ContainerReaderABC):
+class ContainerWriterABC(ContainerReaderABC[TFrame], Generic[TFrame]):
     def __init__(
         self,
-        child_class: type[FrameABC],
+        child_class: type[TFrame],
         url: str,
         replace: bool,
     ):
         self.child_class = child_class
         self.url = url
         self.replace = replace
-        self.children: list[FrameABC] = []
+        self.children: list[TFrame] = []
 
         if not self.create_or_replace:
             self._children_init()
@@ -248,7 +244,7 @@ class ContainerWriterABC(ContainerReaderABC):
         df_name: str,
         df: pd.DataFrame,
         build=False,
-    ) -> FrameABC:
+    ) -> TFrame:
         if build:
             df = get_column_frame(df)
         if df_name not in self:
@@ -280,7 +276,7 @@ class ContainerWriterABC(ContainerReaderABC):
                 df_io.write()
             self.persist()
 
-    def add_child(self, child: FrameABC) -> None:
+    def add_child(self, child: TFrame) -> None:
         child.parent = self
 
     @property

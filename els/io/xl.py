@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import io
 import os
-from typing import Optional
+from typing import Literal, Optional
 
 import pandas as pd
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 
 import els.core as el
+from els.typing import KWArgsIO
 
-from .base import ContainerWriterABC, FrameABC, multiindex_to_singleindex
+from .base import (
+    ContainerWriterABC,
+    FrameABC,
+    multiindex_to_singleindex,
+)
 
 # TODO: add/test support for other workbook types
 
@@ -69,17 +74,17 @@ def get_footer_cell(
         return str(rows)
 
 
-class XLFrame(FrameABC):
+class XLFrame(FrameABC["XLContainer"]):
     def __init__(
         self,
         name,
         parent,
         if_exists="fail",
         mode="s",
-        df=pd.DataFrame(),
-        startrow=0,
-        kwargs_pull=None,
-        kwargs_push={},
+        df: pd.DataFrame = pd.DataFrame(),
+        startrow: int = 0,
+        kwargs_pull: Optional[KWArgsIO] = None,
+        kwargs_push: Optional[KWArgsIO] = None,
     ) -> None:
         super().__init__(
             df=df,
@@ -90,21 +95,21 @@ class XLFrame(FrameABC):
             kwargs_pull=kwargs_pull,
         )
         self._startrow = startrow
-        self.kwargs_push = kwargs_push
-        self.header_cell = None
-        self.footer_cell = None
+        self.kwargs_push = kwargs_push or {}
+        self.header_cell: Optional[str] = None
+        self.footer_cell: Optional[str] = None
 
     @property
-    def if_sheet_exists(self):
+    def if_sheet_exists(self) -> Literal["overlay", "replace"]:
         if self.mode == "a":
             return "overlay"
         elif self.mode == "w":
             return "replace"
         else:
-            return None
+            raise Exception("Invalid mode for if_sheet_exists")
 
     @property
-    def startrow(self):
+    def startrow(self) -> int:
         if self.if_exists == "truncate" or self.mode == "w":
             # consider changing 0 to skiprows value if exists?
             # kwargs_push['skiprows']
@@ -114,15 +119,12 @@ class XLFrame(FrameABC):
             return self._startrow
 
     @startrow.setter
-    def startrow(self, v):
+    def startrow(self, v: int) -> None:
         self._startrow = v
 
-    def _read(self, kwargs=None):
+    def _read(self, kwargs):
         if kwargs.get("nrows") and kwargs.get("skipfooter"):
             del kwargs["nrows"]
-        if kwargs is None:
-            assert self.kwargs_pull
-            kwargs = self.kwargs_pull
         capture_header = kwargs.pop("capture_header", False)
         capture_footer = kwargs.pop("capture_footer", False)
         if self.kwargs_pull != kwargs:
@@ -134,8 +136,9 @@ class XLFrame(FrameABC):
             )
 
             skiprows = kwargs.get("skiprows", 0)
+            assert self.name
             if skiprows > 0 and capture_header:
-                if not self.header_cell:
+                if self.header_cell is None:
                     self.header_cell = get_header_cell(
                         self.parent.file_io,
                         self.name,
@@ -145,7 +148,7 @@ class XLFrame(FrameABC):
 
             skipfooter = kwargs.get("skipfooter", 0)
             if skipfooter > 0 and capture_footer:
-                if not self.footer_cell:
+                if self.footer_cell is None:
                     self.footer_cell = get_footer_cell(
                         self.parent.file_io,
                         self.name,
@@ -156,25 +159,25 @@ class XLFrame(FrameABC):
             self.kwargs_pull = kwargs
 
 
-class XLContainer(ContainerWriterABC):
+class XLContainer(ContainerWriterABC[XLFrame]):
     def __init__(self, url, replace=False):
         super().__init__(XLFrame, url, replace)
 
     @property
-    def create_or_replace(self):
+    def create_or_replace(self) -> bool:
         if self.replace or not os.path.isfile(self.url):
             return True
         else:
             return False
 
     @property
-    def write_engine(self):
+    def write_engine(self) -> Literal["openpyxl", "xlsxwriter"]:
         if self.mode == "a":
             return "openpyxl"
         else:
             return "xlsxwriter"
 
-    def _children_init(self):
+    def _children_init(self) -> None:
         self.file_io = el.fetch_file_io(self.url)
         with CalamineWorkbook.from_filelike(self.file_io) as workbook:
             self.children = [
@@ -188,7 +191,7 @@ class XLContainer(ContainerWriterABC):
                 and (sheet.typ == SheetTypeEnum.WorkSheet)
             ]
 
-    def persist(self):
+    def persist(self) -> None:
         if self.mode == "w":
             self.file_io = el.fetch_file_io(self.url, replace=True)
             with pd.ExcelWriter(
@@ -196,15 +199,16 @@ class XLContainer(ContainerWriterABC):
             ) as writer:
                 for df_io in self:
                     df = df_io.df_target
-                    to_excel = df_io.kwargs_push
-                    if to_excel:
-                        kwargs = to_excel.model_dump(exclude_none=True)
-                    else:
-                        kwargs = {}
+                    kwargs = df_io.kwargs_push
                     # TODO integrate better into write method?
                     if isinstance(df.columns, pd.MultiIndex):
                         df = multiindex_to_singleindex(df)
-                    df.to_excel(writer, index=False, sheet_name=df_io.name, **kwargs)
+                    df.to_excel(
+                        writer,
+                        index=False,
+                        sheet_name=df_io.name,
+                        **kwargs,
+                    )
                 for sheet in writer.sheets.values():
                     sheet.autofit(500)
         elif self.mode == "a":
@@ -225,15 +229,11 @@ class XLContainer(ContainerWriterABC):
                             and df_io.if_sheet_exists == sheet_exist
                         ):
                             df = df_io.df_target
-                            to_excel = df_io.kwargs_push
+                            kwargs = df_io.kwargs_push
                             if df_io.mode == "a":
                                 header = False
                             else:
                                 header = True
-                            if to_excel:
-                                kwargs = to_excel.model_dump(exclude_none=True)
-                            else:
-                                kwargs = {}
                             # TODO integrate better into write method?
                             if isinstance(df.columns, pd.MultiIndex):
                                 df = multiindex_to_singleindex(df)

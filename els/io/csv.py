@@ -9,8 +9,14 @@ from typing import Optional
 import pandas as pd
 
 import els.core as el
+from els.typing import IfExistsLiteral, KWArgsIO
 
-from .base import ContainerWriterABC, FrameABC, KWArgsIO, multiindex_to_singleindex
+from .base import (
+    ContainerWriterABC,
+    FrameABC,
+    FrameModeLiteral,
+    multiindex_to_singleindex,
+)
 
 
 def get_header_cell(
@@ -43,18 +49,20 @@ def get_footer_cell(
     return str(rows)
 
 
-class CSVFrame(FrameABC):
+class CSVFrame(FrameABC["CSVContainer"]):
     def __init__(
         self,
-        name,
-        parent,
-        if_exists="fail",
-        mode="s",
-        df=pd.DataFrame(),
-        # startrow=0,
+        name: str,
+        parent: CSVContainer,
+        if_exists: IfExistsLiteral = "fail",
+        mode: FrameModeLiteral = "s",
+        df: pd.DataFrame = pd.DataFrame(),
         kwargs_pull: Optional[KWArgsIO] = None,
         kwargs_push: Optional[KWArgsIO] = None,
     ) -> None:
+        self.header_cell: Optional[str] = None
+        self.footer_cell: Optional[str] = None
+        self.kwargs_push = kwargs_push or {}
         super().__init__(
             df=df,
             name=name,
@@ -63,20 +71,16 @@ class CSVFrame(FrameABC):
             if_exists=if_exists,
             kwargs_pull=kwargs_pull,
         )
-        self.kwargs_push = kwargs_push or {}
-        self.header_cell: Optional[str] = None
-        self.footer_cell: Optional[str] = None
 
-    def _read(self, kwargs: KWArgsIO):
+    def _read(self, kwargs):
         if "nrows" in kwargs and "skipfooter" in kwargs:
             del kwargs["nrows"]
         clean_last_column = kwargs.pop("clean_last_column", False)
         capture_header = kwargs.pop("capture_header", False)
         capture_footer = kwargs.pop("capture_footer", False)
         if self.kwargs_pull != kwargs:
-            parent: CSVContainer = self.parent  # type: ignore
-            parent.file_io.seek(0)
-            self.df = pd.read_csv(parent.file_io, **kwargs)  # type: ignore
+            self.parent.file_io.seek(0)
+            self.df = pd.read_csv(self.parent.file_io, **kwargs)
             # TODO: add tests
             if (
                 clean_last_column
@@ -89,7 +93,7 @@ class CSVFrame(FrameABC):
             if skiprows > 0 and capture_header:
                 if not self.header_cell:
                     self.header_cell = get_header_cell(
-                        parent.file_io,
+                        self.parent.file_io,
                         nrows=skiprows,
                         sep=kwargs.get("sep", ","),
                     )
@@ -99,7 +103,7 @@ class CSVFrame(FrameABC):
             if skipfooter > 0 and capture_footer:
                 if not self.footer_cell:
                     self.footer_cell = get_footer_cell(
-                        parent.file_io,
+                        self.parent.file_io,
                         nrows=skipfooter,
                         sep=kwargs.get("sep", ","),
                     )
@@ -107,8 +111,12 @@ class CSVFrame(FrameABC):
             self.kwargs_pull = kwargs
 
 
-class CSVContainer(ContainerWriterABC):
-    def __init__(self, url, replace=False):
+class CSVContainer(ContainerWriterABC[CSVFrame]):
+    def __init__(
+        self,
+        url: str,
+        replace: bool = False,
+    ) -> None:
         super().__init__(CSVFrame, url, replace)
 
     @property
@@ -133,11 +141,7 @@ class CSVContainer(ContainerWriterABC):
             # loop not required, only one child in csv
             for df_io in self:
                 df = df_io.df_target
-                to_csv = df_io.kwargs_push
-                if to_csv:
-                    kwargs = to_csv.model_dump(exclude_none=True)
-                else:
-                    kwargs = {}
+                kwargs = df_io.kwargs_push
                 # TODO integrate better into write method?
                 if isinstance(df.columns, pd.MultiIndex):
                     df = multiindex_to_singleindex(df)
