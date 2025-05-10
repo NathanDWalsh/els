@@ -76,6 +76,7 @@ class TaskFlow:
             tree = plant_tree(ca_path)
         else:
             ca_path = get_ca_path("./__dynamic__.els.yml")
+            assert self.config_like
             tree = plant_memory_tree(ca_path, self.config_like)
 
         if self.force_pandas_target:

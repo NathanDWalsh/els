@@ -267,6 +267,7 @@ class SQLContainer(ContainerWriterABC[SQLFrame]):
                     if df_io.if_exists == "truncate":
                         sqeng.execute(sa.text(df_io.truncate_stmt))
                         df_io.if_exists = "append"
+                    assert df_io.if_exists in ("fail", "replace", "append")
                     df_io.df_target.to_sql(
                         df_io.name,
                         sqeng,

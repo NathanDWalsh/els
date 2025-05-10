@@ -3,12 +3,12 @@ from __future__ import annotations
 import sys
 from abc import ABC, abstractmethod
 from collections.abc import Generator, Sequence
-from typing import Generic, Literal, Optional, TypeVar
+from typing import Generic, Literal, Optional, Protocol, TypeVar
 
 import pandas as pd
 
 import els.config as ec
-from els.typing import IfExistsLiteral, KWArgsIO
+from els.els_typing import IfExistsLiteral, KWArgsIO
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
@@ -47,7 +47,7 @@ if sys.version_info >= (3, 10):
 else:
     FrameModeLiteral = _FrameModeLiteral
 
-_ContainerModeLiteral = Literal["s", "r", "a", "w", "m"]
+_ContainerModeLiteral = Literal["r", "a", "w"]
 if sys.version_info >= (3, 10):
     ContainerModeLiteral: TypeAlias = _ContainerModeLiteral
 else:
@@ -173,6 +173,21 @@ class FrameABC(ABC, Generic[TContainer]):
 
 
 TFrame = TypeVar("TFrame", bound=FrameABC)
+
+
+class ContainerProtocol(Protocol):
+    def __init__(self, url: str, replace: bool) -> None: ...
+    def close(self) -> None: ...
+    @property
+    def child_names(self) -> list[str]: ...
+
+    # def fetch_child(
+    #     self,
+    #     df_name: str,
+    #     df: pd.DataFrame,
+    #     build=False,
+    # ) -> TFrame:
+    # ...
 
 
 class ContainerReaderABC(ABC, Generic[TFrame]):

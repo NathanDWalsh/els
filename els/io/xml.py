@@ -11,6 +11,8 @@ import els.core as el
 from .base import (
     ContainerWriterABC,
     FrameABC,
+    FrameModeLiteral,
+    IfExistsLiteral,
     append_into,
     get_column_frame,
 )
@@ -21,8 +23,8 @@ class XMLFrame(FrameABC["XMLContainer"]):
         self,
         name,
         parent,
-        if_exists="fail",
-        mode="s",
+        if_exists: IfExistsLiteral = "fail",
+        mode: FrameModeLiteral = "s",
         df=pd.DataFrame(),
         kwargs_pull=None,
         kwargs_push=None,

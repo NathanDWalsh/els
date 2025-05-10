@@ -7,7 +7,7 @@ from sqlalchemy_utils.functions.database import (
     _get_scalar_result,
     _set_url_database,
     _sqlite_file_exists,
-)  # type: ignore
+)
 
 
 def database_exists(url):

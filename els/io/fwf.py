@@ -41,12 +41,12 @@ class FWFContainer(ContainerReaderABC[FWFFrame]):
         return False
 
     def _children_init(self):
-        self.children = (
+        self.children = [
             FWFFrame(
                 name=Path(self.url).stem,
                 parent=self,
             ),
-        )
+        ]
 
     def persist(self):
         pass  # not supported

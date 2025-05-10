@@ -80,7 +80,7 @@ class ElsFlow(FlowNodeMixin):
 class BuildWrapperMixin(FlowNodeMixin):
     def build_target(self) -> bool:
         flow_child = self[0]
-        build_item: ElsExecute = flow_child[0]
+        build_item: ElsExecute = flow_child[0]  # type:ignore
         if ee.build(build_item.config):
             res = True
         else:
@@ -101,7 +101,7 @@ class ElsContainerWrapper(BuildWrapperMixin, SerialNodeMixin):
         self.container_class = container_class
 
     def open(self):
-        el.fetch_df_container(self.container_class, self.url)
+        el.fetch_df_container(self.container_class, self.url)  # type:ignore
 
     def execute(self):
         self.open()
@@ -125,8 +125,8 @@ class ElsTargetTableWrapper(FlowNodeMixin, SerialNodeMixin):
         self.name = f"{name} ({self.__class__.__name__})"
 
     def execute(self) -> None:
-        flow_child: ElsExecute = self[0]
-        file_child: ElsContainerWrapper = flow_child[0]
+        flow_child: ElsExecute = self[0]  # type: ignore
+        file_child: ElsContainerWrapper = flow_child[0]  # type: ignore
         file_child.open()
         if file_child.build_target():
             flow_child.execute()

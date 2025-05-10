@@ -9,7 +9,7 @@ import els.io.base as eio
 default_target: dict[str, pd.DataFrame] = {}
 url_dicts: dict[str, dict[str, pd.DataFrame]] = {}
 io_files: dict[str, io.BytesIO] = {}
-df_containers: dict[str, eio.ContainerWriterABC] = {}
+df_containers: dict[str, eio.ContainerProtocol] = {}
 
 
 def fetch_df_dict(
@@ -30,10 +30,10 @@ def urlize_dict(df_dict: dict[str, pd.DataFrame]):
 
 
 def fetch_df_container(
-    container_class: type[Union[eio.ContainerReaderABC, eio.ContainerWriterABC]],
+    container_class: type[eio.ContainerProtocol],
     url: str,
     replace: bool = False,
-) -> eio.ContainerWriterABC:
+) -> Union[eio.ContainerReaderABC, eio.ContainerWriterABC]:
     if isinstance(url, str):
         if url in df_containers:
             res = df_containers[url]
@@ -45,7 +45,7 @@ def fetch_df_container(
     else:
         raise Exception(f"Cannot fetch {type(container_class)} from: {url}")
     df_containers[url] = res
-    return res
+    return res  # type: ignore
 
 
 def fetch_file_io(url: str, replace: bool = False):

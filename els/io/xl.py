@@ -8,11 +8,13 @@ import pandas as pd
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 
 import els.core as el
-from els.typing import KWArgsIO
+from els.els_typing import KWArgsIO
 
 from .base import (
     ContainerWriterABC,
     FrameABC,
+    FrameModeLiteral,
+    IfExistsLiteral,
     multiindex_to_singleindex,
 )
 
@@ -79,8 +81,8 @@ class XLFrame(FrameABC["XLContainer"]):
         self,
         name,
         parent,
-        if_exists="fail",
-        mode="s",
+        if_exists: IfExistsLiteral = "fail",
+        mode: FrameModeLiteral = "s",
         df: pd.DataFrame = pd.DataFrame(),
         startrow: int = 0,
         kwargs_pull: Optional[KWArgsIO] = None,

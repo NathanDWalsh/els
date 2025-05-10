@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Optional
 
 
 class HumanPathPropertiesMixin(ABC):
     @abstractmethod
-    def absolute(self):  # -> str
+    def absolute(self) -> Path:
         pass
 
     @property  # type: ignore
@@ -55,6 +56,7 @@ class HumanPathPropertiesMixin(ABC):
 
     @property
     def folder_path_abs(self) -> str:
+        assert self.dir
         return str(self.dir.absolute())
 
     @property
@@ -86,8 +88,10 @@ class HumanPathPropertiesMixin(ABC):
 
     @property
     def folder_name(self) -> str:
+        assert self.dir
         return self.dir.name
 
     @property
     def parent_folder_name(self) -> str:
+        assert self.dir
         return self.dir.parent.name if self.dir.parent else "no_parent"

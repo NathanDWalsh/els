@@ -7,7 +7,7 @@ import pandas as pd
 
 import els.config as ec
 import els.core as el
-from els.io.base import ContainerReaderABC, ContainerWriterABC
+from els.io.base import ContainerProtocol
 from els.io.csv import CSVContainer
 from els.io.fwf import FWFContainer
 from els.io.pd import DFContainer
@@ -19,7 +19,7 @@ from els.io.xml import XMLContainer
 
 def get_container_class(
     frame: ec.Frame,
-) -> type[Union[ContainerWriterABC, ContainerReaderABC]]:
+) -> type[ContainerProtocol]:
     if frame.type == ".csv":
         return CSVContainer
     elif frame.type_is_excel:
@@ -56,7 +56,7 @@ def push_frame(
             replace=target.replace_container,
         )
         assert isinstance(target.table, str)
-        df_table = df_container.fetch_child(
+        df_table = df_container.fetch_child(  # type:ignore
             df_name=target.table,
             df=df,
         )
@@ -144,6 +144,7 @@ def pull_frame(
     sample: bool = False,
 ) -> pd.DataFrame:
     container_class = get_container_class(frame)
+    assert isinstance(frame.url, str)
     df_container = el.fetch_df_container(
         container_class=container_class,
         url=frame.url,
@@ -155,7 +156,12 @@ def pull_frame(
         sample=sample,
     )
 
-    if frame and hasattr(frame, "dtype") and frame.dtype:
+    if (
+        frame
+        and isinstance(frame, ec.Source)
+        and hasattr(frame, "dtype")
+        and frame.dtype
+    ):
         # assert df is not None
         for k, v in frame.dtype.items():
             if v == "date" and not isinstance(type(df[k]), np.dtypes.DateTime64DType):
@@ -197,7 +203,7 @@ def table_exists(target: ec.Target) -> bool:
     elif (
         target.type_is_db
         or (target.type_is_excel and target.file_exists)
-        or target.type in ("dict")
+        or (target.type and target.type in ("dict"))
     ):
         container_class = get_container_class(target)
         container = el.fetch_df_container(container_class, target.url)

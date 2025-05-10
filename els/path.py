@@ -9,13 +9,13 @@ from enum import Enum
 from itertools import groupby
 from operator import itemgetter
 from pathlib import Path
-from stat import FILE_ATTRIBUTE_HIDDEN  # type: ignore
+from stat import FILE_ATTRIBUTE_HIDDEN  # type:ignore
 from typing import Any, NamedTuple, Optional, Union
 
 import pandas as pd
 import typer
 import yaml
-from anytree import NodeMixin, PreOrderIter, RenderTree  # type: ignore
+from anytree import NodeMixin, PreOrderIter, RenderTree
 
 import els.config as ec
 import els.core as el
@@ -32,7 +32,7 @@ ROOT_CONFIG_FILE_STEM = "__"
 class FlowAtom(NamedTuple):
     # first two attributes cannot change relative position
     source_url: str
-    source_container_class: type[eio.ContainerWriterABC]
+    source_container_class: type[eio.ContainerProtocol]
     ###
     config: ec.Config
 
@@ -126,7 +126,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             raise Exception("Unknown node cannot be configured.")
 
     @property
-    def children(self) -> tuple[ConfigPath]:
+    def children(self) -> tuple[ConfigPath]:  # type: ignore
         return super().children
 
     def grow_dir_branches(self) -> None:
@@ -280,11 +280,12 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             if len(transforms) > 1:
                 df = ee.apply_transforms(df, transforms=transforms[:-1])
                 df_dict = dict(transformed=df)
-            split_transform: ec.SplitOnColumn = transforms[-1]
+            assert isinstance(transforms[-1], ec.SplitOnColumn)
+            split_transform = transforms[-1]
             split_on_column = split_transform.split_on_column
             # transforms[-1].executed = True
             # sub_tables = list(df[split_on_column].drop_duplicates())
-            sub_tables: list[str] = split_transform(df)
+            sub_tables: list[str] = split_transform(df)  # type:ignore
             for sub_table in sub_tables:
                 if isinstance(sub_table, str):
                     column_eq = f"'{sub_table}'"
@@ -315,10 +316,11 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 url_parent = ConfigPath(Path(previous_url))
                 url_parent.parent = self
                 url_parent.config_local = config
+            else:
+                raise Exception("Unable to grow config branches")
 
             if previous_url == "":
                 raise Exception("expected to have a url for child config doc")
-
             table_docs = self.get_table_docs(source, url_parent, config)
 
             for tab, config in table_docs.items():
@@ -479,7 +481,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     @staticmethod
     def swap_dict_vals(
-        dictionary: MutableMapping[str, str],
+        dictionary: MutableMapping[str, Any],
         find_replace_dict: MutableMapping[str, str],
     ) -> None:
         for key, value in dictionary.items():
@@ -492,8 +494,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             ):
                 pass
             elif value in find_replace_dict:
-                dictionary[key] = find_replace_dict[value]
-            elif key == "url" and "*" in value:
+                dictionary[key] = find_replace_dict[value]  # type: ignore
+            elif isinstance(value, str) and key == "url" and "*" in value:
                 dictionary[key] = value.replace("*", find_replace_dict["_leaf_name"])
 
     @property
@@ -556,7 +558,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             typer.echo(f"{column1:{column1_width}}{column2}".rstrip())
 
     @property
-    def parent(self):
+    def parent(self):  # type: ignore
         if NodeMixin.parent.fget is not None:
             return NodeMixin.parent.fget(self)
         else:
@@ -633,7 +635,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @property
-    def dir(self) -> ConfigPath:
+    def dir(self) -> Path:  # type: ignore
         if self.node_type == NodeType.DATA_TABLE and self.parent:
             res = self.parent.dir
         elif self.is_file():
@@ -646,7 +648,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @property
-    def file(self) -> ConfigPath:
+    def file(self) -> Optional[ConfigPath]:  # type: ignore
         if self.node_type == NodeType.DATA_TABLE:
             res = self.parent
         elif self.is_file():
@@ -698,6 +700,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         res: dict[str, list[FlowAtom]] = {}
         for leaf in self.leaves:
             if leaf.node_type == NodeType.DATA_TABLE:
+                assert isinstance(leaf.config.target.table, str)
+                assert isinstance(leaf.config.source.url, str)
                 res.setdefault(leaf.config.target.table, []).append(
                     FlowAtom(
                         source_url=leaf.config.source.url,
@@ -757,7 +761,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     @property
     def then_descendants(self) -> tuple[ConfigPath]:
-        return PreOrderIter(self)
+        return PreOrderIter(self)  # type: ignore
 
     def set_pandas_target(self, force=False) -> None:
         # iterate all branches and leaves
@@ -774,7 +778,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             node.config_local.source.nrows = nrows
 
 
-def get_root_inheritance(dir_path: str) -> list[Path]:
+def get_root_inheritance(dir_path: Optional[str] = None) -> list[Path]:
     if dir_path:
         start_dir = Path(dir_path)
     else:
@@ -821,7 +825,7 @@ def get_root_inheritance(dir_path: str) -> list[Path]:
 
 
 def plant_memory_tree(
-    path: str,
+    path: Path,
     memory_config: ec.Config,
 ) -> ConfigPath:
     ca_path = ConfigPath(path)
@@ -846,6 +850,7 @@ def plant_tree(
     else:
         os.chdir(root_path.parent)
     parent = None
+    ca_path = None
     for index, path_ in enumerate(root_paths):
         if config_path_valid(path_):
             ca_path = ConfigPath(path_)
@@ -858,6 +863,7 @@ def plant_tree(
                 ca_path.configure_node(walk_dir=True)
         else:
             raise Exception("Invalid file in explicit path: " + str(path_))
+    assert ca_path
     logging.info("Tree Created")
     root = parent.root_node if parent else ca_path
     if root.is_leaf and root.is_dir():

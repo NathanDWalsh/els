@@ -9,7 +9,7 @@ from typing import Optional
 import pandas as pd
 
 import els.core as el
-from els.typing import IfExistsLiteral, KWArgsIO
+from els.els_typing import IfExistsLiteral, KWArgsIO
 
 from .base import (
     ContainerWriterABC,
@@ -140,26 +140,27 @@ class CSVContainer(ContainerWriterABC[CSVFrame]):
             self.file_io = el.fetch_file_io(self.url)
             # loop not required, only one child in csv
             for df_io in self:
-                df = df_io.df_target
-                kwargs = df_io.kwargs_push
-                # TODO integrate better into write method?
-                if isinstance(df.columns, pd.MultiIndex):
-                    df = multiindex_to_singleindex(df)
+                if df_io.mode in ("a", "w"):
+                    df = df_io.df_target
+                    kwargs = df_io.kwargs_push
+                    # TODO integrate better into write method?
+                    if isinstance(df.columns, pd.MultiIndex):
+                        df = multiindex_to_singleindex(df)
 
-                if df_io.if_exists == "truncate":
-                    #     df_io.mode = "w"
-                    self.file_io.seek(0)
-                header = kwargs.pop("header", True if df_io.mode == "w" else False)
-                df.to_csv(
-                    self.file_io,
-                    index=False,
-                    mode=df_io.mode,
-                    # header=False,
-                    # header=True if df_io.mode == "w" else False,
-                    header=header,
-                    **kwargs,
-                )
-                self.file_io.truncate()
+                    if df_io.if_exists == "truncate":
+                        #     df_io.mode = "w"
+                        self.file_io.seek(0)
+                    header = kwargs.pop("header", True if df_io.mode == "w" else False)
+                    df.to_csv(
+                        self.file_io,
+                        index=False,
+                        mode=df_io.mode,
+                        # header=False,
+                        # header=True if df_io.mode == "w" else False,
+                        header=header,
+                        **kwargs,
+                    )
+                    self.file_io.truncate()
             with open(self.url, "wb") as write_file:
                 # self.file_io.seek(0)
                 write_file.write(self.file_io.getbuffer())

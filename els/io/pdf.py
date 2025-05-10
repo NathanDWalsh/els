@@ -1,17 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from copy import deepcopy
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, Union
 
 import pandas as pd
-from pdfminer.high_level import LAParams, extract_pages
-from pdfminer.layout import LTChar, LTTextBox
+from pdfminer.high_level import extract_pages
+from pdfminer.layout import LAParams, LTChar, LTTextBox
 
 from .base import ContainerReaderABC, FrameABC
 
 
-def text_range_to_list(text: str):
+def text_range_to_list(text: str) -> list[int]:
     result: list = []
     segments = text.split(",")
     for segment in segments:
@@ -23,12 +24,15 @@ def text_range_to_list(text: str):
     return result
 
 
-def clean_page_numbers(page_numbers):
+def clean_page_numbers(
+    page_numbers: Union[int, str, Iterable[int]],
+) -> list[int]:
     if isinstance(page_numbers, int):
         res = [page_numbers]
     if isinstance(page_numbers, str):
         res = text_range_to_list(page_numbers)
     else:
+        assert isinstance(page_numbers, Iterable)
         res = page_numbers
     return sorted(res)
 
@@ -36,7 +40,7 @@ def clean_page_numbers(page_numbers):
 def pull_pdf(
     file,
     laparams: Optional[dict],
-    **kwargs,
+    **kwargs: Any,
 ) -> pd.DataFrame:
     def get_first_char_from_text_box(tb) -> LTChar:  # type: ignore
         for line in tb:
@@ -48,7 +52,7 @@ def pull_pdf(
         for k, v in laparams.items():
             lap.__setattr__(k, v)
 
-    if "page_numbers" in kwargs:
+    if "page_numbers" in kwargs.keys():
         kwargs["page_numbers"] = clean_page_numbers(kwargs["page_numbers"])
 
     pm_pages = extract_pages(file, laparams=lap, **kwargs)

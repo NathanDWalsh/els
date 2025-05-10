@@ -22,11 +22,11 @@ from els.pathprops import HumanPathPropertiesMixin
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
 
-from els.typing import IfExistsLiteral, KWArgsIO
+from els.els_typing import IfExistsLiteral, KWArgsIO
 
 
-def listify(v):
-    return v if isinstance(v, (list, tuple)) else [v]
+def listify(v) -> list:
+    return list(v) if isinstance(v, (list, tuple)) else [v]
 
 
 # generate an enum in the format _rxcx for a 10 * 10 grid
@@ -114,7 +114,7 @@ class StackDynamic(TransformABC):
     stack_header: int = 0
     stack_name: str = "stack_column"
 
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+    def transform(self, df: Union[pd.DataFrame, pd.Series]) -> pd.DataFrame:
         # Define the primary column headers based on the first columns
         primary_headers = list(df.columns[: self.stack_fixed_columns])
 
@@ -141,6 +141,9 @@ class StackDynamic(TransformABC):
 
         # Reset the index for the resulting DataFrame
         df.reset_index(inplace=True)
+
+        if isinstance(df, pd.Series):
+            df = pd.DataFrame(df)
 
         return df
 
@@ -294,6 +297,7 @@ class Frame(BaseModel):
     @cached_property
     def type(self):
         if self.url_scheme == "file":
+            assert self.url
             ext = os.path.splitext(self.url)[-1]
             if ext == (".txt"):
                 return ".csv"
@@ -341,6 +345,7 @@ class Frame(BaseModel):
     def sheet_name(self):
         if self.type_is_excel:
             res = self.table or "Sheet1"
+            assert isinstance(res, str)
             res = re.sub(re.compile(r"[\\*?:/\[\]]", re.UNICODE), "_", res)
             return res[:31].strip()
         else:
@@ -387,6 +392,8 @@ class Target(Frame):
 
     @property
     def kwargs_pull(self):
+        assert self.type
+
         to_x = self.to_excel
 
         kwargs = {}
@@ -540,10 +547,12 @@ class Source(Frame, extra="forbid"):
     @property
     def kwargs_pull(self):
         if self.read_pdf:
+            assert not isinstance(self.read_pdf, list)
             return self.read_pdf.model_dump(exclude_none=True)
-
+        assert self.type
         kwargs = {}
         if self.read_x:
+            assert not isinstance(self.read_x, list)
             kwargs = self.read_x.model_dump(exclude_none=True)
 
         for k, v in kwargs.items():
