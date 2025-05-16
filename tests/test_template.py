@@ -9,6 +9,7 @@ import pandas as pd
 
 import els.config as ec
 import els.core as el
+from els._typing import listify
 
 from . import helpers as th
 
@@ -36,7 +37,7 @@ def get_flight_url(test_medium):
 
 
 def configify(config, test_medium, pp: Literal["push", "pull"]):
-    for i, c in enumerate(th.listify(config)):
+    for i, c in enumerate(listify(config)):
         if isinstance(c, ec.Target):
             cc = ec.Config(target=c)
         elif isinstance(c, ec.Source):

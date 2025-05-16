@@ -8,7 +8,7 @@ from typing import Generic, Literal, Optional, Protocol, TypeVar
 import pandas as pd
 
 import els.config as ec
-from els.els_typing import IfExistsLiteral, KWArgsIO
+from els._typing import IfExistsLiteral, KWArgsIO
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
@@ -19,7 +19,10 @@ def multiindex_to_singleindex(
     df: pd.DataFrame,
     separator: str = "_",
 ) -> pd.DataFrame:
-    df.columns = [separator.join(map(str, col)).strip() for col in df.columns.values]
+    df.columns = [
+        separator.join(map(str, col)).strip()
+        for col in df.columns.to_numpy()  # type: ignore
+    ]
     return df
 
 
@@ -32,7 +35,7 @@ def append_into(dfs: Sequence[pd.DataFrame]) -> pd.DataFrame:
 
 def get_column_frame(df: pd.DataFrame):
     column_frame = pd.DataFrame(columns=df.columns, index=None, data=None)
-    column_frame = column_frame.astype(df.dtypes)
+    column_frame = column_frame.astype(df.dtypes)  # type: ignore
     return column_frame
 
 
@@ -53,12 +56,13 @@ if sys.version_info >= (3, 10):
 else:
     ContainerModeLiteral = _ContainerModeLiteral
 
+TFrame = TypeVar("TFrame", bound="FrameABC")
 TContainer = TypeVar("TContainer", bound="ContainerReaderABC")
 
 
 # Stores a reference to a dataframe that is currently scoped,
 # Should be a child of a DataFrameContainerMixinIO
-class FrameABC(ABC, Generic[TContainer]):
+class FrameABC(ABC):
     def __init__(
         self,
         name: str,
@@ -172,7 +176,7 @@ class FrameABC(ABC, Generic[TContainer]):
         pass
 
 
-TFrame = TypeVar("TFrame", bound=FrameABC)
+# TFrame = TypeVar("TFrame", bound=FrameABC["ContainerReaderABC"])  # type: ignore
 
 
 class ContainerProtocol(Protocol):
@@ -191,6 +195,7 @@ class ContainerProtocol(Protocol):
 
 
 class ContainerReaderABC(ABC, Generic[TFrame]):
+    # class ContainerReaderABC(ABC):
     def __init__(
         self,
         child_class: type[TFrame],
@@ -240,6 +245,7 @@ class ContainerReaderABC(ABC, Generic[TFrame]):
 
 
 class ContainerWriterABC(ContainerReaderABC[TFrame], Generic[TFrame]):
+    # class ContainerWriterABC(ContainerReaderABC):
     def __init__(
         self,
         child_class: type[TFrame],
@@ -255,10 +261,10 @@ class ContainerWriterABC(ContainerReaderABC[TFrame], Generic[TFrame]):
             self._children_init()
 
     def fetch_child(
-        self,
+        self: TContainer,
         df_name: str,
         df: pd.DataFrame,
-        build=False,
+        build: bool = False,
     ) -> TFrame:
         if build:
             df = get_column_frame(df)
@@ -291,7 +297,7 @@ class ContainerWriterABC(ContainerReaderABC[TFrame], Generic[TFrame]):
                 df_io.write()
             self.persist()
 
-    def add_child(self, child: TFrame) -> None:
+    def add_child(self: TContainer, child: TFrame) -> None:
         child.parent = self
 
     @property

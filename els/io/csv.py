@@ -9,7 +9,7 @@ from typing import Optional
 import pandas as pd
 
 import els.core as el
-from els.els_typing import IfExistsLiteral, KWArgsIO
+from els._typing import IfExistsLiteral, KWArgsIO
 
 from .base import (
     ContainerWriterABC,
@@ -49,7 +49,7 @@ def get_footer_cell(
     return str(rows)
 
 
-class CSVFrame(FrameABC["CSVContainer"]):
+class CSVFrame(FrameABC):
     def __init__(
         self,
         name: str,
@@ -72,7 +72,7 @@ class CSVFrame(FrameABC["CSVContainer"]):
             kwargs_pull=kwargs_pull,
         )
 
-    def _read(self, kwargs):
+    def _read(self, kwargs: KWArgsIO):
         if "nrows" in kwargs and "skipfooter" in kwargs:
             del kwargs["nrows"]
         clean_last_column = kwargs.pop("clean_last_column", False)
@@ -80,12 +80,21 @@ class CSVFrame(FrameABC["CSVContainer"]):
         capture_footer = kwargs.pop("capture_footer", False)
         if self.kwargs_pull != kwargs:
             self.parent.file_io.seek(0)
-            self.df = pd.read_csv(self.parent.file_io, **kwargs)
+            if "iterator" in kwargs:
+                kwargs.pop("iterator")
+            if "chunksize" in kwargs:
+                kwargs.pop("chunksize")
+            self.df = pd.read_csv(  # type: ignore
+                self.parent.file_io,
+                iterator=False,
+                chunksize=None,
+                **kwargs,
+            )
             # TODO: add tests
             if (
                 clean_last_column
                 and self.df.columns[-1].startswith("Unnamed")
-                and self.df[self.df.columns[-1]].isnull().all()
+                and self.df[self.df.columns[-1]].isnull().all()  # type: ignore
             ):
                 self.df = self.df.drop(self.df.columns[-1], axis=1)
 
@@ -112,6 +121,7 @@ class CSVFrame(FrameABC["CSVContainer"]):
 
 
 class CSVContainer(ContainerWriterABC[CSVFrame]):
+    # class CSVContainer(ContainerWriterABC):
     def __init__(
         self,
         url: str,

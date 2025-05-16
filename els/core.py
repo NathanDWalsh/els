@@ -1,6 +1,6 @@
 import io
 import os
-from typing import Union
+from typing import Optional, Union
 
 import pandas as pd
 
@@ -29,11 +29,11 @@ def urlize_dict(df_dict: dict[str, pd.DataFrame]):
     return res
 
 
-def fetch_df_container(
+def fetch_df_container(  # type: ignore
     container_class: type[eio.ContainerProtocol],
-    url: str,
+    url: Optional[str],
     replace: bool = False,
-) -> Union[eio.ContainerReaderABC, eio.ContainerWriterABC]:
+) -> Union[eio.ContainerReaderABC, eio.ContainerWriterABC]:  # type: ignore
     if isinstance(url, str):
         if url in df_containers:
             res = df_containers[url]
@@ -48,7 +48,10 @@ def fetch_df_container(
     return res  # type: ignore
 
 
-def fetch_file_io(url: str, replace: bool = False):
+def fetch_file_io(
+    url: Optional[str],
+    replace: bool = False,
+):
     if url is None:
         raise Exception("Cannot fetch None url")
     elif url in io_files:
@@ -66,7 +69,3 @@ def fetch_file_io(url: str, replace: bool = False):
         # res = io.StringIO()
     io_files[url] = res
     return res
-
-
-def listify(v):
-    return v if isinstance(v, (list, tuple)) else [v]

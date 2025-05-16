@@ -1,6 +1,6 @@
 import sys
-from collections.abc import MutableMapping
-from typing import Any, Literal
+from collections.abc import MutableMapping, MutableSequence
+from typing import Any, Literal, Union
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
@@ -25,3 +25,13 @@ if sys.version_info >= (3, 10):
     IfExistsLiteral: TypeAlias = _IfExistsLiteral
 else:
     IfExistsLiteral = _IfExistsLiteral
+
+_IfSheetExistsLiteral = Literal["overlay", "replace"]
+if sys.version_info >= (3, 10):
+    IfSheetExistsLiteral: TypeAlias = _IfSheetExistsLiteral
+else:
+    IfSheetExistsLiteral = _IfSheetExistsLiteral
+
+
+def listify(v: Union[Any, MutableSequence[Any]]) -> list[Any]:
+    return list(v) if isinstance(v, MutableSequence) else [v]  # type: ignore

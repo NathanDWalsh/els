@@ -3,10 +3,12 @@ from __future__ import annotations
 import os
 from io import StringIO
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
 import els.core as el
+from els._typing import KWArgsIO
 
 from .base import (
     ContainerWriterABC,
@@ -18,16 +20,17 @@ from .base import (
 )
 
 
-class XMLFrame(FrameABC["XMLContainer"]):
+# class XMLFrame(FrameABC["XMLContainer"]):
+class XMLFrame(FrameABC):
     def __init__(
         self,
-        name,
-        parent,
+        name: str,
+        parent: XMLContainer,
         if_exists: IfExistsLiteral = "fail",
         mode: FrameModeLiteral = "s",
-        df=pd.DataFrame(),
-        kwargs_pull=None,
-        kwargs_push=None,
+        df: pd.DataFrame = pd.DataFrame(),
+        kwargs_pull: Optional[KWArgsIO] = None,
+        kwargs_push: Optional[KWArgsIO] = None,
     ) -> None:
         super().__init__(
             df=df,
@@ -41,7 +44,7 @@ class XMLFrame(FrameABC["XMLContainer"]):
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
-    def _read(self, kwargs):
+    def _read(self, kwargs: KWArgsIO):
         # if kwargs is None:
         #     kwargs = self.kwargs_pull
         if self.mode in ("s") or (self.kwargs_pull != kwargs):
@@ -54,8 +57,13 @@ class XMLFrame(FrameABC["XMLContainer"]):
             self.kwargs_pull = kwargs
 
 
-class XMLContainer(ContainerWriterABC[XMLFrame]):
-    def __init__(self, url, replace=False) -> None:
+# class XMLContainer(ContainerWriterABC[XMLFrame]):
+class XMLContainer(ContainerWriterABC):
+    def __init__(
+        self,
+        url: str,
+        replace: bool = False,
+    ) -> None:
         super().__init__(XMLFrame, url, replace)
 
     @property

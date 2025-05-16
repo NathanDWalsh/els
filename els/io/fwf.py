@@ -1,21 +1,29 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
-from .base import ContainerReaderABC, FrameABC
+from els._typing import IfExistsLiteral, KWArgsIO
+
+from .base import (
+    ContainerReaderABC,
+    FrameABC,
+    FrameModeLiteral,
+)
 
 
-class FWFFrame(FrameABC["FWFContainer"]):
+# class FWFFrame(FrameABC["FWFContainer"]):
+class FWFFrame(FrameABC):
     def __init__(
         self,
-        name,
-        parent,
-        if_exists="fail",
-        mode="s",
-        df=pd.DataFrame(),
-        kwargs_pull=None,
+        name: str,
+        parent: FWFContainer,
+        if_exists: IfExistsLiteral = "fail",
+        mode: FrameModeLiteral = "s",
+        df: pd.DataFrame = pd.DataFrame(),
+        kwargs_pull: Optional[KWArgsIO] = None,
     ):
         super().__init__(
             df=df,
@@ -26,14 +34,19 @@ class FWFFrame(FrameABC["FWFContainer"]):
             kwargs_pull=kwargs_pull,
         )
 
-    def _read(self, kwargs):
+    def _read(self, kwargs: KWArgsIO):
         if self.kwargs_pull != kwargs:
-            self.df = pd.read_fwf(self.parent.url, **kwargs)
+            self.df: pd.DataFrame = pd.read_fwf(self.parent.url, **kwargs)
             self.kwargs_pull = kwargs
 
 
-class FWFContainer(ContainerReaderABC[FWFFrame]):
-    def __init__(self, url, replace=False):
+# class FWFContainer(ContainerReaderABC[FWFFrame]):
+class FWFContainer(ContainerReaderABC):
+    def __init__(
+        self,
+        url: str,
+        replace: bool = False,
+    ):
         super().__init__(FWFFrame, url)
 
     @property

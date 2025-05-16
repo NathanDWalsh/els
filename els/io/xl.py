@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import io
 import os
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import pandas as pd
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 
 import els.core as el
-from els.els_typing import KWArgsIO
+from els._typing import IfSheetExistsLiteral, KWArgsIO
 
 from .base import (
     ContainerWriterABC,
@@ -23,7 +23,7 @@ from .base import (
 
 def get_sheet_names(
     xl_io: io.BytesIO,
-    sheet_states: list = [SheetVisibleEnum.Visible],
+    sheet_states: list[SheetVisibleEnum] = [SheetVisibleEnum.Visible],
 ) -> list[str]:
     xl_io.seek(0)
     with CalamineWorkbook.from_filelike(xl_io) as workbook:
@@ -40,7 +40,7 @@ def get_sheet_row(
     xl_io: io.BytesIO,
     sheet_name: str,
     row_index: int,
-) -> Optional[list]:
+) -> Optional[list[Any]]:
     xl_io.seek(0)
     with CalamineWorkbook.from_filelike(xl_io) as workbook:
         if sheet_name in workbook.sheet_names:
@@ -76,11 +76,12 @@ def get_footer_cell(
         return str(rows)
 
 
-class XLFrame(FrameABC["XLContainer"]):
+# class XLFrame(FrameABC["XLContainer"]):
+class XLFrame(FrameABC):
     def __init__(
         self,
-        name,
-        parent,
+        name: str,
+        parent: XLContainer,
         if_exists: IfExistsLiteral = "fail",
         mode: FrameModeLiteral = "s",
         df: pd.DataFrame = pd.DataFrame(),
@@ -102,7 +103,7 @@ class XLFrame(FrameABC["XLContainer"]):
         self.footer_cell: Optional[str] = None
 
     @property
-    def if_sheet_exists(self) -> Literal["overlay", "replace"]:
+    def if_sheet_exists(self) -> IfSheetExistsLiteral:
         if self.mode == "a":
             return "overlay"
         elif self.mode == "w":
@@ -124,18 +125,19 @@ class XLFrame(FrameABC["XLContainer"]):
     def startrow(self, v: int) -> None:
         self._startrow = v
 
-    def _read(self, kwargs):
+    def _read(self, kwargs: KWArgsIO):
         if kwargs.get("nrows") and kwargs.get("skipfooter"):
             del kwargs["nrows"]
         capture_header = kwargs.pop("capture_header", False)
         capture_footer = kwargs.pop("capture_footer", False)
         if self.kwargs_pull != kwargs:
-            self.df = pd.read_excel(
+            self.df = pd.read_excel(  # type: ignore
                 self.parent.file_io,
                 engine=kwargs.pop("engine", "calamine"),
                 sheet_name=kwargs.pop("sheet_name", self.name),
                 **kwargs,
             )
+            assert isinstance(self.df, pd.DataFrame)  # type: ignore
 
             skiprows = kwargs.get("skiprows", 0)
             assert self.name
@@ -161,8 +163,13 @@ class XLFrame(FrameABC["XLContainer"]):
             self.kwargs_pull = kwargs
 
 
-class XLContainer(ContainerWriterABC[XLFrame]):
-    def __init__(self, url, replace=False):
+# class XLContainer(ContainerWriterABC[XLFrame]):
+class XLContainer(ContainerWriterABC):
+    def __init__(
+        self,
+        url: str,
+        replace: bool = False,
+    ):
         super().__init__(XLFrame, url, replace)
 
     @property
@@ -205,7 +212,7 @@ class XLContainer(ContainerWriterABC[XLFrame]):
                     # TODO integrate better into write method?
                     if isinstance(df.columns, pd.MultiIndex):
                         df = multiindex_to_singleindex(df)
-                    df.to_excel(
+                    df.to_excel(  # type: ignore
                         writer,
                         index=False,
                         sheet_name=df_io.name,
@@ -214,7 +221,7 @@ class XLContainer(ContainerWriterABC[XLFrame]):
                 for sheet in writer.sheets.values():
                     sheet.autofit(500)
         elif self.mode == "a":
-            sheet_exists = set()
+            sheet_exists: set[IfSheetExistsLiteral] = set()
             for df_io in self:
                 if df_io.mode not in ("r", "s"):
                     sheet_exists.add(df_io.if_sheet_exists)
@@ -239,7 +246,7 @@ class XLContainer(ContainerWriterABC[XLFrame]):
                             # TODO integrate better into write method?
                             if isinstance(df.columns, pd.MultiIndex):
                                 df = multiindex_to_singleindex(df)
-                            df.to_excel(
+                            df.to_excel(  # type: ignore
                                 writer,
                                 index=False,
                                 sheet_name=df_io.name,

@@ -7,6 +7,7 @@ import yaml
 
 import els.cli as ei
 import els.config as ec
+from els._typing import listify
 
 TestMedium_ = Literal[
     "pandas",
@@ -45,12 +46,6 @@ def assert_expected(expected, actual):
             assert_dfs_equal(expected[k], actual[k])
         else:
             assert_dfs_equal(expected[[k]], actual[[k]])
-
-
-def listify(x):
-    if not isinstance(x, list):
-        x = [x]
-    return x
 
 
 def to_call_list(for_calling):

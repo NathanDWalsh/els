@@ -4,12 +4,11 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import pandas as pd
 import ruamel.yaml as yaml
 import typer
-from anytree import PreOrderIter  # type: ignore
 
 import els.core as el
 import els.io.base as eio
@@ -66,7 +65,7 @@ class TaskFlow:
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any):
         self.cleanup()
 
     def build(self):
@@ -111,7 +110,7 @@ class TaskFlow:
 
 
 # remove node and assign children grandparent
-def remove_node_and_adopt_orphans(node: ConfigPath):
+def remove_node_and_adopt_orphans(node: ConfigPath) -> None:
     parent = node.parent
     if parent is not None:
         for child in node.children:
@@ -121,16 +120,16 @@ def remove_node_and_adopt_orphans(node: ConfigPath):
 
 
 # Remove implicit config node
-def remove_virtual_nodes(tree):
-    if tree.node_type == NodeType.CONFIG_VIRTUAL:
-        return tree.children[0]
+def remove_virtual_nodes(config_tree: ConfigPath) -> ConfigPath:
+    if config_tree.node_type == NodeType.CONFIG_VIRTUAL:
+        return config_tree.children[0]
     # Iterate through the tree in reverse order
-    for node in PreOrderIter(tree):
+    for node in config_tree.then_descendants:
         # If the node is virtual
         if node.node_type == NodeType.CONFIG_VIRTUAL:
             # Remove the node and reassign its children to its parent
             remove_node_and_adopt_orphans(node)
-    return tree
+    return config_tree
 
 
 @app.command()
@@ -180,7 +179,7 @@ def generate(
         if not (skip_root and file_name.endswith(get_root_config_name())):
             yaml_stream = io.StringIO()
             yml = yaml.YAML()
-            yml.dump_all(yaml_file_content, yaml_stream)
+            yml.dump_all(yaml_file_content, yaml_stream)  # type: ignore
             yaml_str = yaml_stream.getvalue()
             if overwrite and yaml_str:
                 with open(file_name, "w") as file:
@@ -190,10 +189,11 @@ def generate(
 
 
 def organize_yaml_files_for_output(
-    yamls, table_filter: Optional[list[str]] = None
-) -> dict[str, list[dict]]:
+    yamls: list[dict[str, Any]],
+    table_filter: Optional[list[str]] = None,
+) -> dict[str, list[dict[str, Any]]]:
     current_path = None
-    res: dict[str, list[dict]] = dict()
+    res: dict[str, list[dict[str, Any]]] = dict()
     previous_path = ""
     for yml in yamls:
         if "config_path" in yml:
@@ -220,7 +220,10 @@ def organize_yaml_files_for_output(
     return res
 
 
-def process_ymls(ymls, overwrite=False):
+def process_ymls(
+    ymls: list[dict[str, Any]],
+    overwrite: bool = False,
+):
     current_path = None
     for yml_dict in ymls:
         # Check if 'config_path' is present
@@ -229,8 +232,8 @@ def process_ymls(ymls, overwrite=False):
             # Prepare the dict for serialization by removing 'config_path'
             yml_dict.pop("config_path")
 
-        serialized_yaml = yaml.dump(yml_dict, default_flow_style=False)
-
+        serialized_yaml: str = yaml.dump(yml_dict, default_flow_style=False)  # type: ignore
+        assert isinstance(serialized_yaml, str)
         if overwrite and current_path:
             # Append to the file if it's meant for multiple documents
             mode = "a" if "---" in serialized_yaml else "w"
@@ -242,7 +245,7 @@ def process_ymls(ymls, overwrite=False):
 
 
 @app.command()
-def flow(path: Optional[str] = typer.Argument(None)):
+def flow(path: Optional[Union[str, typer.models.ArgumentInfo]] = typer.Argument(None)):
     path = clean_none_path(path)
     with TaskFlow(path) as taskflow:
         taskflow.display_tree()
@@ -250,9 +253,12 @@ def flow(path: Optional[str] = typer.Argument(None)):
     logging.info("Fin")
 
 
-def clean_none_path(path):
+def clean_none_path(
+    path: Optional[Union[str, typer.models.ArgumentInfo]],
+) -> Optional[str]:
     if isinstance(path, typer.models.ArgumentInfo) and path.default is None:
-        path = None
+        return None
+    assert isinstance(path, str)
     return path
 
 
@@ -289,7 +295,7 @@ def preview(
 
 
 @app.command()
-def execute(path: Optional[Union[str, Config]] = typer.Argument(None)):
+def execute(path: Optional[Union[str, Config]] = typer.Argument(None)) -> None:
     if isinstance(path, str):
         path = clean_none_path(path)
 
@@ -306,14 +312,14 @@ def execute(path: Optional[Union[str, Config]] = typer.Argument(None)):
 
         for name, df in el.default_target.items():
             print(f"{name}:")
-            df.index.name = " "
+            df.index.name = " "  # type: ignore
             print(df)
             print()
 
     logging.info("Fin")
 
 
-def write_yaml_str(yaml_str):
+def write_yaml_str(yaml_str: str) -> None:
     # if sys.stdout.isatty() and 1 == 2:
     #     colored_yaml = highlight(yaml_str, YamlLexer(), TerminalFormatter())
     #     sys.stdout.write(colored_yaml)
@@ -331,16 +337,16 @@ def write_yaml_str(yaml_str):
 
 
 @app.command()
-def test():
+def test() -> None:
     yml = yaml.YAML()
     contents = {"target": {"url": "../target/*.csv", "if_exists": "fail"}}
     yml_stream = io.StringIO()
-    yml.dump(contents, yml_stream)
-    yml_obj = yml.load(yml_stream.getvalue())
+    yml.dump(contents, yml_stream)  # type: ignore
+    yml_obj = yml.load(yml_stream.getvalue())  # type: ignore
     # comment = concat_enum_values(TargetIfExistsValue)
     # yml_obj["target"].yaml_add_eol_comment(comment, key="if_exists")
     yml_stream = io.StringIO()
-    yml.dump(yml_obj, yml_stream)
+    yml.dump(yml_obj, yml_stream)  # type: ignore
     print(yml_stream.getvalue())
     # yml = ryaml.load(yml_str)
     # config_default = Config()
@@ -397,8 +403,8 @@ def new(
         yml = yaml.YAML()
         contents = {"target": {"url": "../target/*.csv", "if_exists": "fail"}}
         yml_stream = io.StringIO()
-        yml.dump(contents, yml_stream)
-        yml_obj = yml.load(yml_stream.getvalue())
+        yml.dump(contents, yml_stream)  # type: ignore
+        yml_obj = yml.load(yml_stream.getvalue())  # type: ignore
         # comment = concat_enum_values(TargetIfExistsValue)
         # yml_obj["target"].yaml_add_eol_comment(comment, key="if_exists")
         # yml_stream = io.StringIO()
@@ -406,7 +412,7 @@ def new(
 
         # Serialize and write the contents to the file
         with open(config_file_path, "w") as file:
-            yml.dump(yml_obj, file)
+            yml.dump(yml_obj, file)  # type: ignore
 
         typer.echo("Creating project config file:")
         typer.echo(f" ./{project_path.name}/config/{get_root_config_name()}")

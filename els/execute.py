@@ -7,7 +7,7 @@ import pandas as pd
 
 import els.config as ec
 import els.core as el
-from els.io.base import ContainerProtocol
+from els.io.base import ContainerProtocol, FrameABC
 from els.io.csv import CSVContainer
 from els.io.fwf import FWFContainer
 from els.io.pd import DFContainer
@@ -18,7 +18,7 @@ from els.io.xml import XMLContainer
 
 
 def get_container_class(
-    frame: ec.Frame,
+    frame: ec.Frame,  # type: ignore
 ) -> type[ContainerProtocol]:
     if frame.type == ".csv":
         return CSVContainer
@@ -50,7 +50,7 @@ def push_frame(
         print(df.head(100))
     else:
         container_class = get_container_class(target)
-        df_container = el.fetch_df_container(
+        df_container = el.fetch_df_container(  # type: ignore
             container_class,
             url=target.url,
             replace=target.replace_container,
@@ -60,7 +60,7 @@ def push_frame(
             df_name=target.table,
             df=df,
         )
-        df_table.set_df(
+        df_table.set_df(  # type: ignore
             df=df,
             if_exists=target.if_table_exists,
             build=build,
@@ -145,13 +145,13 @@ def pull_frame(
 ) -> pd.DataFrame:
     container_class = get_container_class(frame)
     assert isinstance(frame.url, str)
-    df_container = el.fetch_df_container(
+    df_container = el.fetch_df_container(  # type: ignore
         container_class=container_class,
         url=frame.url,
     )
     assert isinstance(frame.table, str)
-    df_table = df_container[frame.table]
-    df = df_table.read(
+    df_table: FrameABC = df_container[frame.table]  # type: ignore
+    df = df_table.read(  # type: ignore
         kwargs=frame.kwargs_pull,
         sample=sample,
     )

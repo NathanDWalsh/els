@@ -2,22 +2,27 @@ from __future__ import annotations
 
 import logging
 from collections.abc import MutableMapping
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, TypeVar, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pandas as pd
-import pyodbc  # type: ignore
+import pyodbc
 import sqlalchemy as sa
-from sqlalchemy_utils import (  # type: ignore
+from sqlalchemy_utils.functions.database import (
     create_database,
     drop_database,
 )
-from sqlalchemy_utils.functions.orm import quote  # type: ignore
+from sqlalchemy_utils.functions.orm import quote
 
 import els.config as ec
+from els._typing import KWArgsIO
 from els.sa_utils_patch import database_exists
 
-from .base import ContainerWriterABC, FrameABC, FrameModeLiteral
+from .base import (
+    ContainerWriterABC,
+    FrameABC,
+    FrameModeLiteral,
+)
 
 
 def lcase_mapping_keys(mapping: MutableMapping[str, Any]) -> dict[str, Any]:
@@ -48,10 +53,10 @@ def supported_available_odbc_drivers() -> set[str]:
     return supported.intersection(available)
 
 
-def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
+def fetch_sa_engine(url: str, replace: bool = False) -> sa.Engine:
     dialect = sa.make_url(url).get_dialect().name
     driver = sa.make_url(url).get_driver_name()
-    kwargs = {}
+    kwargs: KWArgsIO = {}
     if (
         dialect in ("mssql")
         and driver == "pyodbc"
@@ -59,28 +64,32 @@ def fetch_sa_engine(url, replace: bool = False) -> sa.Engine:
     ):
         kwargs["fast_executemany"] = True
 
-    if url is None:
-        raise Exception("Cannot fetch None url")
-    else:
-        if not database_exists(url):
-            create_database(url)
-        elif replace:
-            drop_database(url)
-            create_database(url)
-        res = sa.create_engine(url, **kwargs)
+    # if url is None:
+    #     raise Exception("Cannot fetch None url")
+    # else:
+    if not database_exists(url):
+        create_database(url)
+    elif replace:
+        drop_database(url)
+        create_database(url)
+    res = sa.create_engine(url, **kwargs)
     return res
 
 
-class SQLFrame(FrameABC["SQLContainer"]):
+TSQLContainer = TypeVar("TSQLContainer", bound="SQLContainer")
+
+
+# class SQLFrame(FrameABC[TSQLContainer]):
+class SQLFrame(FrameABC):
     def __init__(
         self,
         name: str,
-        parent: SQLContainer,
+        parent: TSQLContainer,
         if_exists: ec.IfExistsLiteral = "fail",
         mode: FrameModeLiteral = "s",
-        df=pd.DataFrame(),
-        kwargs_pull=None,
-        kwargs_push=None,
+        df: pd.DataFrame = pd.DataFrame(),
+        kwargs_pull: Optional[KWArgsIO] = None,
+        kwargs_push: Optional[KWArgsIO] = None,
     ) -> None:
         super().__init__(
             df=df,
@@ -90,7 +99,7 @@ class SQLFrame(FrameABC["SQLContainer"]):
             if_exists=if_exists,
             kwargs_pull=kwargs_pull or {},
         )
-        self.kwargs_push = kwargs_push
+        self.kwargs_push = kwargs_push or {}
 
     @property
     def sqn(self) -> str:
@@ -109,7 +118,7 @@ class SQLFrame(FrameABC["SQLContainer"]):
         else:
             return f"truncate table {self.sqn}"
 
-    def _read(self, kwargs):
+    def _read(self, kwargs: KWArgsIO):
         nrows = kwargs.pop("nrows", None)
         if not self.parent.url:
             raise Exception("invalid db_connection_string")
@@ -121,12 +130,16 @@ class SQLFrame(FrameABC["SQLContainer"]):
                 .select_from(sa.text(f"{quote(sqeng, self.name)}"))
                 .limit(nrows)
             )
-            self.df = pd.read_sql(stmt, con=sqeng, **kwargs)
+            self.df = pd.read_sql(stmt, con=sqeng, **kwargs)  # type: ignore
 
 
-class SQLContainer(ContainerWriterABC[SQLFrame]):
-    def __init__(self, url, replace=False):
-        super().__init__(SQLFrame, url, replace)
+TSQLFrame = TypeVar("TSQLFrame", bound=SQLFrame)
+
+
+# class SQLContainer(ContainerWriterABC[TSQLFrame]):
+class SQLContainer(ContainerWriterABC):
+    def __init__(self, url: str, replace: bool = False):
+        super().__init__(SQLFrame[TSQLContainer], url, replace)
 
     @property
     def query_lcased(self):
@@ -233,7 +246,7 @@ class SQLContainer(ContainerWriterABC[SQLFrame]):
             return "server"
 
     def _children_init(self) -> None:
-        self.sa_engine = fetch_sa_engine(self.db_connection_string)
+        self.sa_engine = fetch_sa_engine(self.db_connection_string)  # type: ignore
         with self.sa_engine.connect() as sqeng:
             inspector = sa.inspect(sqeng)
             self.children = [
@@ -254,7 +267,7 @@ class SQLContainer(ContainerWriterABC[SQLFrame]):
     def persist(self):
         if self.mode == "w":
             self.sa_engine = fetch_sa_engine(
-                self.db_connection_string,
+                self.db_connection_string,  # type: ignore
                 replace=True,
             )
         with self.sa_engine.connect() as sqeng:

@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from enum import Enum
 from functools import cached_property
-from typing import Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 from urllib.parse import urlparse
 
 import duckdb
@@ -22,24 +22,15 @@ from els.pathprops import HumanPathPropertiesMixin
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
 
-from els.els_typing import IfExistsLiteral, KWArgsIO
+
+from els._typing import IfExistsLiteral, KWArgsIO, listify
 
 
-def listify(v) -> list:
-    return list(v) if isinstance(v, (list, tuple)) else [v]
-
-
-# generate an enum in the format _rxcx for a 10 * 10 grid
-def generate_enum_from_grid(cls, enum_name):
-    properties = {f"R{r}C{c}": f"_r{r}c{c}" for r in range(10) for c in range(10)}
-    return Enum(enum_name, properties)
-
-
-DynamicCellValue = generate_enum_from_grid(HumanPathPropertiesMixin, "DynamicCellValue")
-
-
-def generate_enum_from_properties(cls, enum_name):
-    properties = {
+def generate_enum_from_properties(
+    cls: type[HumanPathPropertiesMixin],
+    enum_name: str,
+) -> Enum:
+    properties: dict[str, str] = {
         name.upper(): "_" + name
         for name, value in vars(cls).items()
         if isinstance(value, property)
@@ -48,8 +39,9 @@ def generate_enum_from_properties(cls, enum_name):
     return Enum(enum_name, properties)
 
 
-DynamicPathValue = generate_enum_from_properties(
-    HumanPathPropertiesMixin, "DynamicPathValue"
+DynamicPathValue: Enum = generate_enum_from_properties(
+    HumanPathPropertiesMixin,  # type: ignore
+    "DynamicPathValue",
 )
 
 
@@ -81,7 +73,7 @@ class TransformABC(BaseModel, ABC, extra="forbid"):
     #     extra="forbid",
     #     json_schema_extra={"oneOf": [{"required": ["melt"]}, {"required": ["stack"]}]},
     # )
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self._executed = False
 
@@ -114,7 +106,10 @@ class StackDynamic(TransformABC):
     stack_header: int = 0
     stack_name: str = "stack_column"
 
-    def transform(self, df: Union[pd.DataFrame, pd.Series]) -> pd.DataFrame:
+    def transform(
+        self,
+        df: Union[pd.DataFrame, pd.Series[Any]],
+    ) -> pd.DataFrame:
         # Define the primary column headers based on the first columns
         primary_headers = list(df.columns[: self.stack_fixed_columns])
 
@@ -122,22 +117,22 @@ class StackDynamic(TransformABC):
         top_level_headers, _ = zip(*primary_headers)
 
         # Set the DataFrame's index to the primary headers
-        df = df.set_index(primary_headers)
+        df.set_index(primary_headers, inplace=True)  # type: ignore
 
         # Get the names of the newly set indices
-        current_index_names = list(df.index.names[: self.stack_fixed_columns])
+        current_index_names = list(df.index.names[: self.stack_fixed_columns])  # type: ignore
 
         # Create a dictionary to map the current index names to the top-level headers
         index_name_mapping = dict(zip(current_index_names, top_level_headers))
 
         # Rename the indices using the created mapping
-        df.index.rename(index_name_mapping, inplace=True)
+        df.index.rename(index_name_mapping, inplace=True)  # type: ignore
 
         # Stack the DataFrame based on the top-level columns
         df = df.stack(level=self.stack_header, future_stack=True)
 
         # Rename the new index created by the stacking operation
-        df.index.rename({None: self.stack_name}, inplace=True)
+        df.index.rename({None: self.stack_name}, inplace=True)  # type: ignore
 
         # Reset the index for the resulting DataFrame
         df.reset_index(inplace=True)
@@ -155,7 +150,7 @@ class Melt(TransformABC):
     melt_var_name: str = "variable"
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        return pd.melt(
+        return pd.melt(  # type: ignore
             df,
             id_vars=self.melt_id_vars,
             value_vars=self.melt_value_vars,
@@ -176,7 +171,7 @@ class Pivot(TransformABC):
             index=self.pivot_index,
         )
         res.columns.name = None
-        res.index.name = None
+        res.index.name = None  # type: ignore
         return res
 
 
@@ -184,12 +179,12 @@ class AsType(TransformABC):
     as_dtypes: dict[str, str]
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        return df.astype(self.as_dtypes)
+        return df.astype(self.as_dtypes)  # type: ignore
 
 
 class AddColumns(TransformABC, extra="allow"):
     additionalProperties: Optional[  # type: ignore
-        Union[DynamicPathValue, DynamicColumnValue, DynamicCellValue, str, int, float]  # type: ignore
+        Union[DynamicPathValue, DynamicColumnValue, str, int, float]  # type: ignore
     ] = None
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -211,7 +206,7 @@ class PrqlTransform(TransformABC):
             prql = self.prql
         prqlo = prqlc.CompileOptions(target="sql.duckdb")
         dsql = prqlc.compile(prql, options=prqlo)
-        df = duckdb.sql(dsql).df()
+        df = duckdb.sql(dsql).df()  # type: ignore
         return df
 
 
@@ -219,18 +214,18 @@ class FilterTransform(TransformABC):
     filter: str
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        return df.query(self.filter)
+        return df.query(self.filter)  # type: ignore
 
 
 class SplitOnColumn(TransformABC):
     split_on_column: str
 
     def transform(self, df: pd.DataFrame) -> list[str]:  # type: ignore
-        return list(df[self.split_on_column].drop_duplicates())
+        return list(df[self.split_on_column].drop_duplicates())  # type: ignore
 
 
-def merge_configs(*configs: Union[Config, dict]) -> Config:
-    dicts: list[dict] = []
+def merge_configs(*configs: Union[Config, dict[str, Any]]) -> Config:
+    dicts: list[dict[str, Any]] = []
     for config in configs:
         if isinstance(config, Config):
             dicts.append(
@@ -239,7 +234,7 @@ def merge_configs(*configs: Union[Config, dict]) -> Config:
                     exclude_unset=True,
                 )
             )
-        elif isinstance(config, dict):
+        elif isinstance(config, dict):  # type: ignore
             # append all except children
             config_to_append = config.copy()
             if "children" in config_to_append:
@@ -252,8 +247,8 @@ def merge_configs(*configs: Union[Config, dict]) -> Config:
     return res
 
 
-def merge_dicts_by_top_level_keys(*dicts: dict) -> dict:
-    merged_dict: dict = {}
+def merge_dicts_by_top_level_keys(*dicts: dict[str, Any]) -> dict[str, Any]:
+    merged_dict: dict[str, Any] = {}
     for dict_ in dicts:
         for key, value in dict_.items():
             if (
@@ -461,11 +456,11 @@ class ReadCSV(BaseModel, extra="allow"):
 class ReadExcel(BaseModel, extra="allow"):
     sheet_name: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__  # type: ignore
     # dtype: Optional[dict] = None
-    names: Optional[list] = None
+    names: Optional[list[str]] = None
 
 
 class ReadFWF(BaseModel, extra="allow"):
-    names: Optional[list] = None
+    names: Optional[list[str]] = None
 
 
 class ReadSQL(BaseModel, extra="allow"):
@@ -510,7 +505,7 @@ class Source(Frame, extra="forbid"):
     )
     load_parallel: bool = False
     nrows: Optional[int] = None
-    dtype: Optional[dict] = None
+    dtype: Optional[dict[str, str]] = None
     read_csv: Optional[Union[ReadCSV, list[ReadCSV]]] = None
     read_excel: Optional[Union[ReadExcel, list[ReadExcel]]] = None
     read_sql: Optional[Union[ReadSQL, list[ReadSQL]]] = None
@@ -530,7 +525,7 @@ class Source(Frame, extra="forbid"):
         )
 
     @read_x.setter
-    def read_x(self, x):
+    def read_x(self, x: Any):
         if self.read_csv:
             self.read_csv = x
         elif self.read_excel:
@@ -658,15 +653,15 @@ class Config(BaseModel):
 
     @property
     def transforms_to_determine_target(self) -> list[TransformType]:
-        res: list = []
+        res: list[TransformType] = []
         for t in reversed(self.transform_list):
             if isinstance(t, SplitOnColumn) or res:
                 res.append(t)
         res = list(reversed(res))
         return res
 
-    def schema_pop_children(s) -> None:
-        s["properties"].pop("children")  # type: ignore
+    def schema_pop_children(self) -> None:
+        self["properties"].pop("children")  # type: ignore
 
     model_config = ConfigDict(
         extra="forbid",

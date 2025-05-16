@@ -1,21 +1,24 @@
 from __future__ import annotations
 
 import els.core as el
+from els._typing import KWArgsIO
 
 from .base import ContainerWriterABC, FrameABC
 
 
-class DFFrame(FrameABC["DFContainer"]):
-    def _read(self, kwargs):
+# class DFFrame(FrameABC["DFContainer"]):
+class DFFrame(FrameABC):
+    def _read(self, kwargs: KWArgsIO):
         self.df = self.parent.df_dict[self.name]
         self.df_target = self.parent.df_dict[self.name]
 
 
-class DFContainer(ContainerWriterABC[DFFrame]):
+# class DFContainer(ContainerWriterABC[DFFrame]):
+class DFContainer(ContainerWriterABC):
     def __init__(
         self,
-        url,
-        replace=False,
+        url: str,
+        replace: bool = False,
     ):
         super().__init__(DFFrame, url, replace)
 

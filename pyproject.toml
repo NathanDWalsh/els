@@ -33,3 +33,8 @@ allowed_types = [
 # minor_types = ["feat"]
 patch_types = ["build", "chore", "ci", "docs", "feat", "fix",
     "perf", "style", "refactor", "test"]
+
+[tool.mypy]
+packages = 'els'
+mypy_path = './stubs'
+ignore_missing_imports = true

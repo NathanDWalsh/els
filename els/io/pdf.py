@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -9,19 +9,25 @@ import pandas as pd
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LAParams, LTChar, LTTextBox
 
-from .base import ContainerReaderABC, FrameABC
+from els._typing import IfExistsLiteral, KWArgsIO
+
+from .base import (
+    ContainerReaderABC,
+    FrameABC,
+    FrameModeLiteral,
+)
 
 
 def text_range_to_list(text: str) -> list[int]:
-    result: list = []
+    res: list[int] = []
     segments = text.split(",")
     for segment in segments:
         if "-" in segment:
             start, end = map(int, segment.split("-"))
-            result.extend(range(start, end + 1))
+            res.extend(range(start, end + 1))
         else:
-            result.append(int(segment))
-    return result
+            res.append(int(segment))
+    return res
 
 
 def clean_page_numbers(
@@ -38,14 +44,16 @@ def clean_page_numbers(
 
 
 def pull_pdf(
-    file,
-    laparams: Optional[dict],
+    file: str,
+    laparams: Optional[Mapping[str, str]],
     **kwargs: Any,
 ) -> pd.DataFrame:
-    def get_first_char_from_text_box(tb) -> LTChar:  # type: ignore
+    def get_first_char_from_text_box(tb: LTTextBox) -> LTChar:
         for line in tb:
             for char in line:
+                assert isinstance(char, LTChar)
                 return char
+        raise Exception("Character not found")
 
     lap = LAParams()
     if laparams:
@@ -57,7 +65,7 @@ def pull_pdf(
 
     pm_pages = extract_pages(file, laparams=lap, **kwargs)
 
-    dict_res: dict[str, list] = {
+    dict_res: dict[str, list[Any]] = {
         "page_index": [],
         "y0": [],
         "y1": [],
@@ -98,15 +106,16 @@ def pull_pdf(
     return pd.DataFrame(dict_res)
 
 
-class PDFFrame(FrameABC["PDFContainer"]):
+# class PDFFrame(FrameABC["PDFContainer"]):
+class PDFFrame(FrameABC):
     def __init__(
         self,
-        name,
-        parent,
-        if_exists="fail",
-        mode="s",
-        df=pd.DataFrame(),
-        kwargs_pull=None,
+        name: str,
+        parent: PDFContainer,
+        if_exists: IfExistsLiteral = "fail",
+        mode: FrameModeLiteral = "s",
+        df: pd.DataFrame = pd.DataFrame(),
+        kwargs_pull: Optional[KWArgsIO] = None,
     ):
         super().__init__(
             df=df,
@@ -119,7 +128,7 @@ class PDFFrame(FrameABC["PDFContainer"]):
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
-    def _read(self, kwargs):
+    def _read(self, kwargs: KWArgsIO):
         if self.kwargs_pull != kwargs:
             kw_copy = deepcopy(kwargs)
             laparams = None
@@ -131,8 +140,13 @@ class PDFFrame(FrameABC["PDFContainer"]):
             self.kwargs_pull = kwargs
 
 
-class PDFContainer(ContainerReaderABC[PDFFrame]):
-    def __init__(self, url, replace=False):
+# class PDFContainer(ContainerReaderABC[PDFFrame]):
+class PDFContainer(ContainerReaderABC):
+    def __init__(
+        self,
+        url: str,
+        replace: bool = False,
+    ):
         super().__init__(PDFFrame, url)
 
     @property
