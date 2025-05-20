@@ -240,7 +240,8 @@ class SQLContainer(ContainerWriterABC[SQLFrame]):
             return "server"
 
     def _children_init(self) -> None:
-        self.sa_engine = fetch_sa_engine(self.db_connection_string)  # type: ignore
+        assert self.db_connection_string is not None
+        self.sa_engine = fetch_sa_engine(self.db_connection_string)
         with self.sa_engine.connect() as sqeng:
             inspector = sa.inspect(sqeng)
             self.children = [
@@ -261,8 +262,9 @@ class SQLContainer(ContainerWriterABC[SQLFrame]):
 
     def persist(self) -> None:
         if self.mode == "w":
+            assert self.db_connection_string is not None
             self.sa_engine = fetch_sa_engine(
-                self.db_connection_string,  # type: ignore
+                self.db_connection_string,
                 replace=True,
             )
         with self.sa_engine.connect() as sqeng:
