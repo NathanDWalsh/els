@@ -230,16 +230,11 @@ def merge_configs(*configs: Union[Config, dict[str, Any]]) -> Config:
         if isinstance(config, Config):
             dicts.append(
                 config.model_dump(
-                    exclude={"children"},
                     exclude_unset=True,
                 )
             )
         elif isinstance(config, dict):
-            # append all except children
-            config_to_append = config.copy()
-            if "children" in config_to_append:
-                config_to_append.pop("children")
-            dicts.append(config_to_append)
+            dicts.append(config.copy())
         else:
             raise Exception("configs should be a list of Configs or dicts")
     dict_result = merge_dicts_by_top_level_keys(*dicts)
@@ -602,7 +597,7 @@ else:
     TransformType = TransformType_
 
 
-class Config(BaseModel):
+class Config(BaseModel, extra="forbid"):
     # KEEP config_path AROUND JUST IN CASE, can be used when printing yamls for debugging
     config_path: Optional[str] = None
     # source: Union[Source,list[Source]] = Source()
@@ -613,12 +608,6 @@ class Config(BaseModel):
             TransformType,
             list[TransformType],
         ]
-    ] = None
-    children: Union[
-        dict[str, Optional[Config]],
-        list[str],
-        str,
-        None,
     ] = None
 
     @property
@@ -659,14 +648,6 @@ class Config(BaseModel):
                 res.append(t)
         res = list(reversed(res))
         return res
-
-    def schema_pop_children(self) -> None:
-        self["properties"].pop("children")  # type: ignore
-
-    model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra=schema_pop_children,  # type: ignore
-    )
 
     def merge_with(
         self,
