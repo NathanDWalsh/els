@@ -39,7 +39,7 @@ def clean_page_numbers(
         res = text_range_to_list(page_numbers)
     else:
         assert isinstance(page_numbers, Iterable)
-        res = page_numbers
+        res = page_numbers  # type: ignore
     return sorted(res)
 
 
@@ -106,8 +106,9 @@ def pull_pdf(
     return pd.DataFrame(dict_res)
 
 
-# class PDFFrame(FrameABC["PDFContainer"]):
 class PDFFrame(FrameABC):
+    parent: PDFContainer  # for mypy
+
     def __init__(
         self,
         name: str,
@@ -128,7 +129,7 @@ class PDFFrame(FrameABC):
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
-    def _read(self, kwargs: KWArgsIO):
+    def _read(self, kwargs: KWArgsIO) -> None:
         if self.kwargs_pull != kwargs:
             kw_copy = deepcopy(kwargs)
             laparams = None
@@ -140,8 +141,7 @@ class PDFFrame(FrameABC):
             self.kwargs_pull = kwargs
 
 
-# class PDFContainer(ContainerReaderABC[PDFFrame]):
-class PDFContainer(ContainerReaderABC):
+class PDFContainer(ContainerReaderABC[PDFFrame]):
     def __init__(
         self,
         url: str,
@@ -161,8 +161,8 @@ class PDFContainer(ContainerReaderABC):
             )
         ]
 
-    def persist(self):
+    def persist(self) -> None:
         pass  # not supported
 
-    def close(self):
+    def close(self) -> None:
         pass  # not required / closes after read

@@ -26,13 +26,13 @@ from . import test_template as tt
 @pytest.mark.parametrize(
     "test_name",
     [
-        # ("pandas"),
-        # ("excel"),
-        # ("sqlite"),
-        # ("duckdb"),
+        ("pandas"),
+        ("excel"),
+        ("sqlite"),
+        ("duckdb"),
         # ("mssql"),
         ("csv"),
-        # ("xml"),
+        ("xml"),
     ],
 )
 @pytest.mark.parametrize(
@@ -69,85 +69,85 @@ def test_sc(tmp_path, test_name, func, config_for, tiny_sample):
     func(test_medium=test_name, config_for=config_for)
 
 
-# @pytest.mark.parametrize(
-#     "test_name",
-#     [
-#         ("pandas"),
-#         ("excel"),
-#         ("sqlite"),
-#         ("duckdb"),
-#         # ("mssql"),
-#         ("csv"),
-#     ],
-# )
-# @pytest.mark.parametrize(
-#     "func",
-#     [
-#         tt.astype,
-#         tt.stack_dynamic,
-#     ],
-# )
-# def test_for_push_or_pull(tmp_path, test_name, func):
-#     os.chdir(tmp_path)
-#     func(test_medium=test_name)
+@pytest.mark.parametrize(
+    "test_name",
+    [
+        ("pandas"),
+        ("excel"),
+        ("sqlite"),
+        ("duckdb"),
+        # ("mssql"),
+        ("csv"),
+    ],
+)
+@pytest.mark.parametrize(
+    "func",
+    [
+        tt.astype,
+        tt.stack_dynamic,
+    ],
+)
+def test_for_push_or_pull(tmp_path, test_name, func):
+    os.chdir(tmp_path)
+    func(test_medium=test_name)
 
 
-# @pytest.mark.parametrize(
-#     "test_name",
-#     [
-#         ("excel"),
-#     ],
-# )
-# @pytest.mark.parametrize(
-#     "func",
-#     [
-#         tt.skiprows_xl1,
-#         tt.skiprows_xl2,
-#         tt.skiprows_xl3,
-#         tt.skipfoot_xl1,
-#         tt.skipfoot_xl2,
-#     ],
-# )
-# def test_for_push_and_pull_xl(tmp_path, test_name, func):
-#     os.chdir(tmp_path)
-#     func(test_medium=test_name)
+@pytest.mark.parametrize(
+    "test_name",
+    [
+        ("excel"),
+    ],
+)
+@pytest.mark.parametrize(
+    "func",
+    [
+        tt.skiprows_xl1,
+        tt.skiprows_xl2,
+        tt.skiprows_xl3,
+        tt.skipfoot_xl1,
+        tt.skipfoot_xl2,
+    ],
+)
+def test_for_push_and_pull_xl(tmp_path, test_name, func):
+    os.chdir(tmp_path)
+    func(test_medium=test_name)
 
 
-# @pytest.mark.parametrize(
-#     "test_name",
-#     [
-#         ("csv"),
-#     ],
-# )
-# @pytest.mark.parametrize(
-#     "func",
-#     [
-#         tt.skiprows_csv1,
-#         tt.skiprows_csv2,
-#         tt.skiprows_csv3,
-#         tt.skipfoot_csv1,
-#         tt.skipfoot_csv2,
-#     ],
-# )
-# def test_for_push_and_pull_csv(tmp_path, test_name, func):
-#     os.chdir(tmp_path)
-#     func(test_medium=test_name)
+@pytest.mark.parametrize(
+    "test_name",
+    [
+        ("csv"),
+    ],
+)
+@pytest.mark.parametrize(
+    "func",
+    [
+        tt.skiprows_csv1,
+        tt.skiprows_csv2,
+        tt.skiprows_csv3,
+        tt.skipfoot_csv1,
+        tt.skipfoot_csv2,
+    ],
+)
+def test_for_push_and_pull_csv(tmp_path, test_name, func):
+    os.chdir(tmp_path)
+    func(test_medium=test_name)
 
 
-# @pytest.mark.parametrize(
-#     "test_name",
-#     [
-#         ("excel"),
-#         ("csv"),
-#     ],
-# )
-# @pytest.mark.parametrize(
-#     "func",
-#     [
-#         tt.multiindex_column,
-#         tt.replace_file,
-#     ],
-# )
-# def test_for_files(tmp_path, test_name, func):
-#     os.chdir(tmp_path)
-#     func(test_medium=test_name)
+@pytest.mark.parametrize(
+    "test_name",
+    [
+        ("excel"),
+        ("csv"),
+    ],
+)
+@pytest.mark.parametrize(
+    "func",
+    [
+        tt.multiindex_column,
+        tt.replace_file,
+    ],
+)
+def test_for_files(tmp_path, test_name, func):
+    os.chdir(tmp_path)
+    func(test_medium=test_name)

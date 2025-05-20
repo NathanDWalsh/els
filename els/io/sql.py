@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import MutableMapping
-from typing import Any, Literal, Optional, TypeVar, Union
+from typing import Any, Literal, Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pandas as pd
@@ -76,15 +76,13 @@ def fetch_sa_engine(url: str, replace: bool = False) -> sa.Engine:
     return res
 
 
-TSQLContainer = TypeVar("TSQLContainer", bound="SQLContainer")
-
-
-# class SQLFrame(FrameABC[TSQLContainer]):
 class SQLFrame(FrameABC):
+    parent: SQLContainer  # for mypy
+
     def __init__(
         self,
         name: str,
-        parent: TSQLContainer,
+        parent: SQLContainer,
         if_exists: ec.IfExistsLiteral = "fail",
         mode: FrameModeLiteral = "s",
         df: pd.DataFrame = pd.DataFrame(),
@@ -103,7 +101,7 @@ class SQLFrame(FrameABC):
 
     @property
     def sqn(self) -> str:
-        if self.parent.dialect_name == "duckdb":  # type:ignore
+        if self.parent.dialect_name == "duckdb":
             res = '"' + self.name + '"'
         # elif self.dbschema and self.table:
         #     res = "[" + self.dbschema + "].[" + self.table + "]"
@@ -112,13 +110,13 @@ class SQLFrame(FrameABC):
         return res
 
     @property
-    def truncate_stmt(self):
+    def truncate_stmt(self) -> str:
         if self.parent.dialect_name == "sqlite":
             return f"delete from {self.sqn}"
         else:
             return f"truncate table {self.sqn}"
 
-    def _read(self, kwargs: KWArgsIO):
+    def _read(self, kwargs: KWArgsIO) -> None:
         nrows = kwargs.pop("nrows", None)
         if not self.parent.url:
             raise Exception("invalid db_connection_string")
@@ -133,31 +131,27 @@ class SQLFrame(FrameABC):
             self.df = pd.read_sql(stmt, con=sqeng, **kwargs)  # type: ignore
 
 
-TSQLFrame = TypeVar("TSQLFrame", bound=SQLFrame)
-
-
-# class SQLContainer(ContainerWriterABC[TSQLFrame]):
-class SQLContainer(ContainerWriterABC):
+class SQLContainer(ContainerWriterABC[SQLFrame]):
     def __init__(self, url: str, replace: bool = False):
-        super().__init__(SQLFrame[TSQLContainer], url, replace)
+        super().__init__(SQLFrame, url, replace)
 
     @property
-    def query_lcased(self):
+    def query_lcased(self) -> dict[str, str]:
         url_parsed = urlparse(self.url)
         query = parse_qs(url_parsed.query)
         res = {k.lower(): v[0].lower() for k, v in query.items()}
         return res
 
     @property
-    def db_url_driver(self):
+    def db_url_driver(self) -> Optional[str]:
         query_lcased = self.query_lcased
         if "driver" in query_lcased.keys():
             return query_lcased["driver"]
         else:
-            return False
+            return None
 
     @property
-    def choose_db_driver(self):
+    def choose_db_driver(self) -> Optional[str]:
         explicit_driver = self.db_url_driver
         if explicit_driver and explicit_driver in supported_mssql_odbc_drivers:
             return explicit_driver
@@ -165,7 +159,7 @@ class SQLContainer(ContainerWriterABC):
             return None
 
     @property
-    def odbc_driver_supported_available(self):
+    def odbc_driver_supported_available(self) -> bool:
         explicit_odbc = self.db_url_driver
         if explicit_odbc and explicit_odbc in supported_available_odbc_drivers():
             return True
@@ -173,7 +167,7 @@ class SQLContainer(ContainerWriterABC):
             return False
 
     @property
-    def type(self):
+    def type(self) -> str:
         return self.url.split(":")[0]
 
     @property
@@ -258,13 +252,14 @@ class SQLContainer(ContainerWriterABC):
             ]
 
     @property
-    def create_or_replace(self):
+    def create_or_replace(self) -> bool:
+        assert self.db_connection_string
         if self.replace or not database_exists(self.db_connection_string):
             return True
         else:
             return False
 
-    def persist(self):
+    def persist(self) -> None:
         if self.mode == "w":
             self.sa_engine = fetch_sa_engine(
                 self.db_connection_string,  # type: ignore
@@ -286,11 +281,11 @@ class SQLContainer(ContainerWriterABC):
                         sqeng,
                         schema=None,
                         index=False,
-                        if_exists=df_io.if_exists,
+                        if_exists=df_io.if_exists,  # type: ignore
                         chunksize=1000,
                         **kwargs,
                     )
             sqeng.connection.commit()
 
-    def close(self):
+    def close(self) -> None:
         self.sa_engine.dispose()

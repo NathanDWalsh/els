@@ -78,6 +78,8 @@ def get_footer_cell(
 
 # class XLFrame(FrameABC["XLContainer"]):
 class XLFrame(FrameABC):
+    parent: XLContainer  # for mypy
+
     def __init__(
         self,
         name: str,
@@ -125,7 +127,7 @@ class XLFrame(FrameABC):
     def startrow(self, v: int) -> None:
         self._startrow = v
 
-    def _read(self, kwargs: KWArgsIO):
+    def _read(self, kwargs: KWArgsIO) -> None:
         if kwargs.get("nrows") and kwargs.get("skipfooter"):
             del kwargs["nrows"]
         capture_header = kwargs.pop("capture_header", False)
@@ -137,7 +139,7 @@ class XLFrame(FrameABC):
                 sheet_name=kwargs.pop("sheet_name", self.name),
                 **kwargs,
             )
-            assert isinstance(self.df, pd.DataFrame)  # type: ignore
+            assert isinstance(self.df, pd.DataFrame)
 
             skiprows = kwargs.get("skiprows", 0)
             assert self.name
@@ -163,8 +165,7 @@ class XLFrame(FrameABC):
             self.kwargs_pull = kwargs
 
 
-# class XLContainer(ContainerWriterABC[XLFrame]):
-class XLContainer(ContainerWriterABC):
+class XLContainer(ContainerWriterABC[XLFrame]):
     def __init__(
         self,
         url: str,
@@ -212,7 +213,7 @@ class XLContainer(ContainerWriterABC):
                     # TODO integrate better into write method?
                     if isinstance(df.columns, pd.MultiIndex):
                         df = multiindex_to_singleindex(df)
-                    df.to_excel(  # type: ignore
+                    df.to_excel(
                         writer,
                         index=False,
                         sheet_name=df_io.name,
@@ -246,7 +247,7 @@ class XLContainer(ContainerWriterABC):
                             # TODO integrate better into write method?
                             if isinstance(df.columns, pd.MultiIndex):
                                 df = multiindex_to_singleindex(df)
-                            df.to_excel(  # type: ignore
+                            df.to_excel(
                                 writer,
                                 index=False,
                                 sheet_name=df_io.name,
@@ -259,6 +260,6 @@ class XLContainer(ContainerWriterABC):
             self.file_io.seek(0)
             write_file.write(self.file_io.getbuffer())
 
-    def close(self):
+    def close(self) -> None:
         self.file_io.close()
         del el.io_files[self.url]

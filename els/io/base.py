@@ -33,9 +33,9 @@ def append_into(dfs: Sequence[pd.DataFrame]) -> pd.DataFrame:
     return pd.concat(dfs, ignore_index=True).iloc[:, 0:ncols]
 
 
-def get_column_frame(df: pd.DataFrame):
+def get_column_frame(df: pd.DataFrame) -> pd.DataFrame:
     column_frame = pd.DataFrame(columns=df.columns, index=None, data=None)
-    column_frame = column_frame.astype(df.dtypes)  # type: ignore
+    column_frame = column_frame.astype(df.dtypes)
     return column_frame
 
 
@@ -57,7 +57,6 @@ else:
     ContainerModeLiteral = _ContainerModeLiteral
 
 TFrame = TypeVar("TFrame", bound="FrameABC")
-TContainer = TypeVar("TContainer", bound="ContainerReaderABC")
 
 
 # Stores a reference to a dataframe that is currently scoped,
@@ -66,7 +65,7 @@ class FrameABC(ABC):
     def __init__(
         self,
         name: str,
-        parent: TContainer,
+        parent: ContainerReaderABC,
         if_exists: IfExistsLiteral = "fail",
         mode: FrameModeLiteral = "s",
         df: pd.DataFrame = pd.DataFrame(),
@@ -172,7 +171,7 @@ class FrameABC(ABC):
             self.append(df)
 
     @abstractmethod
-    def _read(self, kwargs: KWArgsIO):
+    def _read(self, kwargs: KWArgsIO) -> None:
         pass
 
 
@@ -223,7 +222,7 @@ class ContainerReaderABC(ABC, Generic[TFrame]):
         for child in self.children:
             yield child
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({(self.url)})"
 
     @property
@@ -261,7 +260,7 @@ class ContainerWriterABC(ContainerReaderABC[TFrame], Generic[TFrame]):
             self._children_init()
 
     def fetch_child(
-        self: TContainer,
+        self: ContainerReaderABC,
         df_name: str,
         df: pd.DataFrame,
         build: bool = False,
@@ -297,8 +296,8 @@ class ContainerWriterABC(ContainerReaderABC[TFrame], Generic[TFrame]):
                 df_io.write()
             self.persist()
 
-    def add_child(self: TContainer, child: TFrame) -> None:
-        child.parent = self
+    # def add_child(self: TContainer, child: TFrame) -> None:
+    #     child.parent = self
 
     @property
     def create_or_replace(self) -> bool:

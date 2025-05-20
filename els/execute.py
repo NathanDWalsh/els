@@ -18,7 +18,7 @@ from els.io.xml import XMLContainer
 
 
 def get_container_class(
-    frame: ec.Frame,  # type: ignore
+    frame: ec.Frame,
 ) -> type[ContainerProtocol]:
     if frame.type == ".csv":
         return CSVContainer
@@ -50,7 +50,7 @@ def push_frame(
         print(df.head(100))
     else:
         container_class = get_container_class(target)
-        df_container = el.fetch_df_container(  # type: ignore
+        df_container = el.fetch_df_container(
             container_class,
             url=target.url,
             replace=target.replace_container,
@@ -60,7 +60,7 @@ def push_frame(
             df_name=target.table,
             df=df,
         )
-        df_table.set_df(  # type: ignore
+        df_table.set_df(
             df=df,
             if_exists=target.if_table_exists,
             build=build,
@@ -145,13 +145,13 @@ def pull_frame(
 ) -> pd.DataFrame:
     container_class = get_container_class(frame)
     assert isinstance(frame.url, str)
-    df_container = el.fetch_df_container(  # type: ignore
+    df_container = el.fetch_df_container(
         container_class=container_class,
         url=frame.url,
     )
     assert isinstance(frame.table, str)
-    df_table: FrameABC = df_container[frame.table]  # type: ignore
-    df = df_table.read(  # type: ignore
+    df_table: FrameABC = df_container[frame.table]
+    df = df_table.read(
         kwargs=frame.kwargs_pull,
         sample=sample,
     )

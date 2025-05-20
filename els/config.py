@@ -93,11 +93,11 @@ class TransformABC(BaseModel, ABC, extra="forbid"):
         pass
 
     @property
-    def executed(self):
+    def executed(self) -> bool:
         return self._executed
 
     @executed.setter
-    def executed(self, v: bool):
+    def executed(self, v: bool) -> None:
         self._executed = v
 
 
@@ -117,22 +117,22 @@ class StackDynamic(TransformABC):
         top_level_headers, _ = zip(*primary_headers)
 
         # Set the DataFrame's index to the primary headers
-        df.set_index(primary_headers, inplace=True)  # type: ignore
+        df.set_index(primary_headers, inplace=True)
 
         # Get the names of the newly set indices
-        current_index_names = list(df.index.names[: self.stack_fixed_columns])  # type: ignore
+        current_index_names = list(df.index.names[: self.stack_fixed_columns])
 
         # Create a dictionary to map the current index names to the top-level headers
         index_name_mapping = dict(zip(current_index_names, top_level_headers))
 
         # Rename the indices using the created mapping
-        df.index.rename(index_name_mapping, inplace=True)  # type: ignore
+        df.index.rename(index_name_mapping, inplace=True)
 
         # Stack the DataFrame based on the top-level columns
         df = df.stack(level=self.stack_header, future_stack=True)
 
         # Rename the new index created by the stacking operation
-        df.index.rename({None: self.stack_name}, inplace=True)  # type: ignore
+        df.index.rename({None: self.stack_name}, inplace=True)
 
         # Reset the index for the resulting DataFrame
         df.reset_index(inplace=True)
@@ -150,7 +150,7 @@ class Melt(TransformABC):
     melt_var_name: str = "variable"
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        return pd.melt(  # type: ignore
+        return pd.melt(
             df,
             id_vars=self.melt_id_vars,
             value_vars=self.melt_value_vars,
@@ -171,7 +171,7 @@ class Pivot(TransformABC):
             index=self.pivot_index,
         )
         res.columns.name = None
-        res.index.name = None  # type: ignore
+        res.index.name = None
         return res
 
 
@@ -179,12 +179,12 @@ class AsType(TransformABC):
     as_dtypes: dict[str, str]
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        return df.astype(self.as_dtypes)  # type: ignore
+        return df.astype(self.as_dtypes)
 
 
 class AddColumns(TransformABC, extra="allow"):
-    additionalProperties: Optional[  # type: ignore
-        Union[DynamicPathValue, DynamicColumnValue, str, int, float]  # type: ignore
+    additionalProperties: Optional[
+        Union[DynamicColumnValue, str, int, float]  # also DynamicPathValue variable
     ] = None
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -206,7 +206,7 @@ class PrqlTransform(TransformABC):
             prql = self.prql
         prqlo = prqlc.CompileOptions(target="sql.duckdb")
         dsql = prqlc.compile(prql, options=prqlo)
-        df = duckdb.sql(dsql).df()  # type: ignore
+        df = duckdb.sql(dsql).df()
         return df
 
 
@@ -214,14 +214,14 @@ class FilterTransform(TransformABC):
     filter: str
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        return df.query(self.filter)  # type: ignore
+        return df.query(self.filter)
 
 
 class SplitOnColumn(TransformABC):
     split_on_column: str
 
     def transform(self, df: pd.DataFrame) -> list[str]:  # type: ignore
-        return list(df[self.split_on_column].drop_duplicates())  # type: ignore
+        return list(df[self.split_on_column].drop_duplicates())
 
 
 def merge_configs(*configs: Union[Config, dict[str, Any]]) -> Config:
@@ -234,7 +234,7 @@ def merge_configs(*configs: Union[Config, dict[str, Any]]) -> Config:
                     exclude_unset=True,
                 )
             )
-        elif isinstance(config, dict):  # type: ignore
+        elif isinstance(config, dict):
             # append all except children
             config_to_append = config.copy()
             if "children" in config_to_append:
@@ -290,7 +290,7 @@ class Frame(BaseModel):
             return listify(self.table)
 
     @cached_property
-    def type(self):
+    def type(self) -> Optional[str]:
         if self.url_scheme == "file":
             assert self.url
             ext = os.path.splitext(self.url)[-1]
@@ -302,7 +302,7 @@ class Frame(BaseModel):
             return self.url_scheme
 
     @cached_property
-    def type_is_db(self):
+    def type_is_db(self) -> bool:
         if self.type in (
             "mssql",
             "mssql+pymssql",
@@ -315,7 +315,7 @@ class Frame(BaseModel):
         return False
 
     @cached_property
-    def type_is_excel(self):
+    def type_is_excel(self) -> bool:
         if self.type in (
             ".xlsx",
             ".xls",
@@ -326,7 +326,7 @@ class Frame(BaseModel):
         return False
 
     @cached_property
-    def url_scheme(self):
+    def url_scheme(self) -> Optional[str]:
         if self.url:
             url_parse_scheme = urlparse(self.url, scheme="file").scheme
             drive_letter_pattern = re.compile(r"^[a-zA-Z]$")
@@ -337,7 +337,7 @@ class Frame(BaseModel):
             return None
 
     @cached_property
-    def sheet_name(self):
+    def sheet_name(self) -> Optional[str]:
         if self.type_is_excel:
             res = self.table or "Sheet1"
             assert isinstance(res, str)
@@ -386,7 +386,7 @@ class Target(Frame):
         return to_x.model_dump(exclude_none=True) if to_x else {}
 
     @property
-    def kwargs_pull(self):
+    def kwargs_pull(self) -> KWArgsIO:
         assert self.type
 
         to_x = self.to_excel
@@ -432,14 +432,14 @@ class Target(Frame):
             return False
 
     @property
-    def if_container_exists(self):
+    def if_container_exists(self) -> str:
         if self.if_exists:
             return self._if_exists_map[self.if_exists][0]
         else:
             return "append"
 
     @property
-    def if_table_exists(self):
+    def if_table_exists(self) -> str:
         if self.if_exists:
             return self._if_exists_map[self.if_exists][1]
         else:
@@ -514,7 +514,7 @@ class Source(Frame, extra="forbid"):
     read_pdf: Optional[Union[ReadPDF, list[ReadPDF]]] = None
 
     @property
-    def read_x(self):
+    def read_x(self) -> Any:
         return (
             self.read_csv
             or self.read_excel
@@ -525,7 +525,7 @@ class Source(Frame, extra="forbid"):
         )
 
     @read_x.setter
-    def read_x(self, x: Any):
+    def read_x(self, x: Any) -> None:
         if self.read_csv:
             self.read_csv = x
         elif self.read_excel:
@@ -540,7 +540,7 @@ class Source(Frame, extra="forbid"):
             self.read_pdf = x
 
     @property
-    def kwargs_pull(self):
+    def kwargs_pull(self) -> KWArgsIO:
         if self.read_pdf:
             assert not isinstance(self.read_pdf, list)
             return self.read_pdf.model_dump(exclude_none=True)
@@ -610,8 +610,8 @@ class Config(BaseModel):
     target: Target = Target()
     transform: Optional[
         Union[
-            TransformType,  # type: ignore
-            list[TransformType],  # type: ignore
+            TransformType,
+            list[TransformType],
         ]
     ] = None
     children: Union[
@@ -672,7 +672,7 @@ class Config(BaseModel):
         self,
         config: Config,
         in_place: bool = False,
-    ):
+    ) -> Config:
         merged = merge_configs(self, config)
         if in_place:
             self = merged
@@ -680,7 +680,7 @@ class Config(BaseModel):
         return merged
 
 
-def main():
+def main() -> None:
     config_json = Config.model_json_schema()
 
     # keep enum typehints on an arbatrary number of elements in AddColumns

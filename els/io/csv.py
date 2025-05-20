@@ -50,6 +50,8 @@ def get_footer_cell(
 
 
 class CSVFrame(FrameABC):
+    parent: CSVContainer  # for mypy
+
     def __init__(
         self,
         name: str,
@@ -72,7 +74,7 @@ class CSVFrame(FrameABC):
             kwargs_pull=kwargs_pull,
         )
 
-    def _read(self, kwargs: KWArgsIO):
+    def _read(self, kwargs: KWArgsIO) -> None:
         if "nrows" in kwargs and "skipfooter" in kwargs:
             del kwargs["nrows"]
         clean_last_column = kwargs.pop("clean_last_column", False)
@@ -84,7 +86,7 @@ class CSVFrame(FrameABC):
                 kwargs.pop("iterator")
             if "chunksize" in kwargs:
                 kwargs.pop("chunksize")
-            self.df = pd.read_csv(  # type: ignore
+            self.df = pd.read_csv(
                 self.parent.file_io,
                 iterator=False,
                 chunksize=None,
@@ -94,7 +96,7 @@ class CSVFrame(FrameABC):
             if (
                 clean_last_column
                 and self.df.columns[-1].startswith("Unnamed")
-                and self.df[self.df.columns[-1]].isnull().all()  # type: ignore
+                and self.df[self.df.columns[-1]].isnull().all()
             ):
                 self.df = self.df.drop(self.df.columns[-1], axis=1)
 
@@ -121,7 +123,6 @@ class CSVFrame(FrameABC):
 
 
 class CSVContainer(ContainerWriterABC[CSVFrame]):
-    # class CSVContainer(ContainerWriterABC):
     def __init__(
         self,
         url: str,
@@ -130,13 +131,13 @@ class CSVContainer(ContainerWriterABC[CSVFrame]):
         super().__init__(CSVFrame, url, replace)
 
     @property
-    def create_or_replace(self):
+    def create_or_replace(self) -> bool:
         if self.replace or not os.path.isfile(self.url):
             return True
         else:
             return False
 
-    def _children_init(self):
+    def _children_init(self) -> None:
         self.file_io = el.fetch_file_io(self.url, replace=self.create_or_replace)
         self.children = [
             CSVFrame(
@@ -145,7 +146,7 @@ class CSVContainer(ContainerWriterABC[CSVFrame]):
             )
         ]
 
-    def persist(self):
+    def persist(self) -> None:
         if self.mode in ("w", "a"):
             self.file_io = el.fetch_file_io(self.url)
             # loop not required, only one child in csv
@@ -161,10 +162,11 @@ class CSVContainer(ContainerWriterABC[CSVFrame]):
                         #     df_io.mode = "w"
                         self.file_io.seek(0)
                     header = kwargs.pop("header", True if df_io.mode == "w" else False)
+                    assert df_io.mode in ("w", "a")
                     df.to_csv(
                         self.file_io,
                         index=False,
-                        mode=df_io.mode,
+                        mode=df_io.mode,  # type: ignore
                         # header=False,
                         # header=True if df_io.mode == "w" else False,
                         header=header,
@@ -175,6 +177,6 @@ class CSVContainer(ContainerWriterABC[CSVFrame]):
                 # self.file_io.seek(0)
                 write_file.write(self.file_io.getbuffer())
 
-    def close(self):
+    def close(self) -> None:
         self.file_io.close()
         del el.io_files[self.url]

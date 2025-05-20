@@ -127,8 +127,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             raise Exception("Unknown node cannot be configured.")
 
     @property
-    def children(self) -> tuple[ConfigPath]:  # type: ignore
-        return super().children  # type: ignore
+    def children(self) -> tuple[ConfigPath]:
+        return super().children
 
     def grow_dir_branches(self) -> None:
         for subpath in self.glob("*"):
@@ -289,7 +289,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             sub_tables: list[Union[str, int, float]] = split_transform(df)  # type:ignore
             for sub_table in sub_tables:
                 if isinstance(sub_table, str):
-                    column_eq = f"'{sub_table}'"
+                    column_eq: Union[str, float, int] = f"'{sub_table}'"
                     table_name = sub_table
                 else:
                     column_eq = sub_table
@@ -367,7 +367,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     @property
     def leaves(self) -> tuple[ConfigPath]:
-        return super().leaves  # type: ignore
+        return super().leaves
 
     @property
     def get_leaf_tables(self) -> list[ConfigPath]:
@@ -383,7 +383,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     @property
     def ancestors_to_self(self) -> tuple[ConfigPath]:
-        return self.ancestors + (self,)  # type: ignore
+        return self.ancestors + (self,)
 
     @property
     def config_file_path(self) -> str:
@@ -439,14 +439,14 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return config_evaled
 
     @config.setter
-    def config(self, config: ec.Config):
+    def config(self, config: ec.Config) -> None:
         self.config_local = config
 
     def get_path_props_find_replace(self) -> dict[str, str]:
         res: dict[str, str] = {}
         for member in ec.DynamicPathValue:  # type: ignore
-            path_val = getattr(self, member.value[1:])  # type: ignore
-            res[member.value] = path_val  # type: ignore
+            path_val = getattr(self, member.value[1:])
+            res[member.value] = path_val
         return res
 
     def eval_dynamic_attributes(self, config: ec.Config) -> ec.Config:
@@ -487,12 +487,12 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 ConfigPath.swap_dict_vals(dictionary[key], find_replace_dict)
             elif (
                 isinstance(value, list)
-                or (isinstance(value, dict) and ConfigPath.is_dict_of_dfs(value))  # type: ignore
+                or (isinstance(value, dict) and ConfigPath.is_dict_of_dfs(value))
                 or isinstance(value, pd.DataFrame)
             ):
                 pass
             elif value in find_replace_dict:
-                dictionary[key] = find_replace_dict[value]  # type: ignore
+                dictionary[key] = find_replace_dict[value]
             elif isinstance(value, str) and key == "url" and "*" in value:
                 dictionary[key] = value.replace("*", find_replace_dict["_leaf_name"])
 
@@ -505,7 +505,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return str(Path(str(self).replace(CONFIG_FILE_EXT, "")))
 
     def RenderTreeTyped(self) -> Iterable[tuple[str, ConfigPath]]:
-        for pre, _, node in RenderTree(self):  # type: ignore
+        for pre, _, node in RenderTree(self):
             yield pre, node
 
     def display_tree(self) -> None:
@@ -563,12 +563,12 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             return self
 
     @parent.setter
-    def parent(self, value: Optional[ConfigPath]):
+    def parent(self, value: Optional[ConfigPath]) -> None:
         if NodeMixin.parent.fset:
             NodeMixin.parent.fset(self, value)
 
     @property
-    def root_node(self):
+    def root_node(self) -> ConfigPath:
         if NodeMixin.root.fget:
             return NodeMixin.root.fget(self)
         else:
@@ -747,9 +747,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                         parent_config = node.parent.parent.config_raw(True).model_dump(
                             exclude_none=True
                         )
-                    save_yml_dict: dict[str, Any] = mapping_diff(
-                        parent_config, node_config
-                    )
+                    save_yml_dict = mapping_diff(parent_config, node_config)
                 else:
                     save_yml_dict = node_config
                 if save_yml_dict:
@@ -761,7 +759,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     @property
     def then_descendants(self) -> tuple[ConfigPath]:
-        return PreOrderIter(self)  # type: ignore
+        return PreOrderIter(self)
 
     def set_pandas_target(self, force: bool = False) -> None:
         # iterate all branches and leaves
@@ -872,9 +870,9 @@ def plant_tree(
 
 
 def mapping_diff(
-    mapping1: Mapping[Any, Any],
-    mapping2: Mapping[Any, Any],
-) -> dict[Any, Any]:
+    mapping1: Mapping[str, Any],
+    mapping2: Mapping[str, Any],
+) -> dict[str, Any]:
     """
     Return elements that are in dict2 but not in dict1.
 
@@ -890,7 +888,7 @@ def mapping_diff(
             diff[key] = value
         # If key is present in both maps and both values are maps, recurse
         elif isinstance(value, dict) and isinstance(mapping1[key], dict):
-            nested_diff = mapping_diff(mapping1[key], value)  # type: ignore
+            nested_diff = mapping_diff(mapping1[key], value)
             if nested_diff:
                 diff[key] = nested_diff
         elif mapping1[key] != value:
@@ -947,7 +945,7 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
     assert source.url
     if source.type_is_excel or source.type_is_db or source.type == "dict":
         container_class = ee.get_container_class(source)
-        container = el.fetch_df_container(container_class, source.url)  # type: ignore
+        container = el.fetch_df_container(container_class, source.url)
         return container.child_names
     elif source.type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
         # return root file name without path and suffix

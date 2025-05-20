@@ -15,25 +15,25 @@ df_containers: dict[str, eio.ContainerProtocol] = {}
 def fetch_df_dict(
     url: str,
     replace: bool = False,
-):
+) -> dict[str, pd.DataFrame]:
     res = url_dicts[url]
     if replace:
         res.clear()
     return res
 
 
-def urlize_dict(df_dict: dict[str, pd.DataFrame]):
+def urlize_dict(df_dict: dict[str, pd.DataFrame]) -> str:
     res = f"dict://{id(df_dict)}"
     if res not in url_dicts:
         url_dicts[res] = df_dict
     return res
 
 
-def fetch_df_container(  # type: ignore
+def fetch_df_container(
     container_class: type[eio.ContainerProtocol],
     url: Optional[str],
     replace: bool = False,
-) -> Union[eio.ContainerReaderABC, eio.ContainerWriterABC]:  # type: ignore
+) -> Union[eio.ContainerReaderABC, eio.ContainerWriterABC]:
     if isinstance(url, str):
         if url in df_containers:
             res = df_containers[url]
@@ -51,7 +51,7 @@ def fetch_df_container(  # type: ignore
 def fetch_file_io(
     url: Optional[str],
     replace: bool = False,
-):
+) -> io.BytesIO:
     if url is None:
         raise Exception("Cannot fetch None url")
     elif url in io_files:

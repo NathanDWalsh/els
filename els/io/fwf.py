@@ -14,8 +14,9 @@ from .base import (
 )
 
 
-# class FWFFrame(FrameABC["FWFContainer"]):
 class FWFFrame(FrameABC):
+    parent: FWFContainer  # for mypy
+
     def __init__(
         self,
         name: str,
@@ -34,14 +35,15 @@ class FWFFrame(FrameABC):
             kwargs_pull=kwargs_pull,
         )
 
-    def _read(self, kwargs: KWArgsIO):
+    def _read(self, kwargs: KWArgsIO) -> None:
         if self.kwargs_pull != kwargs:
-            self.df: pd.DataFrame = pd.read_fwf(self.parent.url, **kwargs)
+            self.df: pd.DataFrame = pd.read_fwf(self.parent.url, **kwargs)  # type: ignore
+            # self.df: pd.DataFrame = pd.read_fwf(self.parent.url)
             self.kwargs_pull = kwargs
 
 
-# class FWFContainer(ContainerReaderABC[FWFFrame]):
-class FWFContainer(ContainerReaderABC):
+class FWFContainer(ContainerReaderABC[FWFFrame]):
+    # class FWFContainer(ContainerReaderABC):
     def __init__(
         self,
         url: str,
@@ -50,10 +52,10 @@ class FWFContainer(ContainerReaderABC):
         super().__init__(FWFFrame, url)
 
     @property
-    def create_or_replace(self):
+    def create_or_replace(self) -> bool:
         return False
 
-    def _children_init(self):
+    def _children_init(self) -> None:
         self.children = [
             FWFFrame(
                 name=Path(self.url).stem,
@@ -61,8 +63,8 @@ class FWFContainer(ContainerReaderABC):
             ),
         ]
 
-    def persist(self):
+    def persist(self) -> None:
         pass  # not supported
 
-    def close(self):
+    def close(self) -> None:
         pass  # not required / closes after read

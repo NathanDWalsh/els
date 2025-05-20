@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import importlib.metadata
 import io
 import logging
@@ -11,6 +13,7 @@ import ruamel.yaml as yaml
 import typer
 
 import els.core as el
+import els.flow as ef
 import els.io.base as eio
 from els.config import Config
 from els.path import (
@@ -31,7 +34,7 @@ from els.path import (
 app = typer.Typer()
 
 
-def start_logging():
+def start_logging() -> None:
     logging.basicConfig(level=logging.ERROR, format="%(relativeCreated)d - %(message)s")
     # logging.disable(logging.CRITICAL)
     logging.info("Getting Started")
@@ -62,13 +65,13 @@ class TaskFlow:
         self.nrows = nrows
         self.taskflow = self.build()
 
-    def __enter__(self):
+    def __enter__(self) -> TaskFlow:
         return self
 
-    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any):
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         self.cleanup()
 
-    def build(self):
+    def build(self) -> ef.ElsFlow:
         start_logging()
         if isinstance(self.config_like, str):
             ca_path = get_ca_path(self.config_like)
@@ -90,7 +93,7 @@ class TaskFlow:
         else:
             raise Exception("TaskFlow not built")
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         for container in el.df_containers.values():
             if isinstance(container, eio.ContainerWriterABC):
                 container.write()
@@ -102,10 +105,10 @@ class TaskFlow:
             file.close()
         el.io_files.clear()
 
-    def display_tree(self):
+    def display_tree(self) -> None:
         self.taskflow.display_tree()
 
-    def execute(self):
+    def execute(self) -> None:
         self.taskflow.execute()
 
 
@@ -133,7 +136,10 @@ def remove_virtual_nodes(config_tree: ConfigPath) -> ConfigPath:
 
 
 @app.command()
-def tree(path: Optional[str] = typer.Argument(None), keep_virtual: bool = False):
+def tree(
+    path: Optional[str] = typer.Argument(None),
+    keep_virtual: bool = False,
+) -> None:
     if isinstance(path, Config):
         tree = plant_memory_tree(Path("./__dynamic__.els.yml"), path)
     else:
@@ -158,7 +164,7 @@ def generate(
     ),
     overwrite: bool = True,
     skip_root: bool = True,
-):
+) -> None:
     if tables:
         table_filter = [table.strip().strip('"') for table in tables.split(",")]
     else:
@@ -179,7 +185,7 @@ def generate(
         if not (skip_root and file_name.endswith(get_root_config_name())):
             yaml_stream = io.StringIO()
             yml = yaml.YAML()
-            yml.dump_all(yaml_file_content, yaml_stream)  # type: ignore
+            yml.dump_all(yaml_file_content, yaml_stream)
             yaml_str = yaml_stream.getvalue()
             if overwrite and yaml_str:
                 with open(file_name, "w") as file:
@@ -223,7 +229,7 @@ def organize_yaml_files_for_output(
 def process_ymls(
     ymls: list[dict[str, Any]],
     overwrite: bool = False,
-):
+) -> None:
     current_path = None
     for yml_dict in ymls:
         # Check if 'config_path' is present
@@ -232,7 +238,7 @@ def process_ymls(
             # Prepare the dict for serialization by removing 'config_path'
             yml_dict.pop("config_path")
 
-        serialized_yaml: str = yaml.dump(yml_dict, default_flow_style=False)  # type: ignore
+        serialized_yaml: str = yaml.dump(yml_dict, default_flow_style=False)
         assert isinstance(serialized_yaml, str)
         if overwrite and current_path:
             # Append to the file if it's meant for multiple documents
@@ -245,7 +251,9 @@ def process_ymls(
 
 
 @app.command()
-def flow(path: Optional[Union[str, typer.models.ArgumentInfo]] = typer.Argument(None)):
+def flow(
+    path: Optional[Union[str, typer.models.ArgumentInfo]] = typer.Argument(None),
+) -> None:
     path = clean_none_path(path)
     with TaskFlow(path) as taskflow:
         taskflow.display_tree()
@@ -267,7 +275,7 @@ def preview(
     path: Optional[str] = typer.Argument(None),
     nrows: int = 4,
     transpose: bool = False,
-):
+) -> None:
     path = clean_none_path(path)
     with TaskFlow(
         path,
@@ -312,7 +320,7 @@ def execute(path: Optional[Union[str, Config]] = typer.Argument(None)) -> None:
 
         for name, df in el.default_target.items():
             print(f"{name}:")
-            df.index.name = " "  # type: ignore
+            df.index.name = " "
             print(df)
             print()
 
@@ -341,12 +349,12 @@ def test() -> None:
     yml = yaml.YAML()
     contents = {"target": {"url": "../target/*.csv", "if_exists": "fail"}}
     yml_stream = io.StringIO()
-    yml.dump(contents, yml_stream)  # type: ignore
-    yml_obj = yml.load(yml_stream.getvalue())  # type: ignore
+    yml.dump(contents, yml_stream)
+    yml_obj = yml.load(yml_stream.getvalue())
     # comment = concat_enum_values(TargetIfExistsValue)
     # yml_obj["target"].yaml_add_eol_comment(comment, key="if_exists")
     yml_stream = io.StringIO()
-    yml.dump(yml_obj, yml_stream)  # type: ignore
+    yml.dump(yml_obj, yml_stream)
     print(yml_stream.getvalue())
     # yml = ryaml.load(yml_str)
     # config_default = Config()
@@ -365,7 +373,7 @@ def create_subfolder(project_path: Path, subfolder: str, silent: bool) -> None:
 def new(
     name: Optional[str] = typer.Argument(None),
     yes: bool = typer.Option(False, "--yes", "-y"),
-):
+) -> None:
     # Verify project creation in the current directory
     if not yes and not typer.confirm(
         "Verify project to be created in the current directory?"
@@ -403,8 +411,8 @@ def new(
         yml = yaml.YAML()
         contents = {"target": {"url": "../target/*.csv", "if_exists": "fail"}}
         yml_stream = io.StringIO()
-        yml.dump(contents, yml_stream)  # type: ignore
-        yml_obj = yml.load(yml_stream.getvalue())  # type: ignore
+        yml.dump(contents, yml_stream)
+        yml_obj = yml.load(yml_stream.getvalue())
         # comment = concat_enum_values(TargetIfExistsValue)
         # yml_obj["target"].yaml_add_eol_comment(comment, key="if_exists")
         # yml_stream = io.StringIO()
@@ -412,7 +420,7 @@ def new(
 
         # Serialize and write the contents to the file
         with open(config_file_path, "w") as file:
-            yml.dump(yml_obj, file)  # type: ignore
+            yml.dump(yml_obj, file)
 
         typer.echo("Creating project config file:")
         typer.echo(f" ./{project_path.name}/config/{get_root_config_name()}")
@@ -421,16 +429,16 @@ def new(
 
 
 @app.command()
-def root():
+def root() -> None:
     root = get_root_inheritance()
     print(root[-1])
 
 
 @app.command()
-def version():
+def version() -> None:
     print(importlib.metadata.version("elspec"))
 
 
-def main():
+def main() -> None:
     start_logging()
     app()

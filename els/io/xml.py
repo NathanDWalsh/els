@@ -20,8 +20,9 @@ from .base import (
 )
 
 
-# class XMLFrame(FrameABC["XMLContainer"]):
 class XMLFrame(FrameABC):
+    parent: XMLContainer  # for mypy
+
     def __init__(
         self,
         name: str,
@@ -44,7 +45,7 @@ class XMLFrame(FrameABC):
 
     # TODO test sample scenarios
     # TODO sample should not be optional since it is always called by super.read()
-    def _read(self, kwargs: KWArgsIO):
+    def _read(self, kwargs: KWArgsIO) -> None:
         # if kwargs is None:
         #     kwargs = self.kwargs_pull
         if self.mode in ("s") or (self.kwargs_pull != kwargs):
@@ -57,8 +58,7 @@ class XMLFrame(FrameABC):
             self.kwargs_pull = kwargs
 
 
-# class XMLContainer(ContainerWriterABC[XMLFrame]):
-class XMLContainer(ContainerWriterABC):
+class XMLContainer(ContainerWriterABC[XMLFrame]):
     def __init__(
         self,
         url: str,

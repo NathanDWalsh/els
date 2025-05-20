@@ -34,4 +34,4 @@ else:
 
 
 def listify(v: Union[Any, MutableSequence[Any]]) -> list[Any]:
-    return list(v) if isinstance(v, MutableSequence) else [v]  # type: ignore
+    return list(v) if isinstance(v, MutableSequence) else [v]

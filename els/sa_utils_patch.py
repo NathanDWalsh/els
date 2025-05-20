@@ -1,7 +1,8 @@
 from copy import copy
+from typing import Union
 
 import sqlalchemy as sa
-from sqlalchemy.engine.url import make_url
+from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy_utils.functions.database import (
     _get_scalar_result,
@@ -10,7 +11,7 @@ from sqlalchemy_utils.functions.database import (
 )
 
 
-def database_exists(url):
+def database_exists(url: Union[URL, str]) -> bool:
     """Check if a database exists.
 
     :param url: A SQLAlchemy engine URL.

@@ -8,32 +8,32 @@ class HumanPathPropertiesMixin(ABC):
     def absolute(self) -> Path:
         pass
 
-    @property  # type: ignore
+    @property
     @abstractmethod
-    def file(self):
+    def file(self) -> Path:
         pass
 
-    @property  # type: ignore
+    @property
     @abstractmethod
-    def dir(self):
+    def dir(self) -> Path:
         pass
 
-    @property  # type: ignore
+    @property
     @abstractmethod
-    def parent(self):
+    def parent(self) -> Path:
         pass
 
-    @property  # type: ignore
+    @property
     @abstractmethod
     def name(self) -> str:
         pass
 
-    @property  # type: ignore
+    @property
     @abstractmethod
     def stem(self) -> str:
         pass
 
-    @property  # type: ignore
+    @property
     @abstractmethod
     def ext(self) -> str:
         pass
@@ -84,7 +84,7 @@ class HumanPathPropertiesMixin(ABC):
 
     @property
     def file_extension(self) -> str:
-        return self.file.ext if self.file else "is_folder"
+        return self.file.ext if self.file else "is_folder"  # type: ignore
 
     @property
     def folder_name(self) -> str:

@@ -14,20 +14,20 @@ import els.io.base as eio
 
 
 class FlowNodeMixin(NodeMixin):
-    def __getitem__(self, child_index) -> FlowNodeMixin:
+    def __getitem__(self, child_index: int) -> FlowNodeMixin:
         return self.children[child_index]
 
-    def display_tree(self):
+    def display_tree(self) -> None:
         for pre, fill, node in RenderTree(self):
             print("%s%s" % (pre, node.name))
 
-    def execute(self):
+    def execute(self) -> None:
         pass
 
 
 class SerialNodeMixin:
     @property
-    def n_jobs(self):
+    def n_jobs(self) -> int:
         return 1
 
 
@@ -52,7 +52,7 @@ class ElsExecute(FlowNodeMixin):
         self.config = config
         self.execute_fn = execute_fn
 
-    def execute(self):
+    def execute(self) -> None:
         if self.execute_fn(self.config):
             pass
         else:
@@ -64,13 +64,13 @@ class ElsFlow(FlowNodeMixin):
         self.parent = parent
         self.n_jobs = n_jobs
 
-    def execute(self):
+    def execute(self) -> None:
         with Parallel(n_jobs=self.n_jobs, backend="loky") as parallel:
             parallel(delayed(t.execute)() for t in self)
             get_reusable_executor().shutdown(wait=True)
 
     @property
-    def name(self):
+    def name(self) -> str:
         if self.is_root:
             return "FlowRoot"
         else:
@@ -80,7 +80,7 @@ class ElsFlow(FlowNodeMixin):
 class BuildWrapperMixin(FlowNodeMixin):
     def build_target(self) -> bool:
         flow_child = self[0]
-        build_item: ElsExecute = flow_child[0]  # type:ignore
+        build_item: ElsExecute = flow_child[0]
         if ee.build(build_item.config):
             res = True
         else:
@@ -100,10 +100,10 @@ class ElsContainerWrapper(BuildWrapperMixin, SerialNodeMixin):
         self.url = url
         self.container_class = container_class
 
-    def open(self):
+    def open(self) -> None:
         el.fetch_df_container(self.container_class, self.url)  # type:ignore
 
-    def execute(self):
+    def execute(self) -> None:
         self.open()
         self[0].execute()
         # self.close()
@@ -114,7 +114,7 @@ class ElsContainerWrapper(BuildWrapperMixin, SerialNodeMixin):
     #     del el.df_containers[self.file_path]
 
     @property
-    def name(self):
+    def name(self) -> str:
         return f"{self.url} ({type(self).__name__})"
 
 
@@ -125,8 +125,8 @@ class ElsTargetTableWrapper(FlowNodeMixin, SerialNodeMixin):
         self.name = f"{name} ({self.__class__.__name__})"
 
     def execute(self) -> None:
-        flow_child: ElsExecute = self[0]  # type: ignore
-        file_child: ElsContainerWrapper = flow_child[0]  # type: ignore
+        flow_child: ElsExecute = self[0]
+        file_child: ElsContainerWrapper = flow_child[0]
         file_child.open()
         if file_child.build_target():
             flow_child.execute()
