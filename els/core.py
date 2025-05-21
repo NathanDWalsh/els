@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import io
 import os
-from typing import Optional, Union
-
-import pandas as pd
+from typing import TYPE_CHECKING, Optional, TypeVar
 
 import els.io.base as eio
+
+if TYPE_CHECKING:
+    import pandas as pd
+
 
 default_target: dict[str, pd.DataFrame] = {}
 url_dicts: dict[str, dict[str, pd.DataFrame]] = {}
@@ -29,18 +33,21 @@ def urlize_dict(df_dict: dict[str, pd.DataFrame]) -> str:
     return res
 
 
+T = TypeVar("T", bound=eio.ContainerReaderABC)
+
+
 def fetch_df_container(
-    container_class: type[eio.ContainerProtocol],
+    container_class: type[T],
     url: Optional[str],
     replace: bool = False,
-) -> Union[eio.ContainerReaderABC, eio.ContainerWriterABC]:
+) -> T:
     if isinstance(url, str):
         if url in df_containers:
             res = df_containers[url]
         else:
             res = container_class(
                 url=url,
-                replace=replace,
+                replace=replace,  # type: ignore
             )
     else:
         raise Exception(f"Cannot fetch {type(container_class)} from: {url}")

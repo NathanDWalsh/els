@@ -2,21 +2,26 @@ from __future__ import annotations
 
 import io
 import os
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import pandas as pd
 from python_calamine import CalamineWorkbook, SheetTypeEnum, SheetVisibleEnum
 
 import els.core as el
-from els._typing import IfSheetExistsLiteral, KWArgsIO
 
 from .base import (
     ContainerWriterABC,
     FrameABC,
-    FrameModeLiteral,
-    IfExistsLiteral,
     multiindex_to_singleindex,
 )
+
+if TYPE_CHECKING:
+    from els._typing import (
+        FrameModeLiteral,
+        IfExistsLiteral,
+        IfSheetExistsLiteral,
+        KWArgsIO,
+    )
 
 # TODO: add/test support for other workbook types
 

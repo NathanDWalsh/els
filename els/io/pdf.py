@@ -3,19 +3,16 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import pandas as pd
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LAParams, LTChar, LTTextBox
 
-from els._typing import IfExistsLiteral, KWArgsIO
+from .base import ContainerReaderABC, FrameABC
 
-from .base import (
-    ContainerReaderABC,
-    FrameABC,
-    FrameModeLiteral,
-)
+if TYPE_CHECKING:
+    from els._typing import FrameModeLiteral, IfExistsLiteral, KWArgsIO
 
 
 def text_range_to_list(text: str) -> list[int]:

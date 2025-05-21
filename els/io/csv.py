@@ -4,19 +4,20 @@ import csv
 import io
 import os
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 
 import els.core as el
-from els._typing import IfExistsLiteral, KWArgsIO
 
 from .base import (
     ContainerWriterABC,
     FrameABC,
-    FrameModeLiteral,
     multiindex_to_singleindex,
 )
+
+if TYPE_CHECKING:
+    from els._typing import FrameModeLiteral, IfExistsLiteral, KWArgsIO
 
 
 def get_header_cell(
@@ -167,8 +168,6 @@ class CSVContainer(ContainerWriterABC[CSVFrame]):
                         self.file_io,
                         index=False,
                         mode=df_io.mode,  # type: ignore
-                        # header=False,
-                        # header=True if df_io.mode == "w" else False,
                         header=header,
                         **kwargs,
                     )

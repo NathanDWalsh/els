@@ -6,14 +6,13 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import pandas as pd
 import ruamel.yaml as yaml
 import typer
 
 import els.core as el
-import els.flow as ef
 import els.io.base as eio
 from els.config import Config
 from els.path import (
@@ -25,6 +24,9 @@ from els.path import (
     plant_memory_tree,
     plant_tree,
 )
+
+if TYPE_CHECKING:
+    import els.flow as ef
 
 # from pygments import highlight
 # from pygments.lexers import YamlLexer

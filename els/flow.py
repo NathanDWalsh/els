@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from anytree import NodeMixin, RenderTree  # type: ignore
 from joblib import Parallel, delayed  # type: ignore
 from joblib.externals.loky import get_reusable_executor  # type: ignore
 
-import els.config as ec
 import els.core as el
 import els.execute as ee
-import els.io.base as eio
+
+if TYPE_CHECKING:
+    import els.config as ec
+    import els.io.base as eio
 
 
 class FlowNodeMixin(NodeMixin):
@@ -39,8 +41,6 @@ class ElsExecute(FlowNodeMixin):
         config: ec.Config,
         execute_fn: Callable = ee.ingest,
     ) -> None:
-        if not isinstance(config, ec.Config):
-            logging.error("INGEST without config")
         self.parent = parent
         if execute_fn.__qualname__ == ee.ingest.__qualname__:
             source_name = config.source.table
@@ -94,14 +94,14 @@ class ElsContainerWrapper(BuildWrapperMixin, SerialNodeMixin):
         self,
         parent: FlowNodeMixin,
         url: str,
-        container_class: eio.ContainerWriterABC,
+        container_class: type[eio.ContainerWriterABC],
     ) -> None:
         self.parent = parent
         self.url = url
         self.container_class = container_class
 
     def open(self) -> None:
-        el.fetch_df_container(self.container_class, self.url)  # type:ignore
+        el.fetch_df_container(self.container_class, self.url)
 
     def execute(self) -> None:
         self.open()

@@ -1,13 +1,13 @@
+from __future__ import annotations
+
 import logging
 from collections.abc import Iterable
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import numpy as np
 import pandas as pd
 
-import els.config as ec
 import els.core as el
-from els.io.base import ContainerProtocol, FrameABC
 from els.io.csv import CSVContainer
 from els.io.fwf import FWFContainer
 from els.io.pd import DFContainer
@@ -16,10 +16,14 @@ from els.io.sql import SQLContainer
 from els.io.xl import XLContainer
 from els.io.xml import XMLContainer
 
+if TYPE_CHECKING:
+    import els.config as ec
+    from els.io.base import ContainerReaderABC, ContainerWriterABC, FrameABC
+
 
 def get_container_class(
     frame: ec.Frame,
-) -> type[ContainerProtocol]:
+) -> type[Union[ContainerWriterABC, ContainerReaderABC]]:
     if frame.type == ".csv":
         return CSVContainer
     elif frame.type_is_excel:
@@ -40,6 +44,25 @@ def get_container_class(
         )
 
 
+def get_writer_container_class(
+    frame: ec.Frame,
+) -> type[ContainerWriterABC]:
+    if frame.type == ".csv":
+        return CSVContainer
+    elif frame.type_is_excel:
+        return XLContainer
+    elif frame.type_is_db:
+        return SQLContainer
+    elif frame.type == "dict":
+        return DFContainer
+    elif frame.type == ".xml":
+        return XMLContainer
+    else:
+        raise Exception(
+            f"unknown {[type(frame), frame.model_dump(exclude_none=True)]} type: {frame.type}"
+        )
+
+
 def push_frame(
     df: pd.DataFrame,
     target: ec.Target,
@@ -49,14 +72,14 @@ def push_frame(
         print("no target defined, printing first 100 rows:")
         print(df.head(100))
     else:
-        container_class = get_container_class(target)
+        container_class = get_writer_container_class(target)
         df_container = el.fetch_df_container(
             container_class,
             url=target.url,
             replace=target.replace_container,
         )
         assert isinstance(target.table, str)
-        df_table = df_container.fetch_child(  # type:ignore
+        df_table = df_container.fetch_child(
             df_name=target.table,
             df=df,
         )
@@ -156,12 +179,7 @@ def pull_frame(
         sample=sample,
     )
 
-    if (
-        frame
-        and isinstance(frame, ec.Source)
-        and hasattr(frame, "dtype")
-        and frame.dtype
-    ):
+    if frame and hasattr(frame, "dtype") and frame.dtype:
         # assert df is not None
         for k, v in frame.dtype.items():
             if v == "date" and not isinstance(type(df[k]), np.dtypes.DateTime64DType):

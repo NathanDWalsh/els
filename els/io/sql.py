@@ -1,28 +1,23 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import MutableMapping
-from typing import Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pandas as pd
 import pyodbc
 import sqlalchemy as sa
-from sqlalchemy_utils.functions.database import (
-    create_database,
-    drop_database,
-)
+from sqlalchemy_utils.functions.database import create_database, drop_database
 from sqlalchemy_utils.functions.orm import quote
 
-import els.config as ec
-from els._typing import KWArgsIO
 from els.sa_utils_patch import database_exists
 
-from .base import (
-    ContainerWriterABC,
-    FrameABC,
-    FrameModeLiteral,
-)
+from .base import ContainerWriterABC, FrameABC
+
+if TYPE_CHECKING:
+    from collections.abc import MutableMapping
+
+    from els._typing import FrameModeLiteral, IfExistsLiteral, KWArgsIO
 
 
 def lcase_mapping_keys(mapping: MutableMapping[str, Any]) -> dict[str, Any]:
@@ -83,7 +78,7 @@ class SQLFrame(FrameABC):
         self,
         name: str,
         parent: SQLContainer,
-        if_exists: ec.IfExistsLiteral = "fail",
+        if_exists: IfExistsLiteral = "fail",
         mode: FrameModeLiteral = "s",
         df: pd.DataFrame = pd.DataFrame(),
         kwargs_pull: Optional[KWArgsIO] = None,

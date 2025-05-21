@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import els.core as el
-from els._typing import KWArgsIO
 
 from .base import ContainerWriterABC, FrameABC
+
+if TYPE_CHECKING:
+    from els._typing import KWArgsIO
 
 
 class DFFrame(FrameABC):

@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 
-from els._typing import IfExistsLiteral, KWArgsIO
+from .base import ContainerReaderABC, FrameABC
 
-from .base import (
-    ContainerReaderABC,
-    FrameABC,
-    FrameModeLiteral,
-)
+if TYPE_CHECKING:
+    from els._typing import FrameModeLiteral, IfExistsLiteral, KWArgsIO
 
 
 class FWFFrame(FrameABC):
@@ -38,7 +35,6 @@ class FWFFrame(FrameABC):
     def _read(self, kwargs: KWArgsIO) -> None:
         if self.kwargs_pull != kwargs:
             self.df: pd.DataFrame = pd.read_fwf(self.parent.url, **kwargs)  # type: ignore
-            # self.df: pd.DataFrame = pd.read_fwf(self.parent.url)
             self.kwargs_pull = kwargs
 
 

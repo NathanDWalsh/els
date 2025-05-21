@@ -3,16 +3,14 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from collections.abc import Callable, Iterable, Mapping, MutableMapping
 from copy import deepcopy
 from enum import Enum
 from itertools import groupby
 from operator import itemgetter
 from pathlib import Path
 from stat import FILE_ATTRIBUTE_HIDDEN  # type:ignore
-from typing import Any, NamedTuple, Optional, Union
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Union
 
-import pandas as pd
 import typer
 import yaml
 from anytree import NodeMixin, PreOrderIter, RenderTree  # type: ignore
@@ -21,9 +19,13 @@ import els.config as ec
 import els.core as el
 import els.execute as ee
 import els.flow as ef
-import els.io.base as eio
 from els._typing import listify
 from els.pathprops import HumanPathPropertiesMixin
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Mapping, MutableMapping
+
+    import els.io.base as eio
 
 CONFIG_FILE_EXT = ".els.yml"
 FOLDER_CONFIG_FILE_STEM = "_"
@@ -284,9 +286,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             assert isinstance(transforms[-1], ec.SplitOnColumn)
             split_transform = transforms[-1]
             split_on_column = split_transform.split_on_column
-            # transforms[-1].executed = True
-            # sub_tables = list(df[split_on_column].drop_duplicates())
-            sub_tables: list[Union[str, int, float]] = split_transform(df)  # type:ignore
+            sub_tables: list[Union[str, int, float]] = split_transform(df)  # type: ignore
             for sub_table in sub_tables:
                 if isinstance(sub_table, str):
                     column_eq: Union[str, float, int] = f"'{sub_table}'"
@@ -471,7 +471,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     @staticmethod
     def is_dict_of_dfs(_dict: dict[Any, Any]) -> bool:
         for k, v in _dict:
-            if isinstance(k, str) and isinstance(v, pd.DataFrame):
+            if isinstance(k, str):
                 pass
             else:
                 return False
@@ -485,10 +485,8 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         for key, value in dictionary.items():
             if isinstance(value, dict):
                 ConfigPath.swap_dict_vals(dictionary[key], find_replace_dict)
-            elif (
-                isinstance(value, list)
-                or (isinstance(value, dict) and ConfigPath.is_dict_of_dfs(value))
-                or isinstance(value, pd.DataFrame)
+            elif isinstance(value, list) or (
+                isinstance(value, dict) and ConfigPath.is_dict_of_dfs(value)
             ):
                 pass
             elif value in find_replace_dict:
@@ -633,7 +631,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @property
-    def dir(self) -> Path:  # type: ignore
+    def dir(self) -> Path:
         if self.node_type == NodeType.DATA_TABLE and self.parent:
             res = self.parent.dir
         elif self.is_file():
@@ -646,7 +644,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @property
-    def file(self) -> Optional[ConfigPath]:  # type: ignore
+    def file(self) -> Optional[ConfigPath]:
         if self.node_type == NodeType.DATA_TABLE:
             res = self.parent
         elif self.is_file():

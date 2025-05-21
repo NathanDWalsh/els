@@ -1,6 +1,11 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from els.path import ConfigPath
 
 
 class HumanPathPropertiesMixin(ABC):
@@ -10,7 +15,7 @@ class HumanPathPropertiesMixin(ABC):
 
     @property
     @abstractmethod
-    def file(self) -> Path:
+    def file(self) -> Optional[ConfigPath]:
         pass
 
     @property
@@ -84,7 +89,7 @@ class HumanPathPropertiesMixin(ABC):
 
     @property
     def file_extension(self) -> str:
-        return self.file.ext if self.file else "is_folder"  # type: ignore
+        return self.file.ext if self.file else "is_folder"
 
     @property
     def folder_name(self) -> str:

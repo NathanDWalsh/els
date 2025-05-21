@@ -1,17 +1,21 @@
 from __future__ import annotations
 
-import sys
 from abc import ABC, abstractmethod
-from collections.abc import Generator, Sequence
-from typing import Generic, Literal, Optional, Protocol, TypeVar
+from typing import TYPE_CHECKING, Generic, Optional, Protocol, TypeVar
 
 import pandas as pd
 
-import els.config as ec
-from els._typing import IfExistsLiteral, KWArgsIO
+if TYPE_CHECKING:
+    from collections.abc import Generator, Sequence
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
+    from els._typing import (
+        ContainerModeLiteral,
+        FrameModeLiteral,
+        IfExistsLiteral,
+        KWArgsIO,
+    )
+
+
 nrows_for_sampling: int = 100
 
 
@@ -38,23 +42,6 @@ def get_column_frame(df: pd.DataFrame) -> pd.DataFrame:
     column_frame = column_frame.astype(df.dtypes)
     return column_frame
 
-
-_FrameModeLiteral = Literal["s", "r", "a", "w", "m"]
-# (s)oftread: only loads the name
-# (m)edium read: sample/meta read reads the first rows_for_sampling
-# (r)ead    : nothing yet to be written
-# (a)ppend  : append df to df_target
-# (w)rite   : overwrite df_target with df
-if sys.version_info >= (3, 10):
-    FrameModeLiteral: TypeAlias = _FrameModeLiteral
-else:
-    FrameModeLiteral = _FrameModeLiteral
-
-_ContainerModeLiteral = Literal["r", "a", "w"]
-if sys.version_info >= (3, 10):
-    ContainerModeLiteral: TypeAlias = _ContainerModeLiteral
-else:
-    ContainerModeLiteral = _ContainerModeLiteral
 
 TFrame = TypeVar("TFrame", bound="FrameABC")
 
@@ -136,7 +123,7 @@ class FrameABC(ABC):
     def set_df(
         self,
         df: pd.DataFrame,
-        if_exists: ec.IfExistsLiteral,
+        if_exists: IfExistsLiteral,
         kwargs_push: Optional[KWArgsIO] = None,
         build: bool = False,
     ) -> None:
@@ -173,9 +160,6 @@ class FrameABC(ABC):
     @abstractmethod
     def _read(self, kwargs: KWArgsIO) -> None:
         pass
-
-
-# TFrame = TypeVar("TFrame", bound=FrameABC["ContainerReaderABC"])  # type: ignore
 
 
 class ContainerProtocol(Protocol):

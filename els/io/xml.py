@@ -3,21 +3,21 @@ from __future__ import annotations
 import os
 from io import StringIO
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 
 import els.core as el
-from els._typing import KWArgsIO
 
 from .base import (
     ContainerWriterABC,
     FrameABC,
-    FrameModeLiteral,
-    IfExistsLiteral,
     append_into,
     get_column_frame,
 )
+
+if TYPE_CHECKING:
+    from els._typing import FrameModeLiteral, IfExistsLiteral, KWArgsIO
 
 
 class XMLFrame(FrameABC):
