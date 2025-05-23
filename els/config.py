@@ -40,7 +40,7 @@ def generate_enum_from_properties(
 
 
 DynamicPathValue: Enum = generate_enum_from_properties(
-    HumanPathPropertiesMixin,  # type: ignore
+    HumanPathPropertiesMixin,  # type:ignore
     "DynamicPathValue",
 )
 
@@ -195,7 +195,7 @@ class AddColumns(TransformABC, extra="allow"):
         return df
 
 
-class PrqlTransform(TransformABC):
+class PRQLTransform(TransformABC):
     prql: str
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -220,7 +220,7 @@ class FilterTransform(TransformABC):
 class SplitOnColumn(TransformABC):
     split_on_column: str
 
-    def transform(self, df: pd.DataFrame) -> list[str]:  # type: ignore
+    def transform(self, df: pd.DataFrame) -> list[str]:  # type:ignore
         return list(df[self.split_on_column].drop_duplicates())
 
 
@@ -449,7 +449,7 @@ class ReadCSV(BaseModel, extra="allow"):
 
 
 class ReadExcel(BaseModel, extra="allow"):
-    sheet_name: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__  # type: ignore
+    sheet_name: Optional[str] = "_" + HumanPathPropertiesMixin.leaf_name.fget.__name__  # type:ignore
     # dtype: Optional[dict] = None
     names: Optional[list[str]] = None
 
@@ -584,7 +584,7 @@ class Source(Frame, extra="forbid"):
 TransformType_ = Union[
     SplitOnColumn,
     FilterTransform,
-    PrqlTransform,
+    PRQLTransform,
     Pivot,
     AsType,
     Melt,

@@ -254,7 +254,7 @@ def process_ymls(
 
 @app.command()
 def flow(
-    path: Optional[Union[str, typer.models.ArgumentInfo]] = typer.Argument(None),
+    path: Optional[str] = typer.Argument(None),
 ) -> None:
     path = clean_none_path(path)
     with TaskFlow(path) as taskflow:
@@ -266,7 +266,11 @@ def flow(
 def clean_none_path(
     path: Optional[Union[str, typer.models.ArgumentInfo]],
 ) -> Optional[str]:
-    if isinstance(path, typer.models.ArgumentInfo) and path.default is None:
+    if (
+        (path is None)
+        or isinstance(path, typer.models.ArgumentInfo)
+        and path.default is None
+    ):
         return None
     assert isinstance(path, str)
     return path
@@ -305,7 +309,7 @@ def preview(
 
 
 @app.command()
-def execute(path: Optional[Union[str, Config]] = typer.Argument(None)) -> None:
+def execute(path: Optional[str] = typer.Argument(None)) -> None:
     if isinstance(path, str):
         path = clean_none_path(path)
 

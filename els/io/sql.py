@@ -111,6 +111,16 @@ class SQLFrame(FrameABC):
         else:
             return f"truncate table {self.sqn}"
 
+    @property
+    def to_sql_if_exists(self) -> Literal["fail", "replace", "append"]:
+        # assert self.if_exists in ("fail", "replace", "append") # this line does not work for mypy
+        assert (
+            self.if_exists == "fail"
+            or self.if_exists == "replace"
+            or self.if_exists == "append"
+        )
+        return self.if_exists
+
     def _read(self, kwargs: KWArgsIO) -> None:
         nrows = kwargs.pop("nrows", None)
         if not self.parent.url:
@@ -123,7 +133,8 @@ class SQLFrame(FrameABC):
                 .select_from(sa.text(f"{quote(sqeng, self.name)}"))
                 .limit(nrows)
             )
-            self.df = pd.read_sql(stmt, con=sqeng, **kwargs)  # type: ignore
+            assert kwargs.pop("chunksize", None) is None
+            self.df = pd.read_sql(stmt, con=sqeng, chunksize=None, **kwargs)
 
 
 class SQLContainer(ContainerWriterABC[SQLFrame]):
@@ -272,13 +283,12 @@ class SQLContainer(ContainerWriterABC[SQLFrame]):
                     if df_io.if_exists == "truncate":
                         sqeng.execute(sa.text(df_io.truncate_stmt))
                         df_io.if_exists = "append"
-                    assert df_io.if_exists in ("fail", "replace", "append")
                     df_io.df_target.to_sql(
                         df_io.name,
                         sqeng,
                         schema=None,
                         index=False,
-                        if_exists=df_io.if_exists,  # type: ignore
+                        if_exists=df_io.to_sql_if_exists,
                         chunksize=1000,
                         **kwargs,
                     )

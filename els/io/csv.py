@@ -163,11 +163,11 @@ class CSVContainer(ContainerWriterABC[CSVFrame]):
                         #     df_io.mode = "w"
                         self.file_io.seek(0)
                     header = kwargs.pop("header", True if df_io.mode == "w" else False)
-                    assert df_io.mode in ("w", "a")
+                    assert df_io.mode == "w" or df_io.mode == "a"
                     df.to_csv(
                         self.file_io,
                         index=False,
-                        mode=df_io.mode,  # type: ignore
+                        mode=df_io.mode,
                         header=header,
                         **kwargs,
                     )

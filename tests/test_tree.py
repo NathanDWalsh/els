@@ -5,10 +5,18 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-from els.cli import tree
+from els.cli import app, tree
 
 
+@pytest.mark.parametrize(
+    "cli",
+    [
+        True,
+        # False,
+    ],
+)
 @pytest.mark.parametrize("explicit_context", [True, False])
 @pytest.mark.parametrize("pass_directory", [True, False])
 @pytest.mark.parametrize("root_config", [True, False])
@@ -16,6 +24,7 @@ from els.cli import tree
 @pytest.mark.parametrize("source_config", [True, False])
 @pytest.mark.parametrize("keep_virtual", [True, False])
 def test_tree(
+    cli,
     explicit_context,
     pass_directory,
     root_config,
@@ -44,9 +53,7 @@ def test_tree(
         else default_table
     )
 
-    kwargs = {}
-    # kwargs["dir"] = Path("D:\\Sync\\repos") / "temp"
-    kwargs["dir"] = tmp_path
+    kwargs = dict(dir=tmp_path)
     if sys.version_info < (3, 12):
         pass
     else:
@@ -70,14 +77,48 @@ def test_tree(
             with open(f"{dummyfile}.els.yml", "w") as file:
                 file.write(f"target:\n  table: {source_table}")
 
-        # run the tree command and capture the output
-        if explicit_context:
-            if pass_directory:
-                tree(str(Path(tmpdirname) / configdir), keep_virtual)
+        if cli:
+            runner = CliRunner()
+            keep_virtual_cli = "--keep-virtual" if keep_virtual else "--no-keep-virtual"
+            if explicit_context:
+                if pass_directory:
+                    result = runner.invoke(
+                        app,
+                        [
+                            "tree",
+                            f"{str(Path(tmpdirname) / configdir)}",
+                            keep_virtual_cli,
+                        ],
+                    )
+                else:
+                    result = runner.invoke(
+                        app,
+                        [
+                            "tree",
+                            f"{str(Path(tmpdirname) / configdir / dummyfile)}",
+                            keep_virtual_cli,
+                        ],
+                    )
             else:
-                tree(str(Path(tmpdirname) / configdir / dummyfile), keep_virtual)
+                result = runner.invoke(
+                    app,
+                    [
+                        "tree",
+                        keep_virtual_cli,
+                    ],
+                )
+            actual = result.stdout
         else:
-            tree(keep_virtual=keep_virtual)
+            # run the tree command and capture the output
+            if explicit_context:
+                if pass_directory:
+                    tree(str(Path(tmpdirname) / configdir), keep_virtual)
+                else:
+                    tree(str(Path(tmpdirname) / configdir / dummyfile), keep_virtual)
+            else:
+                tree(keep_virtual=keep_virtual)
+
+            actual = capsys.readouterr().out
 
         if (
             explicit_context
@@ -106,8 +147,6 @@ def test_tree(
 └── {dummyfile}
     └── {dummyroot} → dict://[0-9]+#{target_table}
 """
-        # dict://[0-9]+#
-        actual = capsys.readouterr().out
 
         # change out of temp dir so that it can be deleted
         os.chdir("/")

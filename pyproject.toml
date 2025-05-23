@@ -51,3 +51,12 @@ warn_unused_ignores = true
 module = 'pyodbc'
 disallow_incomplete_defs = false
 disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+addopts = ["--ff",
+    "--showlocals",
+    "-vv",
+    "-x",
+    "--cov",
+    "--cov-report=lcov:lcov.info",
+    "--import-mode=importlib"]

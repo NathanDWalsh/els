@@ -677,7 +677,7 @@ def prql_split():
     config = ec.Config(
         source=ec.Source(table="dfo"),
         transform=[
-            ec.PrqlTransform(
+            ec.PRQLTransform(
                 prql="""
             from df
             filter a < 5
@@ -709,7 +709,7 @@ def prql():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=ec.PrqlTransform(
+        transform=ec.PRQLTransform(
             prql="""
             from df
             filter a < 3
@@ -791,7 +791,7 @@ def prql_split_pivot():
     config = ec.Config(
         source=ec.Source(table="dfo"),
         transform=[
-            ec.PrqlTransform(
+            ec.PRQLTransform(
                 prql="""
             from df
             filter b < 50
@@ -828,7 +828,7 @@ def prql_col_split_pivot():
     config = ec.Config(
         source=ec.Source(table="dfo"),
         transform=[
-            ec.PrqlTransform(
+            ec.PRQLTransform(
                 prql="""
             from df
             filter b < 50
@@ -880,7 +880,7 @@ def prql_col_split():
     config = ec.Config(
         source=ec.Source(table="dfo"),
         transform=[
-            ec.PrqlTransform(
+            ec.PRQLTransform(
                 prql="""
             from df
             filter b < 50

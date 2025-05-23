@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Union
 
 import typer
 import yaml
-from anytree import NodeMixin, PreOrderIter, RenderTree  # type: ignore
+from anytree import NodeMixin, PreOrderIter, RenderTree  # type:ignore
 
 import els.config as ec
 import els.core as el
@@ -91,7 +91,7 @@ def get_root_config_name() -> str:
 class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     # subclassing pathlib.Path not supported until Python 3.12
     if sys.version_info < (3, 12):
-        _flavour = type(Path())._flavour  # type: ignore
+        _flavour = type(Path())._flavour  # type:ignore
 
     def __init__(
         self,
@@ -122,7 +122,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 if not self.has_leaf_table:
                     # do not add dirs with no leaf nodes which are tables
                     self.parent = None
-        elif self.is_config_file:  # type: ignore
+        elif self.is_config_file:  # type:ignore
             self.config = ec.Config(source=ec.Source(url=self.adjacent_file_path))
             self.grow_config_branches()
         else:
@@ -286,7 +286,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             assert isinstance(transforms[-1], ec.SplitOnColumn)
             split_transform = transforms[-1]
             split_on_column = split_transform.split_on_column
-            sub_tables: list[Union[str, int, float]] = split_transform(df)  # type: ignore
+            sub_tables: list[Union[str, int, float]] = split_transform(df)  # type:ignore
             for sub_table in sub_tables:
                 if isinstance(sub_table, str):
                     column_eq: Union[str, float, int] = f"'{sub_table}'"
@@ -405,7 +405,10 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         else:
             raise Exception("config file path not found")
 
-    def config_raw(self, add_config_file_path: bool = False) -> ec.Config:
+    def config_raw(
+        self,
+        add_config_file_path: bool = False,
+    ) -> ec.Config:
         config_line: list[dict[str, Any]] = []
         # if root els config is mandatory, this "default dump line" is not required
         config_line.append(ec.Config().model_dump(exclude_none=True))
@@ -444,7 +447,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
     def get_path_props_find_replace(self) -> dict[str, str]:
         res: dict[str, str] = {}
-        for member in ec.DynamicPathValue:  # type: ignore
+        for member in ec.DynamicPathValue:  # type:ignore
             path_val = getattr(self, member.value[1:])
             res[member.value] = path_val
         return res
@@ -554,7 +557,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             typer.echo(f"{column1:{column1_width}}{column2}".rstrip())
 
     @property
-    def parent(self):  # type: ignore
+    def parent(self):  # type:ignore
         if NodeMixin.parent.fget is not None:
             return NodeMixin.parent.fget(self)
         else:
@@ -610,7 +613,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         if os.name == "nt":
             try:
                 attrs = os.stat(self)
-                return bool(attrs.st_file_attributes & FILE_ATTRIBUTE_HIDDEN)  # type: ignore
+                return bool(attrs.st_file_attributes & FILE_ATTRIBUTE_HIDDEN)  # type:ignore
             except AttributeError:
                 # If FILE_ATTRIBUTE_HIDDEN not defined,
                 # assume it's not hidden

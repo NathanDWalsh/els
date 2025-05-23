@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from els._typing import FrameModeLiteral, IfExistsLiteral, KWArgsIO
 
 
-def text_range_to_list(text: str) -> list[int]:
+def text_range_to_sorted_list(text: str) -> list[int]:
     res: list[int] = []
     segments = text.split(",")
     for segment in segments:
@@ -24,20 +24,18 @@ def text_range_to_list(text: str) -> list[int]:
             res.extend(range(start, end + 1))
         else:
             res.append(int(segment))
-    return res
+    return sorted(res)
 
 
 def clean_page_numbers(
     page_numbers: Union[int, str, Iterable[int]],
 ) -> list[int]:
     if isinstance(page_numbers, int):
-        res = [page_numbers]
+        return [page_numbers]
+    assert isinstance(page_numbers, Iterable)
     if isinstance(page_numbers, str):
-        res = text_range_to_list(page_numbers)
-    else:
-        assert isinstance(page_numbers, Iterable)
-        res = page_numbers  # type: ignore
-    return sorted(res)
+        return text_range_to_sorted_list(page_numbers)
+    return list(page_numbers)
 
 
 def pull_pdf(

@@ -2,19 +2,89 @@
 
 WIP
 
-ELS (Extract-Load-Spec) is a cross-platform CLI for loading data.
+ELS (Extract-Load-Spec): versatile tool for loading data.
+
+- cli
+- python library for pandas integration
+- optional yaml configurations to save and share transformations
+- cross-platform tested
 
 ## Install
 
-```console
+```bash
 python -m pip install elspec
 ```
 
-## Basic usage - autoloader
+## Supported data formats
+
+So far els is only tested on local filesystem and local network, fsspec integrations to come.
+
+| Type                     | File Extension\* | As Source          | As Target          |
+| ------------------------ | ---------------- | ------------------ | ------------------ |
+| excel                    | xls[x,b,m]       | :white_check_mark: | :white_check_mark: |
+| csv                      | csv,tsv          | :white_check_mark: | :white_check_mark: |
+| xml                      | xml              | :white_check_mark: | :white_check_mark: |
+| fixed-width text         | fwf              | :white_check_mark: |                    |
+| pdf                      | pdf              | :white_check_mark: |                    |
+| sqlite                   |                  | :white_check_mark: | :white_check_mark: |
+| duckdb                   |                  | :white_check_mark: | :white_check_mark: |
+| mssql                    |                  | :white_check_mark: | :white_check_mark: |
+| pandas dataframe         |                  | :white_check_mark: | :white_check_mark: |
+| terminal output (stdout) |                  |                    | :white_check_mark: |
+
+_\*file extensions recognized as valid data files_
+
+## Usage
+
+ELS can be used as a CLI tool and/or library.
+
+### tree command
+
+A good place to start is the tree command, which displays a tree with dataflows (`source → target`) as leaf nodes.
+The tree command does not execute any dataflows, but rather gives a high-level view of the dataflows inferred from the directory/file context in which it is called.
+
+```bash
+# tree command passing a file context
+$ els tree Population.xls
+Population.xls
+├── Data                  → stdout['Data']
+├── Metadata - Countries  → stdout['Metadata - Countries']
+└── Metadata - Indicators → stdout['Metadata - Indicators']
+```
+
+- The results of this tree command show a `source` excel file with three sheets.
+- Since no `target` is defined, the default is to output to the terminal/stdout.
+
+```bash
+# display present working directory (pwd)
+$ pwd
+~/els-demo
+# tree command passing a directory context (implicitly pwd)
+$ els tree
+els-demo
+├── LabourForce.xls
+│   ├── Data                  → stdout['Data']
+│   ├── Metadata - Countries  → stdout['Metadata - Countries']
+│   └── Metadata - Indicators → stdout['Metadata - Indicators']
+└── Population.xls
+    ├── Data                  → stdout['Data']
+    ├── Metadata - Countries  → stdout['Metadata - Countries']
+    └── Metadata - Indicators → stdout['Metadata - Indicators']
+```
+
+When reading an Excel file with default configuration, each sheet is
+considered as a separate table. Since no target is set for this
+pipeline, each target table is a pandas dataframes in memory.[^1]
+Without explicit configuration, defaults are used for ingesting the
+source. These defaults are overridden in the listings in
+[@sec:directory-level-configuration] and
+[@sec:source-level-configuration], but first the directory node is
+described.
+Running the ELS CLI in a directory with one or more recognized data files prints a preview of the data to the screen.
 
 With zero configuration, ELS defaults to autoloader.
-There must be [recognized data files](#supported-source-files) in the directory context from which ELS is run:
-These are the source files to be loaded.
+There must be [supported data files](#supported-source-files) in the directory context from which ELS is run:
+these are the source files to be loaded.
 Each dataset recognized in the source files will be loaded to a separate pandas dataframe.
 Once loaded, a preview is printed.
 
@@ -102,17 +172,17 @@ other configuration component can be employed.
 [@lst:id100new] creates a new directory for the the running example, and
 into it downloads two data files from the World Bank's public API.
 
-```console
+```bash
 $ mkdir els-demo
-C:\Users\nwals\els-demo
+~/els-demo
 $ cd els-demo
 $ $wb_api = "https://api.worldbank.org/v2/indicator/"
 $ $wb_qry = "?downloadformat=excel"
 $ curl -o ./Population.xls ($wb_api + "SP.POP.TOTL" + $wb_qry) -s
 $ curl -o ./LabourForce.xls ($wb_api + "SL.TLF.TOTL.IN" + $wb_qry) -s
 $ ls
-C:\Users\nwals\els-demo\LabourForce.xls
-C:\Users\nwals\els-demo\Population.xls
+~/els-demo\LabourForce.xls
+~/els-demo\Population.xls
 ```
 
 The last two lines of [@lst:id100new] show two data files that els will
@@ -124,12 +194,12 @@ _configuration context_, indicating where it should begin parsing
 configuration components. In [@lst:id108tree] `els tree` is called,
 setting the configuration context to the `Population.xls` file.
 
-```console
+```bash
 $ els tree Population.xls
 Population.xls
-├── Data                  → memory['Data']
-├── Metadata - Countries  → memory['Metadata - Countries']
-└── Metadata - Indicators → memory['Metadata - Indicators']
+├── Data                  → stdout['Data']
+├── Metadata - Countries  → stdout['Metadata - Countries']
+└── Metadata - Indicators → stdout['Metadata - Indicators']
 
 ```
 
@@ -163,19 +233,19 @@ passing a path to set the context as done in [@lst:id108tree]. When
 running els commands without passing an explicit path, the current
 working directory is used for the configuration context.
 
-```console
+```bash
 $ pwd
-C:\Users\nwals\els-demo
+~/els-demo
 $ els tree
 els-demo
 ├── LabourForce.xls
-│   ├── Data                  → memory['Data']
-│   ├── Metadata - Countries  → memory['Metadata - Countries']
-│   └── Metadata - Indicators → memory['Metadata - Indicators']
+│   ├── Data                  → stdout['Data']
+│   ├── Metadata - Countries  → stdout['Metadata - Countries']
+│   └── Metadata - Indicators → stdout['Metadata - Indicators']
 └── Population.xls
-    ├── Data                  → memory['Data']
-    ├── Metadata - Countries  → memory['Metadata - Countries']
-    └── Metadata - Indicators → memory['Metadata - Indicators']
+    ├── Data                  → stdout['Data']
+    ├── Metadata - Countries  → stdout['Metadata - Countries']
+    └── Metadata - Indicators → stdout['Metadata - Indicators']
 ```
 
 The `els tree` result in [@lst:id110tree] shows: the `els-demo`
@@ -204,17 +274,17 @@ its child nodes via configuration inheritance.
 [@lst:id120config] configures the `els-demo` directory node by creating
 a directory-level configuration file[^5].
 
-```console
+```bash
 $ pwd
-C:\Users\nwals\els-demo
+~/els-demo
 $ echo "source:"        >  _.els.yml
 $ echo "  table: Data"  >> \_.els.yml
 $ els tree
 els-demo
 ├── LabourForce.xls
-│   └── Data → memory['Data']
+│   └── Data → stdout['Data']
 └── Population.xls
-    └── Data → memory['Data']
+    └── Data → stdout['Data']
 
 ```
 
@@ -246,7 +316,7 @@ table in memory. [@lst:id122config] creates a source-level configuration
 file for both source files, directing `Data` sheets each to a distinct
 target table.
 
-```console
+```bash
 $ echo "target:"                        > LabourForce.xls.els.yml
 $ echo "  table: WorldBankLabourForce" >> LabourForce.xls.els.yml
 $ echo "target:"                        > Population.xls.els.yml
@@ -255,10 +325,10 @@ $ els tree
 els-demo
 ├── LabourForce.xls.els.yml
 │   └── LabourForce.xls
-│       └── Data → memory['WorldBankLabourForce']
+│       └── Data → stdout['WorldBankLabourForce']
 └── Population.xls.els.yml
     └── Population.xls
-        └── Data → memory['WorldBankPopulation']
+        └── Data → stdout['WorldBankPopulation']
 ```
 
 The `els tree` results in [@lst:id122config] show two dataflow nodes
@@ -277,19 +347,19 @@ moves the source files downloaded in [@lst:id100new] to a new `source`
 directory and the configuration files created in [@lst:id120config] and
 [@lst:id122config] to a new `config` directory.
 
-```console
+```bash
 $ mkdir config
-C:\Users\nwals\els-demo\config
+~/els-demo\config
 $ mkdir source
-C:\Users\nwals\els-demo\source
+~/els-demo\source
 $ mv *.xls source
 $ mv *.yml config
 $ ls -s *.*
-C:\Users\nwals\els-demo\config\_.els.yml
-C:\Users\nwals\els-demo\config\LabourForce.xls.els.yml
-C:\Users\nwals\els-demo\config\Population.xls.els.yml
-C:\Users\nwals\els-demo\source\LabourForce.xls
-C:\Users\nwals\els-demo\source\Population.xls
+~/els-demo\config\_.els.yml
+~/els-demo\config\LabourForce.xls.els.yml
+~/els-demo\config\Population.xls.els.yml
+~/els-demo\source\LabourForce.xls
+~/els-demo\source\Population.xls
 ```
 
 ### Configuration File Node
@@ -308,7 +378,7 @@ nodes. However, they are invalid as configuration file nodes because
 they do not have a source url defined. [@lst:id132source] resolves this
 issue by adding a `source.url` property.
 
-```console
+```bash
 $ cd config
 $ echo "source:"                          >> LabourForce.xls.els.yml
 $ echo "  url: ../source/LabourForce.xls" >> LabourForce.xls.els.yml
@@ -318,10 +388,10 @@ $ els tree
 config
 ├── LabourForce.xls.els.yml
 │   └── LabourForce.xls
-│       └── Data → memory['WorldBankLabourForce']
+│       └── Data → stdout['WorldBankLabourForce']
 └── Population.xls.els.yml
     └── Population.xls
-        └── Data → memory['WorldBankPopulation']
+        └── Data → stdout['WorldBankPopulation']
 ```
 
 In [@lst:id132source] the results of the `els tree` command gives
@@ -346,14 +416,14 @@ configurations, a directory-level configuration is created in
 [@lst:id146root]. To set up the next examples, [@lst:id140root] creates
 a directory for the World Bank configuration files and moves them there.
 
-```console
+```bash
 $ mkdir world_bank
-C:\Users\nwals\els-demo\config\world_bank
+~/els-demo\config\world_bank
 $ mv *._ world_bank
 $ ls -s _.\_
-C:\Users\nwals\els-demo\config\world_bank\_.els.yml
-C:\Users\nwals\els-demo\config\world_bank\LabourForce.xls.els.yml
-C:\Users\nwals\els-demo\config\world_bank\Population.xls.els.yml
+~/els-demo\config\world_bank\_.els.yml
+~/els-demo\config\world_bank\LabourForce.xls.els.yml
+~/els-demo\config\world_bank\Population.xls.els.yml
 
 ```
 
@@ -366,7 +436,7 @@ observed up to now.
 
 ```{#id142root .console caption="Explicitly set a target for the pipeline, using a directory-level config"}
 $ pwd
-C:\Users\nwals\els-demo\config
+~/els-demo\config
 $ echo "target:"                 >  _.els.yml
 $ echo "  url: ../target/*.csv"  >> _.els.yml
 $ els tree
@@ -385,15 +455,15 @@ of the `config` directory, show the targets as csv files, consistent
 with the configuration set above. [@lst:id144root] runs `els tree`
 again, but this time in context of the `world_bank` directory.
 
-```console
+```bash
 $ els tree ./world_bank/
 world_bank
 ├── LabourForce.xls.els.yml
 │   └── ../source/LabourForce.xls
-│       └── Data → memory['WorldBankLabourForce']
+│       └── Data → stdout['WorldBankLabourForce']
 └── Population.xls.els.yml
     └── ../source/Population.xls
-        └── Data → memory['WorldBankPopulation']
+        └── Data → stdout['WorldBankPopulation']
 
 ```
 
@@ -418,13 +488,13 @@ make the `config` directory a root configuration directory, the
 directory-level configuration file created in [@lst:id142root] is
 renamed to a root-level configuration file in [@lst:id146root].
 
-```console
+```bash
 $ ren _.els.yml \_\_.els.yml
 $ ls -s _._
-C:\Users\nwals\els-demo\config\world_bank\_.els.yml
-C:\Users\nwals\els-demo\config\world_bank\LabourForce.xls.els.yml
-C:\Users\nwals\els-demo\config\world_bank\Population.xls.els.yml
-C:\Users\nwals\els-demo\config\_\_.els.yml
+~/els-demo\config\world_bank\_.els.yml
+~/els-demo\config\world_bank\LabourForce.xls.els.yml
+~/els-demo\config\world_bank\Population.xls.els.yml
+~/els-demo\config\_\_.els.yml
 $ els tree ./world_bank/
 config
 └── world_bank
@@ -465,9 +535,9 @@ file node is created to replace the three configuration files from the
 which can replace the `world_bank` directory node from
 [@lst:id146root].[^9]
 
-```console
+```bash
 $ pwd
-C:\Users\nwals\els-demo\config
+~/els-demo\config
 $ echo "target:"                          >  world_bank.els.yml
 $ echo "  table: WorldBankLabourForce"    >> world_bank.els.yml
 $ echo "source:"                          >> world_bank.els.yml
@@ -528,7 +598,7 @@ node from [@lst:id146root].
 [@lst:id200preview] calls the `els preview` command passing the
 `Population.xls.els.yml` configuration node.
 
-```console
+```bash
 $ cd world_bank
 $ els preview Population.xls.els.yml
 WorldBankPopulation [269 rows x 68 columns]:
@@ -554,7 +624,7 @@ benefit from the features of the pandas reader functions.
 [@lst:id210skprows] sets the `source.read_excel.skiprows` property in
 the configuration.
 
-```console
+```bash
 $ echo "  read_excel:"    >> Population.xls.els.yml
 $ echo "    skiprows: 3"  >> Population.xls.els.yml
 $ cat Population.xls.els.yml
@@ -592,7 +662,7 @@ property are passed as arguments to the respective pandas function.
 In [@lst:id220transform], `transform.melt` is added with sub-properties
 to pass to the pandas `melt` function.
 
-```console
+```bash
 $ echo "transform:"                   >> Population.xls.els.yml
 $ echo "  melt:"                      >> Population.xls.els.yml
 $ echo "    id_vars:"                 >> Population.xls.els.yml
@@ -620,7 +690,7 @@ However note that the figures in the `Population` column each have a
 `float`. In [@lst:id225transform], the population column is changed to
 data type `Int64`[^10] by setting the `transform.astype.dtype` property.
 
-```console
+```bash
 $ echo "  astype:"                    >> Population.xls.els.yml
 $ echo "    dtype:"                   >> Population.xls.els.yml
 $ echo "      Population: Int64"      >> Population.xls.els.yml

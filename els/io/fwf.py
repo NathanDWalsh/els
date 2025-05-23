@@ -34,7 +34,11 @@ class FWFFrame(FrameABC):
 
     def _read(self, kwargs: KWArgsIO) -> None:
         if self.kwargs_pull != kwargs:
-            self.df: pd.DataFrame = pd.read_fwf(self.parent.url, **kwargs)  # type: ignore
+            assert kwargs.pop("chunksize", None) is None
+            assert not kwargs.pop("iterator", False)
+            self.df: pd.DataFrame = pd.read_fwf(
+                self.parent.url, chunksize=None, iterator=False, **kwargs
+            )
             self.kwargs_pull = kwargs
 
 

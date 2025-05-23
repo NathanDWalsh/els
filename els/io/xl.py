@@ -84,6 +84,7 @@ def get_footer_cell(
 # class XLFrame(FrameABC["XLContainer"]):
 class XLFrame(FrameABC):
     parent: XLContainer  # for mypy
+    df: pd.DataFrame  # for mypy
 
     def __init__(
         self,
@@ -138,14 +139,14 @@ class XLFrame(FrameABC):
         capture_header = kwargs.pop("capture_header", False)
         capture_footer = kwargs.pop("capture_footer", False)
         if self.kwargs_pull != kwargs:
-            self.df = pd.read_excel(  # type: ignore
+            sheet_name = kwargs.pop("sheet_name", self.name)
+            assert isinstance(sheet_name, str)
+            self.df = pd.read_excel(
                 self.parent.file_io,
                 engine=kwargs.pop("engine", "calamine"),
-                sheet_name=kwargs.pop("sheet_name", self.name),
+                sheet_name=sheet_name,
                 **kwargs,
             )
-            assert isinstance(self.df, pd.DataFrame)
-
             skiprows = kwargs.get("skiprows", 0)
             assert self.name
             if skiprows > 0 and capture_header:

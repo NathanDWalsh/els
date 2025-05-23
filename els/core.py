@@ -33,7 +33,7 @@ def urlize_dict(df_dict: dict[str, pd.DataFrame]) -> str:
     return res
 
 
-T = TypeVar("T", bound=eio.ContainerReaderABC)
+T = TypeVar("T", bound=eio.ContainerProtocol)
 
 
 def fetch_df_container(
@@ -47,12 +47,12 @@ def fetch_df_container(
         else:
             res = container_class(
                 url=url,
-                replace=replace,  # type: ignore
+                replace=replace,
             )
     else:
         raise Exception(f"Cannot fetch {type(container_class)} from: {url}")
     df_containers[url] = res
-    return res  # type: ignore
+    return res  # type:ignore
 
 
 def fetch_file_io(

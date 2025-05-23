@@ -24,8 +24,7 @@ def multiindex_to_singleindex(
     separator: str = "_",
 ) -> pd.DataFrame:
     df.columns = [
-        separator.join(map(str, col)).strip()
-        for col in df.columns.to_numpy()  # type: ignore
+        separator.join(map(str, col)).strip() for col in df.columns.to_numpy()
     ]
     return df
 
