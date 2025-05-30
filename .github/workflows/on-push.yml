@@ -6,5 +6,8 @@ on:
 jobs:
   version-bump:
     uses: ./.github/workflows/version-bump.yml
+    with:
+      contents: write
+      id-token: write
       # - name: test
       #   uses: test.yml@main
