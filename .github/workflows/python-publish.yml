@@ -9,16 +9,18 @@
 name: Upload Python Package
 
 on:
-  workflow_run:
-    workflows: ["version-bump"]
-    types:
-      - completed
+  workflow_call:
+# on:
+#   workflow_run:
+#     workflows: ["version-bump"]
+#     types:
+#       - completed
 permissions:
   contents: read
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
