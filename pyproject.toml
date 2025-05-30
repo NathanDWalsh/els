@@ -53,6 +53,8 @@ disallow_incomplete_defs = false
 disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
+testpaths="tests"
+python_files="test_*.py"
 addopts = ["--ff",
     "--showlocals",
     "-vv",
