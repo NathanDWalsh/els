@@ -8,6 +8,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: bump
-        uses: version-bump.yml@main
+        uses: ./version-bump.yml
       # - name: test
       #   uses: test.yml@main
