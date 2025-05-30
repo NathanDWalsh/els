@@ -1,1 +1,2 @@
 Faker>=26.0.0
+pytest-cov>=6.1.1
