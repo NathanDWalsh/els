@@ -1,4 +1,6 @@
 name: onpush
+permissions:
+  contents: write
 on:
   push:
     branches:
@@ -6,8 +8,8 @@ on:
 jobs:
   version-bump:
     uses: ./.github/workflows/version-bump.yml
-    with:
-      contents: write
-      id-token: write
+    # with:
+    #   contents: write
+      # id-token: write
       # - name: test
       #   uses: test.yml@main
