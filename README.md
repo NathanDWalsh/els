@@ -4,10 +4,15 @@ WIP
 
 ELS (Extract-Load-Spec): versatile tool for loading data.
 
+Some features:
+
 - cli
 - python library for pandas integration
-- optional yaml configurations to save and share transformations
-- cross-platform tested
+- supports non-contextual transformations
+- supports yaml configurations to save and share transformations
+- tested on Linux, Windows, and MacOS
+- small to meduim data friendly
+- design focus on ease-of-use and flexibility
 
 ## Install
 
@@ -38,39 +43,66 @@ _\*file extensions recognized as valid data files_
 
 ELS can be used as a CLI tool and/or library.
 
-### tree command
+### `tree`
 
-A good place to start is the tree command, which displays a tree with dataflows (`source → target`) as leaf nodes.
-The tree command does not execute any dataflows, but rather gives a high-level view of the dataflows inferred from the directory/file context in which it is called.
+A good place to start is the `tree` command, which displays inferred dataflows (`source → target`) as leaf nodes.
 
-```bash
+```bash mcr
 # tree command passing a file context
-$ els tree Population.xls
-Population.xls
-├── Data                  → stdout['Data']
-├── Metadata - Countries  → stdout['Metadata - Countries']
-└── Metadata - Indicators → stdout['Metadata - Indicators']
+els tree ./population/source/Data.csv
 ```
 
-- The results of this tree command show a `source` excel file with three sheets.
-- Since no `target` is defined, the default is to output to the terminal/stdout.
-
-```bash
-# display present working directory (pwd)
-$ pwd
-~/els-demo
-# tree command passing a directory context (implicitly pwd)
-$ els tree
-els-demo
-├── LabourForce.xls
-│   ├── Data                  → stdout['Data']
-│   ├── Metadata - Countries  → stdout['Metadata - Countries']
-│   └── Metadata - Indicators → stdout['Metadata - Indicators']
-└── Population.xls
-    ├── Data                  → stdout['Data']
-    ├── Metadata - Countries  → stdout['Metadata - Countries']
-    └── Metadata - Indicators → stdout['Metadata - Indicators']
+```output
+Data.csv
+└── Data → stdout://
 ```
+
+```bash mcr
+# tree command passing a directory context
+els tree ./population/source
+```
+
+```output
+source
+├── Metadata_Indicator.csv
+│   └── Metadata_Indicator → stdout://
+├── Data.csv
+│   └── Data               → stdout://
+└── Metadata_Country.csv
+    └── Metadata_Country   → stdout://
+```
+
+- The results of these tree commands show `source` csv files, each with a
+  single dataflow node.
+- Since no `targets` are defined, the default behaviour of the dataflow is to output a preview of the data to the terminal/stdout.
+
+`tree` serves to present an overview of dataflow nodes, it does not execute any dataflows.
+
+### `execute`
+
+The `execute` command executes dataflow nodes in the context.
+
+```bash mcr
+# execute command passing a file context
+els execute ./population/source/Data.csv
+```
+
+```output
+No target specified; printing the first five rows of each table:
+
+- Data
+                  Country Name Country Code  ...       2023 2024
+                                             ...                
+0                        Aruba          ABW  ...     107359  NaN
+1  Africa Eastern and Southern          AFE  ...  750503764  NaN
+2                  Afghanistan          AFG  ...   41454761  NaN
+3   Africa Western and Central          AFW  ...  509398589  NaN
+4                       Angola          AGO  ...   36749906  NaN
+
+[5 rows x 69 columns]
+```
+
+### flexible yaml configuration
 
 When reading an Excel file with default configuration, each sheet is
 considered as a separate table. Since no target is set for this
