@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "elspec"
-version = "0.7.1"
+version = "0.7.2"
 authors = [
     { name="Nathan Walsh", email="nwalsh82@gmail.com" }]
 description = "A declarative data ingestion system"
