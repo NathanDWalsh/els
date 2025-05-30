@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-import els.io.base as io
+import els.io.base as eio
 
 from . import test_template as tt
 
@@ -65,7 +65,7 @@ from . import test_template as tt
 def test_sc(tmp_path, test_name, func, config_for, tiny_sample):
     os.chdir(tmp_path)
     if tiny_sample:
-        io.nrows_for_sampling = 2
+        eio.nrows_for_sampling = 2
     func(test_medium=test_name, config_for=config_for)
 
 
