@@ -36,7 +36,7 @@ def test_fwf_read2(pytester):
     config = ec.Config(
         source=ec.Source(
             url="fwf1.fwf",
-            read_fwf=[ec.ReadFWF(colspecs="infer")],
+            read_args=[ec.ReadFWF(colspecs="infer")],
         ),
         target=ec.Target(
             url=el.urlize_dict(inbound),
@@ -60,7 +60,7 @@ def test_fwf_read3(pytester):
     config = ec.Config(
         source=ec.Source(
             url="fwf1.fwf",
-            read_fwf=[
+            read_args=[
                 ec.ReadFWF(colspecs="infer"),
                 ec.ReadFWF(colspecs="infer"),
             ],

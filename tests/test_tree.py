@@ -120,6 +120,10 @@ def test_tree(
 
             actual = capsys.readouterr().out
 
+        if cli:
+            target_url = f"stdout://+#{target_table}"
+        else:
+            target_url = f"dict://[0-9]+#{target_table}"
         if (
             explicit_context
             and not pass_directory
@@ -129,23 +133,23 @@ def test_tree(
             if source_config or keep_virtual:
                 expected = f"""{dummyfile}.els.yml
 └── {dummyfile}
-    └── {dummyroot} → dict://[0-9]+#{target_table}
+    └── {dummyroot} → {target_url}
 """
             else:
                 expected = f"""{dummyfile}
-└── {dummyroot} → dict://[0-9]+#{target_table}
+└── {dummyroot} → {target_url}
 """
         else:
             if source_config or keep_virtual:
                 expected = f"""{configdir}
 └── {dummyfile}.els.yml
     └── {dummyfile}
-        └── {dummyroot} → dict://[0-9]+#{target_table}
+        └── {dummyroot} → {target_url}
 """
             else:
                 expected = f"""{configdir}
 └── {dummyfile}
-    └── {dummyroot} → dict://[0-9]+#{target_table}
+    └── {dummyroot} → {target_url}
 """
 
         # change out of temp dir so that it can be deleted

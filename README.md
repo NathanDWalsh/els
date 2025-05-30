@@ -53,8 +53,6 @@ els tree ./population/source/Data.csv
 ```
 
 ```output
-Data.csv
-└── Data → stdout://
 ```
 
 ```bash mcr
@@ -63,13 +61,6 @@ els tree ./population/source
 ```
 
 ```output
-source
-├── Metadata_Indicator.csv
-│   └── Metadata_Indicator → stdout://
-├── Data.csv
-│   └── Data               → stdout://
-└── Metadata_Country.csv
-    └── Metadata_Country   → stdout://
 ```
 
 - The results of these tree commands show `source` csv files, each with a
@@ -88,21 +79,13 @@ els execute ./population/source/Data.csv
 ```
 
 ```output
-No target specified; printing the first five rows of each table:
-
-- Data
-                  Country Name Country Code  ...       2023 2024
-                                             ...                
-0                        Aruba          ABW  ...     107359  NaN
-1  Africa Eastern and Southern          AFE  ...  750503764  NaN
-2                  Afghanistan          AFG  ...   41454761  NaN
-3   Africa Western and Central          AFW  ...  509398589  NaN
-4                       Angola          AGO  ...   36749906  NaN
-
-[5 rows x 69 columns]
 ```
 
-### flexible yaml configuration
+Since there is no target configuration for the source, a sample of the data is output to screen.
+
+### yaml configuration
+
+Let's see what a configuration looks like.
 
 When reading an Excel file with default configuration, each sheet is
 considered as a separate table. Since no target is set for this

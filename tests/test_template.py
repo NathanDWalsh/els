@@ -120,7 +120,7 @@ def skiprows_csv1():
             }
         )
     )
-    config_push = ec.Config(target=ec.Target(to_csv=ec.ToCSV(header=False)))
+    config_push = ec.Config(target=ec.Target(write_args=ec.ToCSV(header=False)))
     config_pull = ec.Config()
     return outbound, expected, config_push, config_pull
 
@@ -154,12 +154,12 @@ def skiprows_csv2():
     )
     config_push = ec.Config(
         target=ec.Target(
-            to_csv=ec.ToCSV(header=False),
+            write_args=ec.ToCSV(header=False),
         )
     )
     config_pull = ec.Config(
         source=ec.Source(
-            read_csv=ec.ReadCSV(skiprows=2),
+            read_args=ec.ReadCSV(skiprows=2),
         )
     )
     return outbound, expected, config_push, config_pull
@@ -195,12 +195,12 @@ def skiprows_csv3():
     expected["df"]["_header"] = str([[""], [""]])
     config_push = ec.Config(
         target=ec.Target(
-            to_csv=ec.ToCSV(header=False),
+            write_args=ec.ToCSV(header=False),
         )
     )
     config_pull = ec.Config(
         source=ec.Source(
-            read_csv=ec.ReadCSV(
+            read_args=ec.ReadCSV(
                 skiprows=2,
                 capture_header=True,
             ),
@@ -214,7 +214,7 @@ def skipfoot_csv1():
     outbound = dict(df=pd.DataFrame({"a": [1, 2, 3, None, None, "footer"]}))
     expected = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
     config_push = ec.Config()
-    config_pull = ec.Config(source=ec.Source(read_csv=ec.ReadCSV(skipfooter=3)))
+    config_pull = ec.Config(source=ec.Source(read_args=ec.ReadCSV(skipfooter=3)))
     return outbound, expected, config_push, config_pull
 
 
@@ -226,7 +226,7 @@ def skipfoot_csv2():
     config_push = ec.Config()
     config_pull = ec.Config(
         source=ec.Source(
-            read_csv=ec.ReadCSV(
+            read_args=ec.ReadCSV(
                 skipfooter=3,
                 capture_footer=True,
             )
@@ -241,7 +241,7 @@ def skiprows_xl1():
     expected = dict(df=pd.DataFrame({"Unnamed: 0": [np.nan, "a", 1, 2, 3]}))
     config_push = ec.Config(
         target=ec.Target(
-            to_excel=ec.ToExcel(startrow=2),
+            write_args=ec.ToExcel(startrow=2),
         )
     )
 
@@ -255,12 +255,12 @@ def skiprows_xl2():
     expected = outbound.copy()
     config_push = ec.Config(
         target=ec.Target(
-            to_excel=ec.ToExcel(startrow=2),
+            write_args=ec.ToExcel(startrow=2),
         )
     )
     config_pull = ec.Config(
         source=ec.Source(
-            read_excel=ec.ReadExcel(skiprows=2),
+            read_args=ec.ReadExcel(skiprows=2),
         )
     )
     return outbound, expected, config_push, config_pull
@@ -273,12 +273,12 @@ def skiprows_xl3():
     expected["df"]["_header"] = str([[""], [""]])
     config_push = ec.Config(
         target=ec.Target(
-            to_excel=ec.ToExcel(startrow=2),
+            write_args=ec.ToExcel(startrow=2),
         )
     )
     config_pull = ec.Config(
         source=ec.Source(
-            read_excel=ec.ReadExcel(
+            read_args=ec.ReadExcel(
                 skiprows=2,
                 capture_header=True,
             ),
@@ -292,7 +292,7 @@ def skipfoot_xl1():
     outbound = dict(df=pd.DataFrame({"a": [1, 2, 3, None, None, "footer"]}))
     expected = dict(df=pd.DataFrame({"a": [1, 2, 3]}))
     config_push = ec.Config()
-    config_pull = ec.Config(source=ec.Source(read_excel=ec.ReadExcel(skipfooter=3)))
+    config_pull = ec.Config(source=ec.Source(read_args=ec.ReadExcel(skipfooter=3)))
     return outbound, expected, config_push, config_pull
 
 
@@ -304,7 +304,7 @@ def skipfoot_xl2():
     config_push = ec.Config()
     config_pull = ec.Config(
         source=ec.Source(
-            read_excel=ec.ReadExcel(
+            read_args=ec.ReadExcel(
                 skipfooter=3,
                 capture_footer=True,
             )
@@ -642,7 +642,11 @@ def split_on_col_explicit_tab():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=ec.SplitOnColumn(split_on_column="split_col"),
+        transforms=[ec.SplitOnColumn(split_on_column="split_col")],
+        # transform=ec.SplitOnColumn(split_on_column="split_col"),
+        # transforms=[
+        #     ec.Transform_(split_on_column=ec.SplitOnColumn(split_on_column="split_col"))
+        # ],
     )
     return outbound, expected, config
 
@@ -676,7 +680,7 @@ def prql_split():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=[
+        transforms=[
             ec.PRQLTransform(
                 prql="""
             from df
@@ -709,12 +713,14 @@ def prql():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=ec.PRQLTransform(
-            prql="""
+        transforms=[
+            ec.PRQLTransform(
+                prql="""
             from df
             filter a < 3
             """
-        ),
+            )
+        ],
     )
     return outbound, expected, config
 
@@ -739,7 +745,7 @@ def filter():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=ec.FilterTransform(filter="a < 3"),
+        transforms=[ec.FilterTransform(filter="a < 3")],
     )
     return outbound, expected, config
 
@@ -766,9 +772,9 @@ def pivot():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=ec.Pivot(
-            pivot_columns="split_col", pivot_values="b", pivot_index="a"
-        ),
+        transforms=[
+            ec.Pivot(pivot_columns="split_col", pivot_values="b", pivot_index="a")
+        ],
     )
     return outbound, expected, config
 
@@ -790,7 +796,7 @@ def prql_split_pivot():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=[
+        transforms=[
             ec.PRQLTransform(
                 prql="""
             from df
@@ -827,7 +833,7 @@ def prql_col_split_pivot():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=[
+        transforms=[
             ec.PRQLTransform(
                 prql="""
             from df
@@ -879,7 +885,7 @@ def prql_col_split():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=[
+        transforms=[
             ec.PRQLTransform(
                 prql="""
             from df
@@ -914,7 +920,8 @@ def astype():
         )
     )
     config = ec.Config(
-        source=ec.Source(table="dfo"), transform=ec.AsType(as_dtypes=dict(a="float"))
+        source=ec.Source(table="dfo"),
+        transforms=[ec.AsType(as_dtypes=dict(a="float"))],
     )
     return outbound, expected, config
 
@@ -941,12 +948,14 @@ def melt():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=ec.Melt(
-            melt_id_vars=["A"],
-            melt_value_vars=["B"],
-            melt_var_name="col",
-            melt_value_name="val",
-        ),
+        transforms=[
+            ec.Melt(
+                melt_id_vars=["A"],
+                melt_value_vars=["B"],
+                melt_var_name="col",
+                melt_value_name="val",
+            )
+        ],
     )
     return outbound, expected, config
 
@@ -981,7 +990,7 @@ def stack_dynamic():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=ec.StackDynamic(stack_fixed_columns=2, stack_name="col"),
+        transforms=[ec.StackDynamic(stack_fixed_columns=2, stack_name="col")],
     )
     return outbound, expected, config
 
@@ -1007,7 +1016,7 @@ def add_columns():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transform=ec.AddColumns(test=100),
+        transforms=[ec.AddColumns(test=100)],
     )
     return outbound, expected, config
 

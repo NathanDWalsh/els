@@ -299,7 +299,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
                 sub_table_path.parent = ca_path
                 sub_table_path.config_local = ec.Config(
                     target=ec.Target(table=table_name),
-                    transform=[ec.FilterTransform(filter=filter)]
+                    transforms=[ec.FilterTransform(filter=filter)]
                     + remaining_transforms,
                 )
                 if df_dict:
@@ -333,18 +333,18 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
         for leaf in self.leaves:
             if (
                 leaf.config.source
-                and leaf.config.source.read_x
-                and isinstance(leaf.config.source.read_x, list)
+                and leaf.config.source.read_args
+                and isinstance(leaf.config.source.read_args, list)
             ):
                 # TODO: not sure why this is not working
                 # if len(leaf.config.source.read_x) == 1:
                 #     leaf.config.source.read_x = leaf.config.source.read_x[0]
                 # else:
-                for i, kw in enumerate(leaf.config.source.read_x):
+                for i, kw in enumerate(leaf.config.source.read_args):
                     subset = ConfigPath(leaf / f"subset_{i}")
                     subset.parent = leaf
                     subset.config_local = leaf.config
-                    subset.config_local.source.read_x = kw
+                    subset.config_local.source.read_args = kw
 
     @property
     def node_type(self) -> NodeType:
@@ -538,6 +538,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             if (
                 node.node_type == NodeType.DATA_TABLE and node.config.target.url
             ) and not node.config.target.type == "dict":
+                # TODO: replace hard-coded types
                 if node.config.target.type in (".csv", ".xml"):
                     target_path = os.path.relpath(node.config.target.url)
                 else:
@@ -545,7 +546,7 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
 
                 column2 = f" → {target_path}"
             elif node.is_leaf and (node.config.target.type == "dict"):
-                column2 = f" → {node.config.target.url}#{node.config.target.table}"
+                column2 = f" → stdout://#{node.config.target.table}"
 
             rows.append((column1, column2))
 
@@ -803,7 +804,7 @@ def get_root_inheritance(dir_path: Optional[str] = None) -> list[Path]:
     if file_found:
         return dirs
     else:
-        glob_pattern = "**/*" + get_root_config_name()
+        glob_pattern = f"**/*{get_root_config_name()}"
         below = sorted(start_dir.glob(glob_pattern))
         if len(below) > 0:
             return [Path(below[0].parent.absolute())]
@@ -846,8 +847,8 @@ def plant_tree(
         # expected
         root_path = Path()
         root_paths[0] = Path()
-    else:
-        os.chdir(root_path.parent)
+    # else:
+    #     os.chdir(root_path.parent)
     parent = None
     ca_path = None
     for index, path_ in enumerate(root_paths):

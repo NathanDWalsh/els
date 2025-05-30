@@ -1,8 +1,5 @@
 \__pycache__
 
-sandbox.py
-graveyard.py
-graveyard/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -176,3 +173,5 @@ tests/docs/running_example_lite.md
 .github/workflows/temptest.yml
 .testmondata*
 lcov.info
+
+/demo/**/target/**

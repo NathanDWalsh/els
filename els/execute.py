@@ -68,27 +68,23 @@ def push_frame(
     target: ec.Target,
     build: bool = False,
 ) -> bool:
-    if not target or not target.type or not target.url:
-        print("no target defined, printing first 100 rows:")
-        print(df.head(100))
-    else:
-        container_class = get_writer_container_class(target)
-        df_container = el.fetch_df_container(
-            container_class,
-            url=target.url,
-            replace=target.replace_container,
-        )
-        assert isinstance(target.table, str)
-        df_table = df_container.fetch_child(
-            df_name=target.table,
-            df=df,
-        )
-        df_table.set_df(
-            df=df,
-            if_exists=target.if_table_exists,
-            build=build,
-            kwargs_push=target.kwargs_push,
-        )
+    container_class = get_writer_container_class(target)
+    df_container = el.fetch_df_container(
+        container_class,
+        url=target.url,
+        replace=target.replace_container,
+    )
+    assert isinstance(target.table, str)
+    df_table = df_container.fetch_child(
+        df_name=target.table,
+        df=df,
+    )
+    df_table.set_df(
+        df=df,
+        if_exists=target.if_table_exists,
+        build=build,
+        kwargs_push=target.kwargs_push,
+    )
     return True
 
 
@@ -204,11 +200,9 @@ def get_configs(
 def ingest(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
     consistent = config_frames_consistent(config)
-    print("ingest")
     if not target or not target.table or consistent or target.consistency == "ignore":
         source_df = pull_frame(source, sample=False)
         source_df = apply_transforms(source_df, transform)
-        print(source_df)
         return push_frame(source_df, target)
     else:
         raise Exception(f"{target.table}: Inconsistent, not saved.")
@@ -246,7 +240,6 @@ def requires_build_action(
 
 def build(config: ec.Config) -> bool:
     target, source, transform = get_configs(config)
-    print("build")
     if requires_build_action(target):
         sample = False if config.transforms_vary_target_columns else True
         df = pull_frame(source, sample=sample)

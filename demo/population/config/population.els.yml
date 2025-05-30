@@ -1,0 +1,19 @@
+source:
+  url: ../source/Data.csv
+target:
+  table: WorldBankPopulation
+transforms: 
+  - melt:
+      melt_id_vars:
+      - Country Name
+      - Country Code
+  - pivot:
+      pivot_columns: null
+  - as_type: 
+      as_dtypes:
+        Population: Int64
+  - add_columns: 
+      Year: int32
+  - as_type: 
+     as_dtypes:
+       Year: Int32

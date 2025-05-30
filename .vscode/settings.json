@@ -1,4 +1,5 @@
 {
+    "yaml.schemas": {"./els_schema.yml": "*.els.yml"},
     "cSpell.words": [
         "endswith",
         "listdir",

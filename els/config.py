@@ -16,6 +16,7 @@ import pandas as pd
 import prqlc
 import yaml
 from pydantic import BaseModel, ConfigDict
+from pydantic.json_schema import SkipJsonSchema
 
 from els.pathprops import HumanPathPropertiesMixin
 
@@ -288,7 +289,7 @@ class Frame(BaseModel):
     def type(self) -> Optional[str]:
         if self.url_scheme == "file":
             assert self.url
-            ext = os.path.splitext(self.url)[-1]
+            ext = os.path.splitext(self.url)[-1].lower()
             if ext == (".txt"):
                 return ".csv"
             else:
@@ -339,7 +340,6 @@ class Frame(BaseModel):
             res = re.sub(re.compile(r"[\\*?:/\[\]]", re.UNICODE), "_", res)
             return res[:31].strip()
         else:
-            # raise Exception("Cannot fetch sheet name from non-spreadsheet format.")
             return None
 
 
@@ -356,39 +356,35 @@ class Target(Frame):
         extra="forbid",
         use_enum_values=True,
         validate_default=True,
-        json_schema_extra={
-            "oneOf": [
-                {"required": ["to_sql"]},
-                {"required": ["to_csv"]},
-                {"required": ["to_excel"]},
-                {"required": ["to_xml"]},
-            ]
-        },
     )
     consistency: Literal[
         "strict",
         "ignore",
     ] = "strict"
     if_exists: Optional[IfExistsLiteral] = None
-    to_sql: Optional[ToSQL] = None
-    to_csv: Optional[ToCSV] = None
-    to_excel: Optional[ToExcel] = None
-    to_xml: Optional[ToXML] = None
+    write_args: Optional[
+        Union[
+            ToSQL,
+            ToCSV,
+            ToExcel,
+            ToXML,
+        ]
+    ] = None
 
     @property
     def kwargs_push(self) -> KWArgsIO:
-        to_x = self.to_sql or self.to_csv or self.to_excel or self.to_xml
+        # to_x = self.to_sql or self.to_csv or self.to_excel or self.to_xml
+        to_x = self.write_args
         return to_x.model_dump(exclude_none=True) if to_x else {}
 
     @property
     def kwargs_pull(self) -> KWArgsIO:
         assert self.type
 
-        to_x = self.to_excel
-
         kwargs = {}
-        if to_x:
-            kwargs = to_x.model_dump(exclude_none=True)
+        # ensures same args are applied for read as for write
+        if self.write_args:
+            kwargs = self.write_args.model_dump(exclude_none=True)
 
         root_kwargs = (
             "nrows",
@@ -484,66 +480,37 @@ class ReadXML(BaseModel, extra="allow"):
     pass
 
 
-class Source(Frame, extra="forbid"):
-    model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={
-            "oneOf": [
-                {"required": ["read_csv"]},
-                {"required": ["read_excel"]},
-                {"required": ["read_sql"]},
-                {"required": ["read_fwf"]},
-                {"required": ["read_xml"]},
-                {"required": ["read_pdf"]},
-            ]
-        },
-    )
+class Source(Frame):
     load_parallel: bool = False
     nrows: Optional[int] = None
     dtype: Optional[dict[str, str]] = None
-    read_csv: Optional[Union[ReadCSV, list[ReadCSV]]] = None
-    read_excel: Optional[Union[ReadExcel, list[ReadExcel]]] = None
-    read_sql: Optional[Union[ReadSQL, list[ReadSQL]]] = None
-    read_fwf: Optional[Union[ReadFWF, list[ReadFWF]]] = None
-    read_xml: Optional[Union[ReadXML, list[ReadXML]]] = None
-    read_pdf: Optional[Union[ReadPDF, list[ReadPDF]]] = None
-
-    @property
-    def read_x(self) -> Any:
-        return (
-            self.read_csv
-            or self.read_excel
-            or self.read_sql
-            or self.read_fwf
-            or self.read_xml
-            or self.read_pdf
-        )
-
-    @read_x.setter
-    def read_x(self, x: Any) -> None:
-        if self.read_csv:
-            self.read_csv = x
-        elif self.read_excel:
-            self.read_excel = x
-        elif self.read_sql:
-            self.read_sql = x
-        elif self.read_fwf:
-            self.read_fwf = x
-        elif self.read_xml:
-            self.read_xml = x
-        elif self.read_pdf:
-            self.read_pdf = x
+    read_args: Optional[
+        Union[
+            ReadCSV,
+            ReadExcel,
+            ReadSQL,
+            ReadFWF,
+            ReadXML,
+            ReadPDF,
+            list[ReadCSV],
+            list[ReadExcel],
+            list[ReadSQL],
+            list[ReadFWF],
+            list[ReadXML],
+            list[ReadPDF],
+        ]
+    ] = None
 
     @property
     def kwargs_pull(self) -> KWArgsIO:
-        if self.read_pdf:
-            assert not isinstance(self.read_pdf, list)
-            return self.read_pdf.model_dump(exclude_none=True)
+        if self.type == ".pdf" and self.read_args:
+            assert not isinstance(self.read_args, list)
+            return self.read_args.model_dump(exclude_none=True)
         assert self.type
         kwargs = {}
-        if self.read_x:
-            assert not isinstance(self.read_x, list)
-            kwargs = self.read_x.model_dump(exclude_none=True)
+        if self.read_args:
+            assert not isinstance(self.read_args, list)
+            kwargs = self.read_args.model_dump(exclude_none=True)
 
         for k, v in kwargs.items():
             if v == "None":
@@ -597,22 +564,87 @@ else:
     TransformType = TransformType_
 
 
+class Transform_(BaseModel):
+    model_config = ConfigDict(
+        # force json schema to only allow one field:
+        # json_schema_extra={"oneOf": [{"type":"filter", "split_on_column"]}
+        json_schema_extra={
+            "oneOf": [
+                {"required": ["filter"]},
+                {"required": ["split_on_column"]},
+                {"required": ["prql"]},
+                {"required": ["pivot"]},
+                {"required": ["as_type"]},
+                {"required": ["melt"]},
+                {"required": ["stack_dynamic"]},
+                {"required": ["add_columns"]},
+            ]
+        },
+    )
+    filter: Optional[FilterTransform] = None
+    split_on_column: Optional[SplitOnColumn] = None
+    prql: Optional[PRQLTransform] = None
+    pivot: Optional[Pivot] = None
+    as_type: Optional[AsType] = None
+    melt: Optional[Melt] = None
+    stack_dynamic: Optional[StackDynamic] = None
+    add_columns: Optional[AddColumns] = None
+
+    def _transform(self) -> TransformType:
+        res = (
+            self.filter
+            or self.split_on_column
+            or self.prql
+            or self.pivot
+            or self.as_type
+            or self.melt
+            or self.stack_dynamic
+            or self.add_columns
+        )
+        assert res is not None
+        return res
+
+    # only allow one of the above attributes to be set
+    # @field_validator("*", mode="after")
+    # @classmethod
+    # def check_for_multiple_transforms(
+    #     cls: type[Transform_], v: TransformType
+    # ) -> TransformType:
+    #     if sum([v is not None for v in (cls.__model_fields__.values())]) > 1:
+    #         raise ValueError("Only one attribute can be set on Tasnform_")
+    #     return v
+
+
 class Config(BaseModel, extra="forbid"):
     # KEEP config_path AROUND JUST IN CASE, can be used when printing yamls for debugging
     config_path: Optional[str] = None
     # source: Union[Source,list[Source]] = Source()
     source: Source = Source()
     target: Target = Target()
-    transform: Optional[
-        Union[
-            TransformType,
-            list[TransformType],
+    transforms: Optional[
+        list[
+            Union[
+                SkipJsonSchema[TransformType],
+                Transform_,
+            ]
         ]
     ] = None
 
     @property
     def transform_list(self) -> list[TransformType]:
-        return listify(self.transform)
+        # if self.transform:
+        #     return listify(self.transform)
+        if self.transforms:
+            res = []
+            # raise Exception(self.transforms)
+            for d in self.transforms:
+                if isinstance(d, TransformABC):
+                    res.append(d)
+                elif isinstance(d, Transform_):
+                    res.append(d._transform())
+            return res
+        else:
+            return []
 
     @property
     def transforms_vary_target_columns(self) -> bool:
@@ -673,7 +705,7 @@ def main() -> None:
 
     config_yml = yaml.dump(config_json, default_flow_style=False)
 
-    with open("els_schema.yml", "w") as file:
+    with open("../els_schema.yml", "w") as file:
         file.write(config_yml)
 
 

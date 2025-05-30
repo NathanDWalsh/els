@@ -112,6 +112,16 @@ $defs:
     - melt_id_vars
     title: Melt
     type: object
+  PRQLTransform:
+    additionalProperties: false
+    properties:
+      prql:
+        title: Prql
+        type: string
+    required:
+    - prql
+    title: PRQLTransform
+    type: object
   Pivot:
     additionalProperties: false
     properties:
@@ -143,16 +153,6 @@ $defs:
         default: null
         title: Pivot Values
     title: Pivot
-    type: object
-  PrqlTransform:
-    additionalProperties: false
-    properties:
-      prql:
-        title: Prql
-        type: string
-    required:
-    - prql
-    title: PrqlTransform
     type: object
   ReadCSV:
     additionalProperties: true
@@ -257,20 +257,6 @@ $defs:
     title: ReadXML
     type: object
   Source:
-    additionalProperties: false
-    oneOf:
-    - required:
-      - read_csv
-    - required:
-      - read_excel
-    - required:
-      - read_sql
-    - required:
-      - read_fwf
-    - required:
-      - read_xml
-    - required:
-      - read_pdf
     properties:
       dbschema:
         anyOf:
@@ -296,60 +282,35 @@ $defs:
         - type: 'null'
         default: null
         title: Nrows
-      read_csv:
+      read_args:
         anyOf:
         - $ref: '#/$defs/ReadCSV'
+        - $ref: '#/$defs/ReadExcel'
+        - $ref: '#/$defs/ReadSQL'
+        - $ref: '#/$defs/ReadFWF'
+        - $ref: '#/$defs/ReadXML'
+        - $ref: '#/$defs/ReadPDF'
         - items:
             $ref: '#/$defs/ReadCSV'
           type: array
-        - type: 'null'
-        default: null
-        title: Read Csv
-      read_excel:
-        anyOf:
-        - $ref: '#/$defs/ReadExcel'
         - items:
             $ref: '#/$defs/ReadExcel'
           type: array
-        - type: 'null'
-        default: null
-        title: Read Excel
-      read_fwf:
-        anyOf:
-        - $ref: '#/$defs/ReadFWF'
+        - items:
+            $ref: '#/$defs/ReadSQL'
+          type: array
         - items:
             $ref: '#/$defs/ReadFWF'
           type: array
-        - type: 'null'
-        default: null
-        title: Read Fwf
-      read_pdf:
-        anyOf:
-        - $ref: '#/$defs/ReadPDF'
+        - items:
+            $ref: '#/$defs/ReadXML'
+          type: array
         - items:
             $ref: '#/$defs/ReadPDF'
           type: array
         - type: 'null'
         default: null
-        title: Read Pdf
-      read_sql:
-        anyOf:
-        - $ref: '#/$defs/ReadSQL'
-        - items:
-            $ref: '#/$defs/ReadSQL'
-          type: array
-        - type: 'null'
-        default: null
-        title: Read Sql
-      read_xml:
-        anyOf:
-        - $ref: '#/$defs/ReadXML'
-        - items:
-            $ref: '#/$defs/ReadXML'
-          type: array
-        - type: 'null'
-        default: null
-        title: Read Xml
+        title: Read Args
       table:
         anyOf:
         - type: string
@@ -397,15 +358,6 @@ $defs:
     type: object
   Target:
     additionalProperties: false
-    oneOf:
-    - required:
-      - to_sql
-    - required:
-      - to_csv
-    - required:
-      - to_excel
-    - required:
-      - to_xml
     properties:
       consistency:
         default: strict
@@ -442,32 +394,21 @@ $defs:
         - type: 'null'
         default: null
         title: Table
-      to_csv:
-        anyOf:
-        - $ref: '#/$defs/ToCSV'
-        - type: 'null'
-        default: null
-      to_excel:
-        anyOf:
-        - $ref: '#/$defs/ToExcel'
-        - type: 'null'
-        default: null
-      to_sql:
-        anyOf:
-        - $ref: '#/$defs/ToSQL'
-        - type: 'null'
-        default: null
-      to_xml:
-        anyOf:
-        - $ref: '#/$defs/ToXML'
-        - type: 'null'
-        default: null
       url:
         anyOf:
         - type: string
         - type: 'null'
         default: null
         title: Url
+      write_args:
+        anyOf:
+        - $ref: '#/$defs/ToSQL'
+        - $ref: '#/$defs/ToCSV'
+        - $ref: '#/$defs/ToExcel'
+        - $ref: '#/$defs/ToXML'
+        - type: 'null'
+        default: null
+        title: Write Args
     title: Target
     type: object
   ToCSV:
@@ -496,6 +437,67 @@ $defs:
     properties: {}
     title: ToXML
     type: object
+  Transform_:
+    oneOf:
+    - required:
+      - filter
+    - required:
+      - split_on_column
+    - required:
+      - prql
+    - required:
+      - pivot
+    - required:
+      - as_type
+    - required:
+      - melt
+    - required:
+      - stack_dynamic
+    - required:
+      - add_columns
+    properties:
+      add_columns:
+        anyOf:
+        - $ref: '#/$defs/AddColumns'
+        - type: 'null'
+        default: null
+      as_type:
+        anyOf:
+        - $ref: '#/$defs/AsType'
+        - type: 'null'
+        default: null
+      filter:
+        anyOf:
+        - $ref: '#/$defs/FilterTransform'
+        - type: 'null'
+        default: null
+      melt:
+        anyOf:
+        - $ref: '#/$defs/Melt'
+        - type: 'null'
+        default: null
+      pivot:
+        anyOf:
+        - $ref: '#/$defs/Pivot'
+        - type: 'null'
+        default: null
+      prql:
+        anyOf:
+        - $ref: '#/$defs/PRQLTransform'
+        - type: 'null'
+        default: null
+      split_on_column:
+        anyOf:
+        - $ref: '#/$defs/SplitOnColumn'
+        - type: 'null'
+        default: null
+      stack_dynamic:
+        anyOf:
+        - $ref: '#/$defs/StackDynamic'
+        - type: 'null'
+        default: null
+    title: Transform_
+    type: object
 additionalProperties: false
 properties:
   config_path:
@@ -511,12 +513,7 @@ properties:
       dtype: null
       load_parallel: false
       nrows: null
-      read_csv: null
-      read_excel: null
-      read_fwf: null
-      read_pdf: null
-      read_sql: null
-      read_xml: null
+      read_args: null
       table: null
       url: null
   target:
@@ -526,34 +523,15 @@ properties:
       dbschema: null
       if_exists: null
       table: null
-      to_csv: null
-      to_excel: null
-      to_sql: null
-      to_xml: null
       url: null
-  transform:
+      write_args: null
+  transforms:
     anyOf:
-    - $ref: '#/$defs/SplitOnColumn'
-    - $ref: '#/$defs/FilterTransform'
-    - $ref: '#/$defs/PrqlTransform'
-    - $ref: '#/$defs/Pivot'
-    - $ref: '#/$defs/AsType'
-    - $ref: '#/$defs/Melt'
-    - $ref: '#/$defs/StackDynamic'
-    - $ref: '#/$defs/AddColumns'
     - items:
-        anyOf:
-        - $ref: '#/$defs/SplitOnColumn'
-        - $ref: '#/$defs/FilterTransform'
-        - $ref: '#/$defs/PrqlTransform'
-        - $ref: '#/$defs/Pivot'
-        - $ref: '#/$defs/AsType'
-        - $ref: '#/$defs/Melt'
-        - $ref: '#/$defs/StackDynamic'
-        - $ref: '#/$defs/AddColumns'
+        $ref: '#/$defs/Transform_'
       type: array
     - type: 'null'
     default: null
-    title: Transform
+    title: Transforms
 title: Config
 type: object

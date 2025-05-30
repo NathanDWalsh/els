@@ -149,6 +149,7 @@ def tree(
         ca_path = get_ca_path(path)
         tree = plant_tree(ca_path)
     tree.set_pandas_target(force=False)
+    # tree = remove_redundant_nodes(tree)
     if not keep_virtual:
         tree = remove_virtual_nodes(tree)
     if tree:
@@ -317,18 +318,13 @@ def execute(path: Optional[str] = typer.Argument(None)) -> None:
         taskflow.execute()
 
     if el.default_target and not isinstance(path, Config):
-        print("\nNo target specified, sources saved to dataframes.\n\nTable summary:")
-
-        print()
-        print("Printing the first five rows of each DataFrame below:\n")
-
+        typer.echo("No target specified; printing the first five rows of each table:\n")
         pd.set_option("display.max_rows", 5)
 
         for name, df in el.default_target.items():
-            print(f"{name}:")
+            typer.echo(f"- {name}")
             df.index.name = " "
-            print(df)
-            print()
+            typer.echo(df)
 
     logging.info("Fin")
 
