@@ -1,0 +1,13 @@
+name: onpush
+on:
+  push:
+    branches:
+      - main
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: bump
+        uses: version-bump.yml@main
+      # - name: test
+      #   uses: test.yml@main

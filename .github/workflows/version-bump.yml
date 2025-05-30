@@ -1,9 +1,11 @@
 name: version-bump
 on:
-  workflow_run:
-    workflows: ["test"]
-    types:
-      - completed
+  workflow_call:
+# on:
+#   workflow_run:
+#     workflows: ["test"]
+#     types:
+#       - completed
 jobs:
   bump-version:
     runs-on: ubuntu-latest
