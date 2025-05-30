@@ -2,6 +2,7 @@ name: onpush
 permissions:
   contents: write
   id-token: write
+  attestations: write
 on:
   push:
     branches:
@@ -15,5 +16,5 @@ jobs:
   publish:
     # needs: version-bump
     uses: ./.github/workflows/python-publish.yml
-    with:
-     user: __token__
+    # with:
+    #  user: __token__
