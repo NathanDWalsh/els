@@ -13,7 +13,7 @@ jobs:
   #   needs: test
   #   uses: ./.github/workflows/version-bump.yml
   publish:
-    needs: version-bump
+    # needs: version-bump
     uses: ./.github/workflows/python-publish.yml
     # with:
     #   user: __token__
