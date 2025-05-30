@@ -1,6 +1,52 @@
 # CHANGELOG
 
 
+## v0.7.2 (2025-05-30)
+
+### Bug Fixes
+
+- **cli**: Tree bug
+  ([`387e4eb`](https://github.com/NathanDWalsh/els/commit/387e4ebbac34539bf49c8180960aee505215e5ed))
+
+- **pytest**: Import mode
+  ([`a2712a9`](https://github.com/NathanDWalsh/els/commit/a2712a924f9e50ce6834df9daa3c1ca6c0b68777))
+
+- **pytest**: Import mode
+  ([`3cf3f77`](https://github.com/NathanDWalsh/els/commit/3cf3f775d5c2a19243cf6f091416d245532743ec))
+
+- **requirements**: Pytest-cov
+  ([`b0705d2`](https://github.com/NathanDWalsh/els/commit/b0705d2aad16a95f327708c3c2c702b06b3e48e1))
+
+- **test**: Els.io.base import
+  ([`38189e5`](https://github.com/NathanDWalsh/els/commit/38189e57b3bbbf66981f860ee4a32fd751cb6346))
+
+### Refactoring
+
+- **config**: Redundant children attribute
+  ([`8c7d454`](https://github.com/NathanDWalsh/els/commit/8c7d4547ff794b76ee7f7468edf9084ddb4283be))
+
+- **config**: Redundant children attribute
+  ([`521fd72`](https://github.com/NathanDWalsh/els/commit/521fd72d1a61a8742058a4c6f34d1db42aff5b25))
+
+- **config**: Transforms, read_args, write_args
+  ([`d1c3f89`](https://github.com/NathanDWalsh/els/commit/d1c3f899909984f2aa20edcb3dc427dc9c662612))
+
+- **config**: Transforms, read_args, write_args
+  ([`87f1f10`](https://github.com/NathanDWalsh/els/commit/87f1f10a0a4960009fee72530e33ba5c5f4e146d))
+
+- **general**: Basic mypy compliance
+  ([`92092e5`](https://github.com/NathanDWalsh/els/commit/92092e519b5d43aadffd41d6301b53d07fb68122))
+
+- **general**: Typing
+  ([`e60c847`](https://github.com/NathanDWalsh/els/commit/e60c8472d8c1f06f63812d785d2f9679f9aca312))
+
+- **typing**: Mypy strict
+  ([`82de6e6`](https://github.com/NathanDWalsh/els/commit/82de6e64214ed6b130d7bf29d057f2a0b6d386a3))
+
+- **typing**: Mypy strict
+  ([`67ac585`](https://github.com/NathanDWalsh/els/commit/67ac5854d893e0049031f6fc0d7af9c2b7060a38))
+
+
 ## v0.7.1 (2025-05-06)
 
 ### Bug Fixes
