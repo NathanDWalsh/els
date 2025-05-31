@@ -2,19 +2,6 @@ name: onpush
 permissions:
   contents: write
   id-token: write
-  attestations: write
-  actions: write
-  checks: write
-  deployments: write 
-  discussions: write
-  issues: write
-  models: read
-  packages: write
-  pages: write
-  pull-requests: write
-  repository-projects: write
-  security-events: write
-  statuses: write
 on:
   push:
     branches:
@@ -25,8 +12,29 @@ jobs:
   # version-bump:
   #   needs: test
   #   uses: ./.github/workflows/version-bump.yml
-  publish:
-    # needs: version-bump
-    uses: ./.github/workflows/python-publish.yml
-    # with:
-    #  user: __token__
+  # publish:
+  #   # needs: version-bump
+  #   uses: ./.github/workflows/python-publish.yml
+  #   # with:
+  #   #  user: __token__
+  deploy:
+    # if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.x"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+      - name: Build package
+        run: python -m build
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
