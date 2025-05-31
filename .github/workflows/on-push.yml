@@ -19,7 +19,7 @@ jobs:
     # if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     needs: vbump
-    if: ${{ vbump.release.outputs.released == 'true' }}
+    if: ${{ needs.vbump.outputs.released == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
