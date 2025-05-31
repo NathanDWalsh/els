@@ -15,8 +15,8 @@ on:
 #     workflows: ["version-bump"]
 #     types:
 #       - completed
-permissions:
-  contents: read
+# permissions:
+#   contents: read
 
 jobs:
   deploy:
