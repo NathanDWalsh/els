@@ -3,17 +3,18 @@ source:
 target:
   table: WorldBankPopulation
 transforms: 
-  - melt:
-      melt_id_vars:
-      - Country Name
-      - Country Code
-  - pivot:
-      pivot_columns: null
-  - as_type: 
-      as_dtypes:
-        Population: Int64
-  - add_columns: 
-      Year: int32
-  - as_type: 
-     as_dtypes:
-       Year: Int32
+- melt:
+    melt_id_vars:
+    - Country Name
+    - Country Code
+    - Indicator Name
+    - Indicator Code
+    melt_value_name: Population
+    melt_var_name: Year
+- as_type: 
+    as_dtypes:
+      Population: Int64
+- add_columns: 
+    Date Downloaded: 2024-07-16
+    Source File: _file_name_full
+    another one: _row_index

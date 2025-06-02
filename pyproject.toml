@@ -54,8 +54,7 @@ disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
 addopts = ["--ff",
-    "--showlocals",
-    "-vv",
+    "-rf",
     "-x",
     "--cov",
     "--cov-report=lcov:lcov.info"]

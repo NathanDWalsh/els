@@ -104,7 +104,10 @@ def config_dump(config: ec.Config, file_names: Union[str, list[str]]):
     file_names = listify(file_names)
     for file_name in file_names:
         yaml.dump(
-            config.model_dump(exclude_none=True),
+            config.model_dump(
+                mode="json",
+                exclude_none=True,
+            ),
             open(file_name, "w"),
             sort_keys=False,
             allow_unicode=True,

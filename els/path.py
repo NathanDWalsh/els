@@ -411,11 +411,20 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
     ) -> ec.Config:
         config_line: list[dict[str, Any]] = []
         # if root els config is mandatory, this "default dump line" is not required
-        config_line.append(ec.Config().model_dump(exclude_none=True))
+        config_line.append(
+            ec.Config().model_dump(
+                exclude_none=True,
+            )
+        )
 
         for node in self.ancestors_to_self:
             if node.config_local is not None:
-                config_line.append(node.config_local.model_dump(exclude_none=True))
+                config_line.append(
+                    node.config_local.model_dump(
+                        exclude_none=True,
+                        mode="json",
+                    )
+                )
 
         config_merged = ec.merge_configs(*config_line)
         config_copied = config_merged.model_copy(deep=True)

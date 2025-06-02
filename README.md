@@ -2,16 +2,13 @@
 
 WIP
 
-ELS (Extract-Load-Spec): versatile tool for loading data.
-
-Some features:
+ELS (Extract-Load-Spec): flexible system for loading data.
 
 - cli
-- python library for pandas integration
-- supports non-contextual transformations
-- supports yaml configurations to save and share transformations
-- tested on Linux, Windows, and MacOS
-- small to meduim data friendly
+- library for pandas integration
+- non-contextual transformations
+- yaml schema to build, save and share transformations
+- Linux, Windows, and MacOS
 - design focus on ease-of-use and flexibility
 
 ## Install
@@ -45,14 +42,14 @@ ELS can be used as a CLI tool and/or library.
 
 ### `tree`
 
-A good place to start is the `tree` command, which displays inferred dataflows (`source → target`) as leaf nodes.
-
 ```bash mcr
 # tree command passing a file context
 els tree ./population/source/Data.csv
 ```
 
 ```output
+Data.csv
+└── Data → stdout://#Data
 ```
 
 ```bash mcr
@@ -61,17 +58,21 @@ els tree ./population/source
 ```
 
 ```output
+source
+├── Metadata_Indicator.csv
+│   └── Metadata_Indicator → stdout://#Metadata_Indicator
+├── Data.csv
+│   └── Data               → stdout://#Data
+└── Metadata_Country.csv
+    └── Metadata_Country   → stdout://#Metadata_Country
 ```
 
-- The results of these tree commands show `source` csv files, each with a
-  single dataflow node.
+`tree` displays dataflows (`source → target`) as leaf nodes, it does not execute any dataflows.
+
+- The results of these tree commands show `source` csv files, each with a single dataflow node.
 - Since no `targets` are defined, the default behaviour of the dataflow is to output a preview of the data to the terminal/stdout.
 
-`tree` serves to present an overview of dataflow nodes, it does not execute any dataflows.
-
 ### `execute`
-
-The `execute` command executes dataflow nodes in the context.
 
 ```bash mcr
 # execute command passing a file context
@@ -79,8 +80,21 @@ els execute ./population/source/Data.csv
 ```
 
 ```output
+No target specified; printing the first five rows of each table:
+
+- Data
+                  Country Name Country Code  ...       2023 2024
+                                             ...
+0                        Aruba          ABW  ...     107359  NaN
+1  Africa Eastern and Southern          AFE  ...  750503764  NaN
+2                  Afghanistan          AFG  ...   41454761  NaN
+3   Africa Western and Central          AFW  ...  509398589  NaN
+4                       Angola          AGO  ...   36749906  NaN
+
+[5 rows x 69 columns]
 ```
 
+`execute` executes dataflow nodes.
 Since there is no target configuration for the source, a sample of the data is output to screen.
 
 ### yaml configuration

@@ -277,7 +277,9 @@ def round_trip_file(
 
     test_els = "__.els.yml"
     yaml.dump(
-        inbound_config.model_dump(exclude_none=True),
+        inbound_config.model_dump(
+            exclude_none=True,
+        ),
         open(test_els, "w"),
         sort_keys=False,
         allow_unicode=True,

@@ -15,7 +15,7 @@ import duckdb
 import pandas as pd
 import prqlc
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
 from pydantic.json_schema import SkipJsonSchema
 
 from els.pathprops import HumanPathPropertiesMixin
@@ -232,6 +232,7 @@ def merge_configs(*configs: Union[Config, dict[str, Any]]) -> Config:
             dicts.append(
                 config.model_dump(
                     exclude_unset=True,
+                    mode="json",
                 )
             )
         elif isinstance(config, dict):
@@ -590,6 +591,7 @@ class Transform_(BaseModel):
     stack_dynamic: Optional[StackDynamic] = None
     add_columns: Optional[AddColumns] = None
 
+    @property
     def _transform(self) -> TransformType:
         res = (
             self.filter
@@ -603,6 +605,25 @@ class Transform_(BaseModel):
         )
         assert res is not None
         return res
+
+    @_transform.setter
+    def _transform(self, value: TransformType) -> None:
+        if isinstance(value, FilterTransform):
+            self.filter = value
+        elif isinstance(value, SplitOnColumn):
+            self.split_on_column = value
+        elif isinstance(value, PRQLTransform):
+            self.prql = value
+        elif isinstance(value, Pivot):
+            self.pivot = value
+        elif isinstance(value, AsType):
+            self.as_type = value
+        elif isinstance(value, Melt):
+            self.melt = value
+        elif isinstance(value, StackDynamic):
+            self.stack_dynamic = value
+        elif isinstance(value, AddColumns):
+            self.add_columns = value
 
     # only allow one of the above attributes to be set
     # @field_validator("*", mode="after")
@@ -624,8 +645,8 @@ class Config(BaseModel, extra="forbid"):
     transforms: Optional[
         list[
             Union[
-                SkipJsonSchema[TransformType],
                 Transform_,
+                SkipJsonSchema[TransformType],
             ]
         ]
     ] = None
@@ -641,7 +662,7 @@ class Config(BaseModel, extra="forbid"):
                 if isinstance(d, TransformABC):
                     res.append(d)
                 elif isinstance(d, Transform_):
-                    res.append(d._transform())
+                    res.append(d._transform)
             return res
         else:
             return []
@@ -679,6 +700,30 @@ class Config(BaseModel, extra="forbid"):
             if isinstance(t, SplitOnColumn) or res:
                 res.append(t)
         res = list(reversed(res))
+        return res
+
+    @field_serializer("transforms", when_used="json")
+    def serialize_transforms(
+        self,
+        transforms: Optional[
+            list[
+                Union[
+                    Transform_,
+                    TransformType,
+                ]
+            ]
+        ],
+    ) -> Optional[list[Transform_]]:
+        if transforms is None:
+            return None
+        res = []
+        for t in transforms:
+            if isinstance(t, Transform_):
+                res.append(t)
+            else:
+                t_ = Transform_()
+                t_._transform = t
+                res.append(t_)
         return res
 
     def merge_with(
