@@ -283,9 +283,9 @@ class ConfigPath(Path, HumanPathPropertiesMixin, NodeMixin):
             if len(transforms) > 1:
                 df = ee.apply_transforms(df, transforms=transforms[:-1])
                 df_dict = dict(transformed=df)
-            assert isinstance(transforms[-1], ec.SplitOnColumn)
+            assert isinstance(transforms[-1], ec.SplitTransform)
             split_transform = transforms[-1]
-            split_on_column = split_transform.split_on_column
+            split_on_column = split_transform.on_column
             sub_tables: list[Union[str, int, float]] = split_transform(df)  # type:ignore
             for sub_table in sub_tables:
                 if isinstance(sub_table, str):

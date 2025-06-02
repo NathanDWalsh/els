@@ -6,7 +6,7 @@ def test_serialize_transforms():
     config = ec.Config(
         transforms=[
             ec.FilterTransform(filter="xyz"),
-            ec.AddColumns(one="1"),
+            ec.AddColumnsTransform(one="1"),
         ]
     )
 

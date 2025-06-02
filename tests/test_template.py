@@ -642,11 +642,7 @@ def split_on_col_explicit_tab():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transforms=[ec.SplitOnColumn(split_on_column="split_col")],
-        # transform=ec.SplitOnColumn(split_on_column="split_col"),
-        # transforms=[
-        #     ec.Transform_(split_on_column=ec.SplitOnColumn(split_on_column="split_col"))
-        # ],
+        transforms=[ec.SplitTransform(on_column="split_col")],
     )
     return outbound, expected, config
 
@@ -687,7 +683,7 @@ def prql_split():
             filter a < 5
             """
             ),
-            ec.SplitOnColumn(split_on_column="split_col"),
+            ec.SplitTransform(on_column="split_col"),
         ],
     )
     return outbound, expected, config
@@ -772,9 +768,7 @@ def pivot():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transforms=[
-            ec.Pivot(pivot_columns="split_col", pivot_values="b", pivot_index="a")
-        ],
+        transforms=[ec.PivotTransform(columns="split_col", values="b", index="a")],
     )
     return outbound, expected, config
 
@@ -803,13 +797,13 @@ def prql_split_pivot():
             filter b < 50
             """
             ),
-            ec.SplitOnColumn(
-                split_on_column="split_col",
+            ec.SplitTransform(
+                on_column="split_col",
             ),
-            ec.Pivot(
-                pivot_columns="split_col",
-                pivot_values="b",
-                pivot_index="a",
+            ec.PivotTransform(
+                columns="split_col",
+                values="b",
+                index="a",
             ),
         ],
     )
@@ -841,13 +835,13 @@ def prql_col_split_pivot():
             derive {new_split = f"{split_col}_2"}
             """
             ),
-            ec.SplitOnColumn(
-                split_on_column="new_split",
+            ec.SplitTransform(
+                on_column="new_split",
             ),
-            ec.Pivot(
-                pivot_columns="split_col",
-                pivot_values="b",
-                pivot_index="a",
+            ec.PivotTransform(
+                columns="split_col",
+                values="b",
+                index="a",
             ),
         ],
     )
@@ -893,8 +887,8 @@ def prql_col_split():
             derive {new_split = f"{split_col}_2"}
             """
             ),
-            ec.SplitOnColumn(
-                split_on_column="new_split",
+            ec.SplitTransform(
+                on_column="new_split",
             ),
         ],
     )
@@ -921,7 +915,7 @@ def astype():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transforms=[ec.AsType(as_dtypes=dict(a="float"))],
+        transforms=[ec.AsTypeTransform(as_dtypes=dict(a="float"))],
     )
     return outbound, expected, config
 
@@ -949,11 +943,11 @@ def melt():
     config = ec.Config(
         source=ec.Source(table="dfo"),
         transforms=[
-            ec.Melt(
-                melt_id_vars=["A"],
-                melt_value_vars=["B"],
-                melt_var_name="col",
-                melt_value_name="val",
+            ec.MeltTransform(
+                id_vars=["A"],
+                value_vars=["B"],
+                var_name="col",
+                value_name="val",
             )
         ],
     )
@@ -990,7 +984,7 @@ def stack_dynamic():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transforms=[ec.StackDynamic(stack_fixed_columns=2, stack_name="col")],
+        transforms=[ec.StackDynamicTransform(fixed_columns=2, name="col")],
     )
     return outbound, expected, config
 
@@ -1016,7 +1010,7 @@ def add_columns():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transforms=[ec.AddColumns(test=100)],
+        transforms=[ec.AddColumnsTransform(test=100)],
     )
     return outbound, expected, config
 

@@ -5,7 +5,6 @@ import os
 import re
 import sys
 from abc import ABC, abstractmethod
-from copy import deepcopy
 from enum import Enum
 from functools import cached_property
 from typing import Any, Literal, Optional, Union
@@ -102,17 +101,17 @@ class TransformABC(BaseModel, ABC, extra="forbid"):
         self._executed = v
 
 
-class StackDynamic(TransformABC):
-    stack_fixed_columns: int
-    stack_header: int = 0
-    stack_name: str = "stack_column"
+class StackDynamicTransform(TransformABC):
+    fixed_columns: int
+    header: int = 0
+    name: str = "stack_column"
 
     def transform(
         self,
         df: Union[pd.DataFrame, pd.Series[Any]],
     ) -> pd.DataFrame:
         # Define the primary column headers based on the first columns
-        primary_headers = list(df.columns[: self.stack_fixed_columns])
+        primary_headers = list(df.columns[: self.fixed_columns])
 
         # Extract the top-level column names from the primary headers
         top_level_headers, _ = zip(*primary_headers)
@@ -121,7 +120,7 @@ class StackDynamic(TransformABC):
         df.set_index(primary_headers, inplace=True)
 
         # Get the names of the newly set indices
-        current_index_names = list(df.index.names[: self.stack_fixed_columns])
+        current_index_names = list(df.index.names[: self.fixed_columns])
 
         # Create a dictionary to map the current index names to the top-level headers
         index_name_mapping = dict(zip(current_index_names, top_level_headers))
@@ -130,10 +129,10 @@ class StackDynamic(TransformABC):
         df.index.rename(index_name_mapping, inplace=True)
 
         # Stack the DataFrame based on the top-level columns
-        df = df.stack(level=self.stack_header, future_stack=True)
+        df = df.stack(level=self.header, future_stack=True)
 
         # Rename the new index created by the stacking operation
-        df.index.rename({None: self.stack_name}, inplace=True)
+        df.index.rename({None: self.name}, inplace=True)
 
         # Reset the index for the resulting DataFrame
         df.reset_index(inplace=True)
@@ -144,46 +143,57 @@ class StackDynamic(TransformABC):
         return df
 
 
-class Melt(TransformABC):
-    melt_id_vars: list[str]
-    melt_value_vars: Optional[list[str]] = None
-    melt_value_name: str = "value"
-    melt_var_name: str = "variable"
+class MeltTransform(TransformABC):
+    id_vars: list[str]
+    value_vars: Optional[list[str]] = None
+    value_name: str = "value"
+    var_name: str = "variable"
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         return pd.melt(
             df,
-            id_vars=self.melt_id_vars,
-            value_vars=self.melt_value_vars,
-            value_name=self.melt_value_name,
-            var_name=self.melt_var_name,
+            id_vars=self.id_vars,
+            value_vars=self.value_vars,
+            value_name=self.value_name,
+            var_name=self.var_name,
         )
 
 
-class Pivot(TransformABC):
-    pivot_columns: Optional[Union[str, list[str]]] = None
-    pivot_values: Optional[Union[str, list[str]]] = None
-    pivot_index: Optional[Union[str, list[str]]] = None
+class PivotTransform(TransformABC):
+    columns: Optional[Union[str, list[str]]] = None
+    values: Optional[Union[str, list[str]]] = None
+    index: Optional[Union[str, list[str]]] = None
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         res = df.pivot(
-            columns=self.pivot_columns,
-            values=self.pivot_values,
-            index=self.pivot_index,
+            columns=self.columns,
+            values=self.values,
+            index=self.index,
         )
         res.columns.name = None
         res.index.name = None
         return res
 
 
-class AsType(TransformABC):
+class AsTypeTransform(TransformABC):
     as_dtypes: dict[str, str]
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         return df.astype(self.as_dtypes)
 
 
-class AddColumns(TransformABC, extra="allow"):
+def fix_additional_properties(s: dict[Any, Any]) -> None:
+    # keep enum typehints on an arbatrary number of elements in AddColumns
+    # additionalProperties property attribute functions as a placeholder
+    s["additionalProperties"] = s["properties"].pop("additionalProperties")
+
+
+class AddColumnsTransform(TransformABC):
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra=fix_additional_properties,
+    )
+
     additionalProperties: Optional[
         Union[DynamicColumnValue, str, int, float]  # also DynamicPathValue variable
     ] = None
@@ -218,11 +228,11 @@ class FilterTransform(TransformABC):
         return df.query(self.filter)
 
 
-class SplitOnColumn(TransformABC):
-    split_on_column: str
+class SplitTransform(TransformABC):
+    on_column: str
 
     def transform(self, df: pd.DataFrame) -> list[str]:  # type:ignore
-        return list(df[self.split_on_column].drop_duplicates())
+        return list(df[self.on_column].drop_duplicates())
 
 
 def merge_configs(*configs: Union[Config, dict[str, Any]]) -> Config:
@@ -550,14 +560,14 @@ class Source(Frame):
 
 
 TransformType_ = Union[
-    SplitOnColumn,
+    SplitTransform,
     FilterTransform,
     PRQLTransform,
-    Pivot,
-    AsType,
-    Melt,
-    StackDynamic,
-    AddColumns,
+    PivotTransform,
+    AsTypeTransform,
+    MeltTransform,
+    StackDynamicTransform,
+    AddColumnsTransform,
 ]
 if sys.version_info >= (3, 10):
     TransformType: TypeAlias = TransformType_
@@ -583,13 +593,13 @@ class Transform_(BaseModel):
         },
     )
     filter: Optional[FilterTransform] = None
-    split_on_column: Optional[SplitOnColumn] = None
+    split_on_column: Optional[SplitTransform] = None
     prql: Optional[PRQLTransform] = None
-    pivot: Optional[Pivot] = None
-    as_type: Optional[AsType] = None
-    melt: Optional[Melt] = None
-    stack_dynamic: Optional[StackDynamic] = None
-    add_columns: Optional[AddColumns] = None
+    pivot: Optional[PivotTransform] = None
+    as_type: Optional[AsTypeTransform] = None
+    melt: Optional[MeltTransform] = None
+    stack_dynamic: Optional[StackDynamicTransform] = None
+    add_columns: Optional[AddColumnsTransform] = None
 
     @property
     def _transform(self) -> TransformType:
@@ -610,30 +620,20 @@ class Transform_(BaseModel):
     def _transform(self, value: TransformType) -> None:
         if isinstance(value, FilterTransform):
             self.filter = value
-        elif isinstance(value, SplitOnColumn):
+        elif isinstance(value, SplitTransform):
             self.split_on_column = value
         elif isinstance(value, PRQLTransform):
             self.prql = value
-        elif isinstance(value, Pivot):
+        elif isinstance(value, PivotTransform):
             self.pivot = value
-        elif isinstance(value, AsType):
+        elif isinstance(value, AsTypeTransform):
             self.as_type = value
-        elif isinstance(value, Melt):
+        elif isinstance(value, MeltTransform):
             self.melt = value
-        elif isinstance(value, StackDynamic):
+        elif isinstance(value, StackDynamicTransform):
             self.stack_dynamic = value
-        elif isinstance(value, AddColumns):
+        elif isinstance(value, AddColumnsTransform):
             self.add_columns = value
-
-    # only allow one of the above attributes to be set
-    # @field_validator("*", mode="after")
-    # @classmethod
-    # def check_for_multiple_transforms(
-    #     cls: type[Transform_], v: TransformType
-    # ) -> TransformType:
-    #     if sum([v is not None for v in (cls.__model_fields__.values())]) > 1:
-    #         raise ValueError("Only one attribute can be set on Tasnform_")
-    #     return v
 
 
 class Config(BaseModel, extra="forbid"):
@@ -671,7 +671,7 @@ class Config(BaseModel, extra="forbid"):
     def transforms_vary_target_columns(self) -> bool:
         pivot_count = 0
         for t in self.transform_list:
-            if isinstance(t, Pivot):
+            if isinstance(t, PivotTransform):
                 pivot_count += 1
         # if pivot_count > 1:
         #     raise Exception("More then one pivot per source table not supported")
@@ -684,7 +684,7 @@ class Config(BaseModel, extra="forbid"):
     def transforms_affect_target_count(self) -> bool:
         split_count = 0
         for t in self.transform_list:
-            if isinstance(t, SplitOnColumn):
+            if isinstance(t, SplitTransform):
                 split_count += 1
         if split_count > 1:
             raise Exception("More then one split per source table not supported")
@@ -697,7 +697,7 @@ class Config(BaseModel, extra="forbid"):
     def transforms_to_determine_target(self) -> list[TransformType]:
         res: list[TransformType] = []
         for t in reversed(self.transform_list):
-            if isinstance(t, SplitOnColumn) or res:
+            if isinstance(t, SplitTransform) or res:
                 res.append(t)
         res = list(reversed(res))
         return res
@@ -740,14 +740,6 @@ class Config(BaseModel, extra="forbid"):
 
 def main() -> None:
     config_json = Config.model_json_schema()
-
-    # keep enum typehints on an arbatrary number of elements in AddColumns
-    # additionalProperties property attribute functions as a placeholder
-    config_json["$defs"]["AddColumns"]["additionalProperties"] = deepcopy(
-        config_json["$defs"]["AddColumns"]["properties"]["additionalProperties"]
-    )
-    del config_json["$defs"]["AddColumns"]["properties"]
-
     config_yml = yaml.dump(config_json, default_flow_style=False)
 
     with open("../els_schema.yml", "w") as file:

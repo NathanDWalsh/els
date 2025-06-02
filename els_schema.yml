@@ -1,5 +1,5 @@
 $defs:
-  AddColumns:
+  AddColumnsTransform:
     additionalProperties:
       anyOf:
       - $ref: '#/$defs/DynamicColumnValue'
@@ -9,9 +9,10 @@ $defs:
       - type: 'null'
       default: null
       title: Additionalproperties
-    title: AddColumns
+    properties: {}
+    title: AddColumnsTransform
     type: object
-  AsType:
+  AsTypeTransform:
     additionalProperties: false
     properties:
       as_dtypes:
@@ -21,7 +22,7 @@ $defs:
         type: object
     required:
     - as_dtypes
-    title: AsType
+    title: AsTypeTransform
     type: object
   DynamicColumnValue:
     enum:
@@ -84,33 +85,33 @@ $defs:
         title: Word Margin
     title: LAParams
     type: object
-  Melt:
+  MeltTransform:
     additionalProperties: false
     properties:
-      melt_id_vars:
+      id_vars:
         items:
           type: string
-        title: Melt Id Vars
+        title: Id Vars
         type: array
-      melt_value_name:
+      value_name:
         default: value
-        title: Melt Value Name
+        title: Value Name
         type: string
-      melt_value_vars:
+      value_vars:
         anyOf:
         - items:
             type: string
           type: array
         - type: 'null'
         default: null
-        title: Melt Value Vars
-      melt_var_name:
+        title: Value Vars
+      var_name:
         default: variable
-        title: Melt Var Name
+        title: Var Name
         type: string
     required:
-    - melt_id_vars
-    title: Melt
+    - id_vars
+    title: MeltTransform
     type: object
   PRQLTransform:
     additionalProperties: false
@@ -122,10 +123,10 @@ $defs:
     - prql
     title: PRQLTransform
     type: object
-  Pivot:
+  PivotTransform:
     additionalProperties: false
     properties:
-      pivot_columns:
+      columns:
         anyOf:
         - type: string
         - items:
@@ -133,8 +134,8 @@ $defs:
           type: array
         - type: 'null'
         default: null
-        title: Pivot Columns
-      pivot_index:
+        title: Columns
+      index:
         anyOf:
         - type: string
         - items:
@@ -142,8 +143,8 @@ $defs:
           type: array
         - type: 'null'
         default: null
-        title: Pivot Index
-      pivot_values:
+        title: Index
+      values:
         anyOf:
         - type: string
         - items:
@@ -151,8 +152,8 @@ $defs:
           type: array
         - type: 'null'
         default: null
-        title: Pivot Values
-    title: Pivot
+        title: Values
+    title: PivotTransform
     type: object
   ReadCSV:
     additionalProperties: true
@@ -328,33 +329,33 @@ $defs:
         title: Url
     title: Source
     type: object
-  SplitOnColumn:
+  SplitTransform:
     additionalProperties: false
     properties:
-      split_on_column:
-        title: Split On Column
+      on_column:
+        title: On Column
         type: string
     required:
-    - split_on_column
-    title: SplitOnColumn
+    - on_column
+    title: SplitTransform
     type: object
-  StackDynamic:
+  StackDynamicTransform:
     additionalProperties: false
     properties:
-      stack_fixed_columns:
-        title: Stack Fixed Columns
+      fixed_columns:
+        title: Fixed Columns
         type: integer
-      stack_header:
+      header:
         default: 0
-        title: Stack Header
+        title: Header
         type: integer
-      stack_name:
+      name:
         default: stack_column
-        title: Stack Name
+        title: Name
         type: string
     required:
-    - stack_fixed_columns
-    title: StackDynamic
+    - fixed_columns
+    title: StackDynamicTransform
     type: object
   Target:
     additionalProperties: false
@@ -458,12 +459,12 @@ $defs:
     properties:
       add_columns:
         anyOf:
-        - $ref: '#/$defs/AddColumns'
+        - $ref: '#/$defs/AddColumnsTransform'
         - type: 'null'
         default: null
       as_type:
         anyOf:
-        - $ref: '#/$defs/AsType'
+        - $ref: '#/$defs/AsTypeTransform'
         - type: 'null'
         default: null
       filter:
@@ -473,12 +474,12 @@ $defs:
         default: null
       melt:
         anyOf:
-        - $ref: '#/$defs/Melt'
+        - $ref: '#/$defs/MeltTransform'
         - type: 'null'
         default: null
       pivot:
         anyOf:
-        - $ref: '#/$defs/Pivot'
+        - $ref: '#/$defs/PivotTransform'
         - type: 'null'
         default: null
       prql:
@@ -488,12 +489,12 @@ $defs:
         default: null
       split_on_column:
         anyOf:
-        - $ref: '#/$defs/SplitOnColumn'
+        - $ref: '#/$defs/SplitTransform'
         - type: 'null'
         default: null
       stack_dynamic:
         anyOf:
-        - $ref: '#/$defs/StackDynamic'
+        - $ref: '#/$defs/StackDynamicTransform'
         - type: 'null'
         default: null
     title: Transform_
