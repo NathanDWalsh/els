@@ -3,6 +3,7 @@ $defs:
     additionalProperties:
       anyOf:
       - $ref: '#/$defs/DynamicColumnValue'
+      - $ref: '#/$defs/DynamicPathValue'
       - type: string
       - type: integer
       - type: number
@@ -13,21 +14,35 @@ $defs:
     title: AddColumnsTransform
     type: object
   AsTypeTransform:
-    additionalProperties: false
-    properties:
-      as_dtypes:
-        additionalProperties:
-          type: string
-        title: As Dtypes
-        type: object
-    required:
-    - as_dtypes
+    additionalProperties:
+      anyOf:
+      - type: string
+      - type: 'null'
+      default: null
+      title: Additionalproperties
+    properties: {}
     title: AsTypeTransform
     type: object
   DynamicColumnValue:
     enum:
     - _row_index
     title: DynamicColumnValue
+    type: string
+  DynamicPathValue:
+    enum:
+    - _full_path_abs
+    - _full_path_rel
+    - _file_path_abs
+    - _file_path_rel
+    - _folder_path_abs
+    - _folder_path_rel
+    - _leaf_name
+    - _file_name_full
+    - _file_name_base
+    - _file_extension
+    - _folder_name
+    - _parent_folder_name
+    title: DynamicPathValue
     type: string
   FilterTransform:
     additionalProperties: false

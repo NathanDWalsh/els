@@ -25,7 +25,7 @@ class HumanPathPropertiesMixin(ABC):
 
     @property
     @abstractmethod
-    def parent(self) -> Path:
+    def parent(self) -> Optional[ConfigPath]:
         pass
 
     @property

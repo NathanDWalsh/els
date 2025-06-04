@@ -1,20 +1,17 @@
 source:
   url: ../source/Data.csv
 target:
-  table: WorldBankPopulation
+  url: ../target/WorldBankPopulation.csv
 transforms: 
 - melt:
-    melt_id_vars:
+    id_vars:
     - Country Name
     - Country Code
     - Indicator Name
     - Indicator Code
-    melt_value_name: Population
-    melt_var_name: Year
+    value_name: Population
+    var_name: Year
 - as_type: 
-    as_dtypes:
-      Population: Int64
+    Population: Int64
 - add_columns: 
-    Date Downloaded: 2024-07-16
     Source File: _file_name_full
-    another one: _row_index

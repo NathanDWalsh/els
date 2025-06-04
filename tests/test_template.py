@@ -915,7 +915,7 @@ def astype():
     )
     config = ec.Config(
         source=ec.Source(table="dfo"),
-        transforms=[ec.AsTypeTransform(as_dtypes=dict(a="float"))],
+        transforms=[ec.AsTypeTransform(a="float")],
     )
     return outbound, expected, config
 

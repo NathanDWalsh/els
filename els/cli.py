@@ -42,7 +42,7 @@ def start_logging() -> None:
     logging.info("Getting Started")
 
 
-def get_ca_path(path: Optional[str] = None) -> Path:
+def get_path(path: Optional[str] = None) -> Path:
     if path:
         # may be related to "seemingly redundant" lines fix above
         pl_path = Path() / Path(path)
@@ -76,12 +76,12 @@ class TaskFlow:
     def build(self) -> ef.ElsFlow:
         start_logging()
         if isinstance(self.config_like, str):
-            ca_path = get_ca_path(self.config_like)
-            tree = plant_tree(ca_path)
+            path = get_path(self.config_like)
+            tree = plant_tree(path)
         else:
-            ca_path = get_ca_path("./__dynamic__.els.yml")
+            path = get_path("./__dynamic__.els.yml")
             assert self.config_like
-            tree = plant_memory_tree(ca_path, self.config_like)
+            tree = plant_memory_tree(path, self.config_like)
 
         if self.force_pandas_target:
             tree.set_pandas_target(force=True)
@@ -146,7 +146,7 @@ def tree(
         tree = plant_memory_tree(Path("./__dynamic__.els.yml"), path)
     else:
         path = clean_none_path(path)
-        ca_path = get_ca_path(path)
+        ca_path = get_path(path)
         tree = plant_tree(ca_path)
     tree.set_pandas_target(force=False)
     # tree = remove_redundant_nodes(tree)
@@ -174,7 +174,7 @@ def generate(
         table_filter = []
     verbose = False
     path = clean_none_path(path)
-    ca_path = get_ca_path(path)
+    ca_path = get_path(path)
     tree = plant_tree(ca_path)
 
     if tree and verbose:

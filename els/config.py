@@ -5,6 +5,7 @@ import os
 import re
 import sys
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from enum import Enum
 from functools import cached_property
 from typing import Any, Literal, Optional, Union
@@ -175,17 +176,22 @@ class PivotTransform(TransformABC):
         return res
 
 
-class AsTypeTransform(TransformABC):
-    as_dtypes: dict[str, str]
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        return df.astype(self.as_dtypes)
-
-
 def fix_additional_properties(s: dict[Any, Any]) -> None:
     # keep enum typehints on an arbatrary number of elements in AddColumns
     # additionalProperties property attribute functions as a placeholder
     s["additionalProperties"] = s["properties"].pop("additionalProperties")
+
+
+class AsTypeTransform(TransformABC):
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra=fix_additional_properties,
+    )
+
+    additionalProperties: Optional[str] = None
+
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        return df.astype(self.model_dump(exclude={"additionalProperties"}))
 
 
 class AddColumnsTransform(TransformABC):
@@ -194,8 +200,14 @@ class AddColumnsTransform(TransformABC):
         json_schema_extra=fix_additional_properties,
     )
 
-    additionalProperties: Optional[
-        Union[DynamicColumnValue, str, int, float]  # also DynamicPathValue variable
+    additionalProperties: Optional[  # type:ignore
+        Union[
+            DynamicColumnValue,
+            DynamicPathValue,
+            str,
+            int,
+            float,
+        ]
     ] = None
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -643,7 +655,7 @@ class Config(BaseModel, extra="forbid"):
     source: Source = Source()
     target: Target = Target()
     transforms: Optional[
-        list[
+        Sequence[
             Union[
                 Transform_,
                 SkipJsonSchema[TransformType],

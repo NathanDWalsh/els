@@ -2,7 +2,7 @@
 
 WIP
 
-ELS (Extract-Load-Spec): flexible system for loading data.
+ELS (Extract-Load-Spec): for loading data.
 
 - cli
 - library for pandas integration
@@ -42,6 +42,8 @@ ELS can be used as a CLI tool and/or library.
 
 ### `tree`
 
+Display dataflows (`source → target`) as leaf nodes.
+
 ```bash mcr
 # tree command passing a file context
 els tree ./population/source/Data.csv
@@ -67,12 +69,12 @@ source
     └── Metadata_Country   → stdout://#Metadata_Country
 ```
 
-`tree` displays dataflows (`source → target`) as leaf nodes, it does not execute any dataflows.
-
 - The results of these tree commands show `source` csv files, each with a single dataflow node.
 - Since no `targets` are defined, the default behaviour of the dataflow is to output a preview of the data to the terminal/stdout.
 
 ### `execute`
+
+Execute dataflow nodes.
 
 ```bash mcr
 # execute command passing a file context
@@ -84,7 +86,7 @@ No target specified; printing the first five rows of each table:
 
 - Data
                   Country Name Country Code  ...       2023 2024
-                                             ...
+                                             ...                
 0                        Aruba          ABW  ...     107359  NaN
 1  Africa Eastern and Southern          AFE  ...  750503764  NaN
 2                  Afghanistan          AFG  ...   41454761  NaN
@@ -94,12 +96,49 @@ No target specified; printing the first five rows of each table:
 [5 rows x 69 columns]
 ```
 
-`execute` executes dataflow nodes.
-Since there is no target configuration for the source, a sample of the data is output to screen.
+Since there is no `target` configuration for the source, a sample of the data is output to screen.
 
 ### yaml configuration
 
-Let's see what a configuration looks like.
+```bash mcr
+cat ./population/config/population.els.yml
+```
+
+```output
+source:
+  url: ../source/Data.csv
+target:
+  url: ../target/WorldBankPopulation.csv
+transforms: 
+- melt:
+    id_vars:
+    - Country Name
+    - Country Code
+    - Indicator Name
+    - Indicator Code
+    value_name: Population
+    var_name: Year
+- as_type: 
+    Population: Int64
+- add_columns: 
+```
+
+```bash mcr
+els tree ./population/config/population.els.yml
+```
+
+```output
+population.els.yml
+└── ../source/Data.csv
+    └── Data → ../target/WorldBankPopulation.csv
+```
+
+```bash mcr
+els execute ./population/config/population.els.yml
+```
+
+```output
+```
 
 When reading an Excel file with default configuration, each sheet is
 considered as a separate table. Since no target is set for this
