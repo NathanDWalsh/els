@@ -175,3 +175,4 @@ tests/docs/running_example_lite.md
 lcov.info
 
 /demo/**/target/**
+uv.lock
