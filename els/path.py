@@ -196,6 +196,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
             ):
                 pass
             elif config_path_valid(subpath):
+                cpath = None
                 if subpath.is_dir():
                     cpath = ConfigPath(subpath, node_type=NodeType.CONFIG_DIRECTORY)
                 elif is_config_file(subpath):  # adjacent config
@@ -203,13 +204,14 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
                         cpath = ConfigPath(subpath, node_type=NodeType.CONFIG_ADJACENT)
                     else:
                         cpath = ConfigPath(subpath, node_type=NodeType.CONFIG_EXPLICIT)
-                else:  # implicit config file
+                elif not Path(str(subpath) + CONFIG_FILE_EXT).exists():  # implicit config file
                     cpath = ConfigPath(
                         str(subpath) + CONFIG_FILE_EXT,
                         node_type=NodeType.CONFIG_VIRTUAL,
                     )
-                cpath.parent = self
-                cpath.configure_node(walk_dir=True)
+                if cpath is not None:
+                    cpath.parent = self     
+                    cpath.configure_node(walk_dir=True)
             else:
                 logging.warning(f"Invalid path not added to tree: {str(subpath)}")
 
