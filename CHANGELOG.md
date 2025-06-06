@@ -1,6 +1,112 @@
 # CHANGELOG
 
 
+## v0.7.3 (2025-06-06)
+
+### Bug Fixes
+
+- **cli**: Cwd scope change
+  ([`062f9a0`](https://github.com/NathanDWalsh/els/commit/062f9a0f38a7d870e2c33a837b9b4d2e30582c62))
+
+- **path**: Adjacent config in windows
+  ([`e1788c9`](https://github.com/NathanDWalsh/els/commit/e1788c916f62d46a50e00deb7293e543b4058c1b))
+
+- **test**: Pandas 2.3 StringDType
+  ([`f8fbe1c`](https://github.com/NathanDWalsh/els/commit/f8fbe1c5bcdc9b5bd48e2b172019474b61071f1e))
+
+### Refactoring
+
+- **config**: Additionalproperties
+  ([`96d8de2`](https://github.com/NathanDWalsh/els/commit/96d8de2ea51167d7d6d3eb071e1a4cdf8aad095f))
+
+- **config**: Serializer
+  ([`5c8edd6`](https://github.com/NathanDWalsh/els/commit/5c8edd604692e801dadfc6cd715d987274de4b1a))
+
+- **ghactions**: Test
+  ([`f1548b5`](https://github.com/NathanDWalsh/els/commit/f1548b50de6c6797d6debb7aed90fb6a0d9d5b7d))
+
+- **ghactions**: Test
+  ([`a7662a2`](https://github.com/NathanDWalsh/els/commit/a7662a214e36a34104980a8650f95b634bb735a1))
+
+- **ghactions**: Test
+  ([`5fd3d76`](https://github.com/NathanDWalsh/els/commit/5fd3d76ba5ae5dca95476abfd584de50bfa725a5))
+
+- **ghactions**: Test
+  ([`68923c0`](https://github.com/NathanDWalsh/els/commit/68923c0122a48cc9624b77863387cd94a74cb919))
+
+- **ghactions**: Test
+  ([`9dab9fd`](https://github.com/NathanDWalsh/els/commit/9dab9fdec7b820be1c9c97ccf5765092f2ba9b83))
+
+- **ghactions**: Test
+  ([`c01b16f`](https://github.com/NathanDWalsh/els/commit/c01b16f9e782bc219e3b2b5ea44c1daa59817dda))
+
+- **ghactions**: Test
+  ([`76684ca`](https://github.com/NathanDWalsh/els/commit/76684ca9768c738a06a9b6d1059d48c841ca1f28))
+
+- **ghactions**: Test
+  ([`3873384`](https://github.com/NathanDWalsh/els/commit/387338456088e2046dd9cce6adc5537db3b05174))
+
+- **ghactions**: Test
+  ([`9f3f96a`](https://github.com/NathanDWalsh/els/commit/9f3f96a55a9b689250d82a94561c2da026281907))
+
+- **ghactions**: Test
+  ([`ec1f92e`](https://github.com/NathanDWalsh/els/commit/ec1f92e02bd4381976038f7eae54eeba59ce102d))
+
+- **ghactions**: Test
+  ([`67737e8`](https://github.com/NathanDWalsh/els/commit/67737e8cbe079821bb2c4e127269f1d877a5178d))
+
+- **ghactions**: Test
+  ([`4f02154`](https://github.com/NathanDWalsh/els/commit/4f0215494636366702e17e40b9ec648778632607))
+
+- **ghactions**: Test
+  ([`512a4d2`](https://github.com/NathanDWalsh/els/commit/512a4d2dc3b76f19cac6b5d9c8d7e92c09709b3c))
+
+- **ghactions**: Test
+  ([`be7522e`](https://github.com/NathanDWalsh/els/commit/be7522e349bb9bd5a9d37542e06ad130f7b5173f))
+
+- **ghactions**: Test
+  ([`56884bf`](https://github.com/NathanDWalsh/els/commit/56884bf86fc59b3484cfc07b6d235c4bcec6252d))
+
+- **ghactions**: Test
+  ([`dc82bcb`](https://github.com/NathanDWalsh/els/commit/dc82bcbc37a4058cbbe33606d3942ecfce264ecc))
+
+- **ghactions**: Test
+  ([`3fbdd5d`](https://github.com/NathanDWalsh/els/commit/3fbdd5d3d725228f568c21e2a665ec0374e094fb))
+
+- **ghactions**: Test
+  ([`b5a94f6`](https://github.com/NathanDWalsh/els/commit/b5a94f66a867f9c6b2c80f3ed27abcd65caa8ef2))
+
+- **ghactions**: Test
+  ([`4075664`](https://github.com/NathanDWalsh/els/commit/407566442ee111a3bee7319d197125d1ca049b52))
+
+- **ghactions**: Test
+  ([`c856d91`](https://github.com/NathanDWalsh/els/commit/c856d91b4a3f0f9598bed4d33dcac598df07125e))
+
+- **ghactions**: Test
+  ([`a3ffae2`](https://github.com/NathanDWalsh/els/commit/a3ffae2e0bd1bfc8d0ed8e88bc67e3524659df3c))
+
+- **ghactions**: Test
+  ([`0983d3e`](https://github.com/NathanDWalsh/els/commit/0983d3e843e97b1a14fc993f77fcdb5351b2914f))
+
+- **ghactions**: Test
+  ([`0de227b`](https://github.com/NathanDWalsh/els/commit/0de227b27731091baf2903d7717f848ea9de8645))
+
+- **ghactions**: Test
+  ([`6515355`](https://github.com/NathanDWalsh/els/commit/651535570996b408623e1ef898864b023fef82ea))
+
+- **path**: Pathlib.path from superclass to attribute
+  ([`9bb7084`](https://github.com/NathanDWalsh/els/commit/9bb70843f7f80ac4a8bae13d92ead86793ba91e4))
+
+- **pyproject.toml**: Integrate tox.ini
+  ([`7132c9f`](https://github.com/NathanDWalsh/els/commit/7132c9f8a894396bb9e196038519b4f474819e59))
+
+- **pyproject.toml**: Remove requirements.txt files
+  ([`af4901e`](https://github.com/NathanDWalsh/els/commit/af4901e23b7d28289887234e8d2a297e6659750b))
+
+- **pyproject.toml**: Remove requirements.txt files
+  ([`6a40dea`](https://github.com/NathanDWalsh/els/commit/6a40deab496d455beffced4b9fea47274a53a9c6))
+
+
 ## v0.7.2 (2025-05-30)
 
 ### Bug Fixes
@@ -39,6 +145,9 @@
 
 - **general**: Typing
   ([`e60c847`](https://github.com/NathanDWalsh/els/commit/e60c8472d8c1f06f63812d785d2f9679f9aca312))
+
+- **ghactions**: Test
+  ([`1e8038a`](https://github.com/NathanDWalsh/els/commit/1e8038a7e0ab942d756eeb13d041a4f0486a1a11))
 
 - **typing**: Mypy strict
   ([`82de6e6`](https://github.com/NathanDWalsh/els/commit/82de6e64214ed6b130d7bf29d057f2a0b6d386a3))
