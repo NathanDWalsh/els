@@ -313,7 +313,7 @@ def preview(
 def execute(path: Optional[str] = typer.Argument(None)) -> None:
     if isinstance(path, str):
         path = clean_none_path(path)
-
+    # TODO, fix typing: sometimes path is a config object (at least in tests)
     with TaskFlow(path) as taskflow:
         taskflow.execute()
 

@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 from els.cli import app, tree
 
 
+# @pytest.mark.skip
 @pytest.mark.parametrize(
     "cli",
     [
