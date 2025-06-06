@@ -121,6 +121,7 @@ transforms:
 - as_type: 
     Population: Int64
 - add_columns: 
+    Source File: _file_name_full
 ```
 
 ```bash mcr

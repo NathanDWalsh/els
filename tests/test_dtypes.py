@@ -81,9 +81,7 @@ def get_atomic_times():
 
 def get_atomic_string_frames():
     res = {
-        f"{pd.StringDtype.name.capitalize()}({k})": pd.DataFrame(
-            {k: [v]}, dtype=pd.StringDtype.name
-        )
+        f"str({k})": pd.DataFrame({k: [v]}, dtype="string")
         for k, v in get_atomic_strings().items()
     }
     return res
@@ -147,9 +145,9 @@ def get_faker_frames():
     data_types = {
         "id": pd.Int64Dtype.name,  # Nullable integer type
         "salary": pd.Float64Dtype.name,  # Nullable float type
-        "name": pd.StringDtype.name,
-        "email": pd.StringDtype.name,
-        "address": pd.StringDtype.name,
+        "name": "string",
+        "email": "string",
+        "address": "string",
         "hired_at_date": "datetime64[ns]",
         # "is_active": pd.BooleanDtype.name,  # Nullable boolean type
     }

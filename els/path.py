@@ -93,20 +93,16 @@ def is_config_file(path: Path) -> bool:
 
 
 class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
-    # fsp: Path
-
     def __init__(
         self,
         path: Union[Path, str],
-        node_type2: Optional[NodeType] = None,
+        node_type: NodeType,
     ):
         if isinstance(path, str):
             self.fsp = Path(path)
         else:
             self.fsp = path
-        if node_type2 is None:
-            raise Exception()
-        self.node_type2 = node_type2
+        self.node_type = node_type
         self.config_local: Optional[ec.Config] = None
 
     # called from plant_tree() to build:
@@ -201,16 +197,16 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
                 pass
             elif config_path_valid(subpath):
                 if subpath.is_dir():
-                    cpath = ConfigPath(subpath, node_type2=NodeType.CONFIG_DIRECTORY)
+                    cpath = ConfigPath(subpath, node_type=NodeType.CONFIG_DIRECTORY)
                 elif is_config_file(subpath):  # adjacent config
                     if Path(str(subpath).replace(CONFIG_FILE_EXT, "")).exists():
-                        cpath = ConfigPath(subpath, node_type2=NodeType.CONFIG_ADJACENT)
+                        cpath = ConfigPath(subpath, node_type=NodeType.CONFIG_ADJACENT)
                     else:
-                        cpath = ConfigPath(subpath, node_type2=NodeType.CONFIG_EXPLICIT)
+                        cpath = ConfigPath(subpath, node_type=NodeType.CONFIG_EXPLICIT)
                 else:  # implicit config file
                     cpath = ConfigPath(
                         str(subpath) + CONFIG_FILE_EXT,
-                        node_type2=NodeType.CONFIG_VIRTUAL,
+                        node_type=NodeType.CONFIG_VIRTUAL,
                     )
                 cpath.parent = self
                 cpath.configure_node(walk_dir=True)
@@ -244,32 +240,6 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
                 return ec.Config()
         else:
             raise Exception("dir_config called on a non-directory node.")
-
-    @property
-    def node_type(self) -> NodeType:
-        if self.fsp.is_dir():
-            res = NodeType.CONFIG_DIRECTORY
-        elif is_config_file(self.fsp):
-            if self.fsp.is_file():
-                if Path(str(self.fsp).replace(CONFIG_FILE_EXT, "")).is_file():
-                    res = NodeType.CONFIG_ADJACENT
-                else:
-                    res = NodeType.CONFIG_EXPLICIT
-            else:
-                res = NodeType.CONFIG_VIRTUAL
-        elif self.fsp.is_file():
-            res = NodeType.DATA_URL
-        elif is_config_file(self.fsp.parent):
-            res = NodeType.DATA_URL
-        else:
-            res = NodeType.DATA_TABLE
-        return self.node_type2
-        if res == self.node_type2:
-            return res
-        else:
-            raise Exception(
-                [os.getcwd(), self.fsp.is_file(), self, res, self.node_type2]
-            )
 
     @property
     def adjacent_file_path(self) -> str:
@@ -393,7 +363,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
                 filter = f"{split_on_column} == {column_eq}"
                 sub_table_path = ConfigPath(
                     ca_path.fsp / filter,
-                    node_type2=NodeType.DATA_TABLE,
+                    node_type=NodeType.DATA_TABLE,
                 )
                 sub_table_path.parent = ca_path
                 sub_table_path.config_local = ec.Config(
@@ -417,7 +387,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
                 previous_url = source.url
                 url_parent = ConfigPath(
                     Path(previous_url),
-                    node_type2=NodeType.DATA_URL,
+                    node_type=NodeType.DATA_URL,
                 )
                 url_parent.parent = self
                 url_parent.config_local = config
@@ -431,7 +401,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
             for tab, config in table_docs.items():
                 ca_path = ConfigPath(
                     Path(previous_url) / tab,
-                    node_type2=NodeType.DATA_TABLE,
+                    node_type=NodeType.DATA_TABLE,
                 )
                 ca_path.parent = url_parent
                 ca_path.config_local = config
@@ -446,7 +416,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
                 for i, kw in enumerate(leaf.config.source.read_args):
                     subset = ConfigPath(
                         leaf.fsp / f"subset_{i}",
-                        node_type2=NodeType.DATA_TABLE,
+                        node_type=NodeType.DATA_TABLE,
                     )
                     subset.parent = leaf
                     subset.config_local = leaf.config
@@ -927,7 +897,7 @@ def plant_memory_tree(
     memory_config: ec.Config,
 ) -> ConfigPath:
     # TODO: maybe should be "config memory"?
-    ca_path = ConfigPath(path, node_type2=NodeType.CONFIG_VIRTUAL)
+    ca_path = ConfigPath(path, node_type=NodeType.CONFIG_VIRTUAL)
     ca_path.config = memory_config
     ca_path.grow_config_branches()
     return ca_path
@@ -957,16 +927,16 @@ def plant_tree(
     for index, path_ in enumerate(root_paths):
         if config_path_valid(path_):
             if path_.is_dir():
-                cpath = ConfigPath(path_, node_type2=NodeType.CONFIG_DIRECTORY)
+                cpath = ConfigPath(path_, node_type=NodeType.CONFIG_DIRECTORY)
             elif path_.exists() and is_config_file(path_):  # adjacent config
                 if Path(str(path_).replace(CONFIG_FILE_EXT, "")).exists():
-                    cpath = ConfigPath(path_, node_type2=NodeType.CONFIG_ADJACENT)
+                    cpath = ConfigPath(path_, node_type=NodeType.CONFIG_ADJACENT)
                 else:
-                    cpath = ConfigPath(path_, node_type2=NodeType.CONFIG_EXPLICIT)
+                    cpath = ConfigPath(path_, node_type=NodeType.CONFIG_EXPLICIT)
             else:  # implicit config file
                 cpath = ConfigPath(
                     str(path_),
-                    node_type2=NodeType.CONFIG_VIRTUAL,
+                    node_type=NodeType.CONFIG_VIRTUAL,
                 )
             cpath.parent = parent
             # for the nodes in-between context and root, don't walk_dir
