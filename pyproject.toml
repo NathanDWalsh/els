@@ -35,10 +35,12 @@ dependencies = [
     "xlsxwriter>=3.2.2",
     "lxml>=5.3.2",]
 
-[project.optional-dependencies]
-test = [
-    "Faker>=26.0.0",
-    "pytest-cov>=6.1.1",]
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-xdist",
+    "Faker",
+    "pytest-cov",]
 
 [project.scripts]
 els = "els.cli:main"
@@ -100,9 +102,6 @@ legacy_tox_ini = """
     wheel_build_env = lin: .lin_pkg
                     mac: .mac_pkg
                     win: .win_pkg
-    extras = test
-    deps =
-        pytest
-        pytest-xdist
+    dependency_groups = dev
     commands =
         pytest {posargs} -n 4"""
