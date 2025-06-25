@@ -579,7 +579,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
 
     def display_tree(self) -> None:
         column1_width = 0
-        column2_width = 0
+        # column2_width = 0
         rows: list[tuple[str, str]] = []
         # for pre, fill, node in RenderTree(self):
         for pre, node in self.RenderTreeTyped():
@@ -637,7 +637,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
 
             if column2 != "":  # only count if there is a second column
                 column1_width = max(column1_width, len(column1))
-                column2_width = max(column2_width, len(column2))
+            # column2_width = max(column2_width, len(column2))
 
         for column1, column2 in rows:
             typer.echo(f"{column1:{column1_width}}{column2}".rstrip())

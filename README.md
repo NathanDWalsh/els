@@ -38,7 +38,7 @@ _\*file extensions recognized as valid data files_
 
 ## Usage
 
-ELS can be used as a CLI tool and/or library.
+As a CLI or library.
 
 ### `tree`
 
