@@ -105,3 +105,7 @@ legacy_tox_ini = """
     dependency_groups = dev
     commands =
         pytest {posargs} -n 4"""
+
+
+[tool.coverage.run]
+data_file = './.coverage/.coverage'
