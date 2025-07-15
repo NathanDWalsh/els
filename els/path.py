@@ -71,12 +71,17 @@ class FileType(Enum):
             ".csv": cls.CSV,
             ".tsv": cls.CSV,
             CONFIG_FILE_EXT: cls.ELS,
-            ".yml": cls.ELS,
             ".fwf": cls.FWF,
             ".xml": cls.XML,
             ".pdf": cls.PDF,
         }
         return mapping.get(extension.lower(), None)
+
+
+def is_single_set_file(file_type: str) -> bool:
+    if file_type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
+        return True
+    return False
 
 
 def get_dir_config_name() -> str:
@@ -316,8 +321,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
         else:
             for t in source.table_list:
                 if (
-                    # TODO: make this dynamic
-                    source.type in (".csv", ".xml")
+                    is_single_set_file(source.type)
                     and source.url
                     and not t == source.url.split("/")[-1].split(".")[0]
                 ):
@@ -626,8 +630,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
             if (
                 node.node_type == NodeType.DATA_TABLE and node.config.target.url
             ) and not node.config.target.type == "dict":
-                # TODO: replace hard-coded types
-                if node.config.target.type in (".csv", ".xml"):
+                if is_single_set_file(node.config.target.type):
                     target_path = os.path.relpath(node.config.target.url)
                 else:
                     target_path = f"{node.config.target.url.split('?')[0]}#{node.config.target.table}"
@@ -777,9 +780,6 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
                         source_container_class=ee.get_container_class(
                             leaf.config.source
                         ),
-                        # TODO, should consider when same table name exists in different targets?
-                        # target_table=leaf.config.target.table,
-                        # load_parallel=leaf.config.source.load_parallel,
                         config=leaf.config,
                     )
                 )
@@ -803,9 +803,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
         for node in [node for node in self.then_descendants]:
             if node.node_type != NodeType.CONFIG_VIRTUAL:
                 node_config = node.config_raw(True).model_dump(
-                    # TODO: excluding load_parallel for demo
                     exclude_none=True,
-                    exclude={"source": {"load_parallel"}},
                 )
                 if node.is_root:
                     save_yml_dict = node_config
@@ -899,7 +897,6 @@ def plant_memory_tree(
     path: Path,
     memory_config: ec.Config,
 ) -> ConfigPath:
-    # TODO: maybe should be "config memory"?
     ca_path = ConfigPath(path, node_type=NodeType.CONFIG_VIRTUAL)
     ca_path.config = memory_config
     ca_path.grow_config_branches()
@@ -910,20 +907,11 @@ def plant_tree(
     path: Path,
 ) -> ConfigPath:
     root_paths = list(reversed(get_root_inheritance(str(path))))
-    # raise Exception(root_paths)
-    # print(f"rp: {root_paths}")
     if root_paths[0].is_dir():
         os.chdir(root_paths[0])
-        # TODO: understand this better
-        # seemingly redundant lines below fix strange bug when passing a directory as an
-        # argument it got duplicated in the path, i.e. /foo/bar/bar when just /foo/bar
-        # expected
-        root_paths[0] = Path()
     else:
         os.chdir(root_paths[0].parent)
-        # raise Exception(root_path.parts[-1])
         root_paths[0] = Path(root_paths[0].parts[-1])
-        # raise Exception(root_paths)
 
     parent = None
     cpath = None
@@ -1038,7 +1026,7 @@ def get_content_leaf_names(source: ec.Source) -> list[str]:
         container_class = ee.get_container_class(source)
         container = el.fetch_df_container(container_class, source.url)
         return container.child_names
-    elif source.type in (".csv", ".tsv", ".fwf", ".xml", ".pdf"):
+    elif is_single_set_file(source.type):
         # return root file name without path and suffix
         res = [Path(source.url).stem]
         return res
