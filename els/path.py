@@ -64,20 +64,19 @@ class FileType(Enum):
         extension: str,
     ) -> Optional[FileType]:
         mapping = {
-            "xlsx": cls.EXCEL,
-            "xls": cls.EXCEL,
-            "xlsm": cls.EXCEL,
-            "xlsb": cls.EXCEL,
-            "csv": cls.CSV,
-            "tsv": cls.CSV,
-            # TODO: handle double extension els.yml
-            # for now assumes any yml file is an els config
-            "yml": cls.ELS,
-            "fwf": cls.FWF,
-            "xml": cls.XML,
-            "pdf": cls.PDF,
+            ".xlsx": cls.EXCEL,
+            ".xls": cls.EXCEL,
+            ".xlsm": cls.EXCEL,
+            ".xlsb": cls.EXCEL,
+            ".csv": cls.CSV,
+            ".tsv": cls.CSV,
+            CONFIG_FILE_EXT: cls.ELS,
+            ".yml": cls.ELS,
+            ".fwf": cls.FWF,
+            ".xml": cls.XML,
+            ".pdf": cls.PDF,
         }
-        return mapping.get(extension.lower().strip("."), None)
+        return mapping.get(extension.lower(), None)
 
 
 def get_dir_config_name() -> str:
@@ -204,13 +203,15 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
                         cpath = ConfigPath(subpath, node_type=NodeType.CONFIG_ADJACENT)
                     else:
                         cpath = ConfigPath(subpath, node_type=NodeType.CONFIG_EXPLICIT)
-                elif not Path(str(subpath) + CONFIG_FILE_EXT).exists():  # implicit config file
+                elif not Path(
+                    str(subpath) + CONFIG_FILE_EXT
+                ).exists():  # implicit config file
                     cpath = ConfigPath(
                         str(subpath) + CONFIG_FILE_EXT,
                         node_type=NodeType.CONFIG_VIRTUAL,
                     )
                 if cpath is not None:
-                    cpath.parent = self     
+                    cpath.parent = self
                     cpath.configure_node(walk_dir=True)
             else:
                 logging.warning(f"Invalid path not added to tree: {str(subpath)}")
@@ -953,7 +954,7 @@ def plant_tree(
     logging.info("Tree Created")
     # raise Exception()
     root = parent.root_node if parent else cpath
-    if root.is_leaf and root.is_dir():
+    if root.is_leaf and root.fsp.is_dir():
         logging.error("Root is an empty directory")
     return root
 
@@ -1024,7 +1025,8 @@ def config_path_valid(path: Path) -> bool:
     if path.is_dir():
         return True
     if path.is_file() or is_config_file(path):
-        file_type = FileType.suffix_to_type(path.suffix)
+        suffix = "".join(path.suffixes[-2:])
+        file_type = FileType.suffix_to_type(suffix)
         if isinstance(file_type, FileType):
             return True
     return False

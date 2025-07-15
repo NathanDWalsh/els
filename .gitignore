@@ -13,3 +13,8 @@ wheels/
 lcov.info
 .coverage* 
 
+# Helix
+.helix/
+
+# Testmon
+.testmondata*

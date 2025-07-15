@@ -39,6 +39,11 @@ dependencies = [
 dev = [
     "pytest",
     "pytest-xdist",
+    "pytest-testmon",
+    "pytest-watch",
+    "python-lsp-server",
+    "jedi-language-server",
+    "ruff",
     "Faker",
     "pytest-cov",]
 

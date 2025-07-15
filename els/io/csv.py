@@ -87,6 +87,8 @@ class CSVFrame(FrameABC):
                 kwargs.pop("iterator")
             if "chunksize" in kwargs:
                 kwargs.pop("chunksize")
+            if "skipfooter" in kwargs:
+                kwargs["engine"] = "python"
             self.df = pd.read_csv(
                 self.parent.file_io,
                 iterator=False,
