@@ -36,7 +36,7 @@ jobs:
     steps:
       - name: Install a SQL Server suite of tools
         if: ${{ !env.ACT }}
-        uses: NathanDWalsh/mssqlsuite@main
+        uses: potatoqualitee/mssqlsuite@main
         with:
           install: sqlengine, sqlclient
           show-log: true
