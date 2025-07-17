@@ -13,7 +13,7 @@ from . import test_template as tt
     "tiny_sample",
     [
         True,
-        # False,
+        False,
     ],
 )
 @pytest.mark.parametrize(
@@ -30,7 +30,7 @@ from . import test_template as tt
         ("excel"),
         ("sqlite"),
         ("duckdb"),
-        # ("mssql"),
+        ("mssql"),
         ("csv"),
         ("xml"),
     ],
@@ -76,7 +76,7 @@ def test_sc(tmp_path, test_name, func, config_for, tiny_sample):
         ("excel"),
         ("sqlite"),
         ("duckdb"),
-        # ("mssql"),
+        ("mssql"),
         ("csv"),
     ],
 )

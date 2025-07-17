@@ -1073,10 +1073,7 @@ def pull(
 ):
     if inbound is None:
         inbound = {}
-    # if test_medium not in ("csv"):
     config.source.url = get_flight_url(test_medium)
-    # else:
-    # config.source.url = None
     config.target.url = el.urlize_dict(inbound)
 
     print("pulling")
