@@ -57,6 +57,13 @@ from els.cli import app, tree
         False,
     ],
 )
+@pytest.mark.parametrize(
+    "config_dir_deep",
+    [
+        True,
+        False,
+    ],
+)
 def test_tree(
     cli,
     explicit_context,
@@ -67,8 +74,13 @@ def test_tree(
     keep_virtual,
     capsys,
     tmp_path,
+    config_dir_deep,
 ):
-    configdir = "config"
+    if config_dir_deep:
+        configdir = "deep/config"
+    else:
+        configdir = "config"
+
     dummyfile = "dummy.csv"
     dummyroot = dummyfile.split(".")[0]
 
@@ -88,8 +100,11 @@ def test_tree(
     )
 
     os.chdir(tmp_path)
-    # create a dummy csv file
+    if config_dir_deep:
+        os.mkdir("deep")
     os.mkdir(configdir)
+
+    # create a dummy csv file
     os.chdir(configdir)
     with open(dummyfile, "w") as file:
         file.write("a,b,c\n1,2,3\n4,5,6\n")
@@ -103,15 +118,15 @@ def test_tree(
     if source_config:
         with open(f"{dummyfile}.els.yml", "w") as file:
             file.write(f"target:\n  table: {source_table}\n")
-
     if cli:
         runner = CliRunner()
         keep_virtual_cli = "--keep-virtual" if keep_virtual else "--no-keep-virtual"
         if explicit_context:
+            os.chdir(tmp_path)
             if pass_directory:
                 app_args = [
                     "tree",
-                    f"{str(Path(tmp_path) / configdir)}",
+                    f"{configdir}",
                     keep_virtual_cli,
                 ]
             else:
@@ -125,7 +140,7 @@ def test_tree(
                 "tree",
                 keep_virtual_cli,
             ]
-        print(app_args)
+        print([str(os.getcwd()), app_args])
         result = runner.invoke(
             app,
             app_args,
@@ -158,6 +173,8 @@ def test_tree(
 └── {dummyroot} → {target_url}
 """
     else:
+        if not explicit_context:
+            configdir = "."
         if source_config or keep_virtual:
             expected = f"""{configdir}
 └── {dummyfile}.els.yml

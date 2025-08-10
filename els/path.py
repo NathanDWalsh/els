@@ -584,7 +584,7 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
     def __repr__(self) -> str:
         return str(self.fsp)
 
-    def display_tree(self) -> None:
+    def display_tree(self, call_context: str = None) -> None:
         column1_width = 0
         # column2_width = 0
         rows: list[tuple[str, str]] = []
@@ -592,7 +592,11 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
         for pre, node in self.RenderTreeTyped():
             column2 = ""
             if node.is_root and node.fsp.is_dir():
-                column1 = f"{pre}{node.fsp.absolute().name}"
+                if call_context is None:
+                    column1 = f"{pre}{node.fsp.absolute().name}"
+                else:
+                    # column1 = f"{pre}{call_context}---{node.fsp.absolute()}"
+                    column1 = f"{pre}{os.path.relpath(node.fsp)}"
             elif node.node_type == NodeType.DATA_TABLE:
                 # print(os.getcwd())
                 # print(node.fsp.absolute())
@@ -614,7 +618,8 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
                     )
                 )
             ):
-                column1 = f"{pre}{node.config.source.url}"
+                # column1 = f"{pre}{node.config.source.url}"
+                column1 = f"{pre}{node.name}"
             elif node.node_type == NodeType.DATA_URL and (
                 node.config.source.url and not Path(node.config.source.url).exists()
             ):
@@ -908,11 +913,11 @@ def plant_tree(
 ) -> ConfigPath:
     root_paths = list(reversed(get_root_inheritance(str(path))))
     if root_paths[0].is_dir():
-        os.chdir(root_paths[0])
+        pass
+        # os.chdir(root_paths[0])
     else:
         os.chdir(root_paths[0].parent)
         root_paths[0] = Path(root_paths[0].parts[-1])
-
     parent = None
     cpath = None
     for index, path_ in enumerate(root_paths):
@@ -937,7 +942,10 @@ def plant_tree(
             else:  # For the last item always process configs
                 cpath.configure_node(walk_dir=True)
         else:
-            raise Exception("Invalid file in explicit path: " + str(path_))
+            raise Exception(
+                f"Invalid file in explicit path: {[str(path_)], os.getcwd()}"
+            )
+
     assert cpath
     logging.info("Tree Created")
     # raise Exception()

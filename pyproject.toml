@@ -45,6 +45,7 @@ dev = [
     "jedi-language-server",
     "ruff",
     "Faker",
+    "bmdf",
     "pytest-cov",]
 
 [project.scripts]

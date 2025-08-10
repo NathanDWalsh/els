@@ -142,6 +142,7 @@ def tree(
     path: Optional[str] = typer.Argument(None),
     keep_virtual: bool = False,
 ) -> None:
+    calling_dir = os.getcwd()
     if isinstance(path, Config):
         tree = plant_memory_tree(Path("./__dynamic__.els.yml"), path)
     else:
@@ -153,7 +154,7 @@ def tree(
     if not keep_virtual:
         tree = remove_virtual_nodes(tree)
     if tree:
-        tree.display_tree()
+        tree.display_tree(calling_dir)
     else:
         logging.error("tree not loaded")
     logging.info("Fin")

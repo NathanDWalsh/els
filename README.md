@@ -30,11 +30,12 @@ So far els is only tested on local filesystem and local network, fsspec integrat
 | pdf                      | pdf              | :white_check_mark: |                    |
 | sqlite                   |                  | :white_check_mark: | :white_check_mark: |
 | duckdb                   |                  | :white_check_mark: | :white_check_mark: |
-| mssql                    |                  | :white_check_mark: | :white_check_mark: |
+| mssql\*\*                |                  | :white_check_mark: | :white_check_mark: |
 | pandas dataframe         |                  | :white_check_mark: | :white_check_mark: |
 | terminal output (stdout) |                  |                    | :white_check_mark: |
 
 _\*file extensions recognized as valid data files_
+_\*\*may require mssql odbc libraries_
 
 ## Usage
 
@@ -44,29 +45,31 @@ As a CLI or library.
 
 Display dataflows (`source → target`) as leaf nodes.
 
-```bash mcr
-# tree command passing a file context
+tree command passing a file context
+
+<!-- `bmdff -w demo -C els tree ./population/source/Data.csv` -->
+```bash
 els tree ./population/source/Data.csv
 ```
-
-```output
+```
 Data.csv
 └── Data → stdout://#Data
 ```
 
-```bash mcr
-# tree command passing a directory context
+tree command passing a directory context
+
+<!-- `bmdff -w demo -C els tree ./population/source` -->
+```bash
 els tree ./population/source
 ```
-
-```output
-source
-├── Metadata_Indicator.csv
-│   └── Metadata_Indicator → stdout://#Metadata_Indicator
+```
+population/source
+├── Metadata_Country.csv
+│   └── Metadata_Country   → stdout://#Metadata_Country
 ├── Data.csv
 │   └── Data               → stdout://#Data
-└── Metadata_Country.csv
-    └── Metadata_Country   → stdout://#Metadata_Country
+└── Metadata_Indicator.csv
+    └── Metadata_Indicator → stdout://#Metadata_Indicator
 ```
 
 - The results of these tree commands show `source` csv files, each with a single dataflow node.
