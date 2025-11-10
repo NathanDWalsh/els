@@ -1,6 +1,37 @@
 # CHANGELOG
 
 
+## v0.7.4 (2025-11-10)
+
+### Bug Fixes
+
+- **cli-tree**: Directory display
+  ([`f9187e0`](https://github.com/NathanDWalsh/els/commit/f9187e0dddf894398784243b4ec47cceab844992))
+
+### Refactoring
+
+- **path**: Els_config extension
+  ([`01017a6`](https://github.com/NathanDWalsh/els/commit/01017a6fdb828ac0fd80baa13a62c8db6eea4717))
+
+- **path.py**: Cleanup TODOs
+  ([`553bdf8`](https://github.com/NathanDWalsh/els/commit/553bdf871b3dd0adf6bcfedfebfb480854779456))
+
+- **pyproject**: Dev dependency-group
+  ([`e4a243e`](https://github.com/NathanDWalsh/els/commit/e4a243ee68f425d4869e7f8b24d27edbdcf06bae))
+
+- **tests**: Cleanup
+  ([`7ba7937`](https://github.com/NathanDWalsh/els/commit/7ba7937f0ab6fbecfcf3e74f7e9609121258a48a))
+
+- **tests**: Mssql
+  ([`ae27a0f`](https://github.com/NathanDWalsh/els/commit/ae27a0f618be60fa6ced58b97090b196149852f0))
+
+- **workflow**: Mssqlsuite
+  ([`0096a38`](https://github.com/NathanDWalsh/els/commit/0096a38fc16be043c378d021826b3054205744b9))
+
+- **workflow**: Potatoqualitee/mssqlsuite
+  ([`4140530`](https://github.com/NathanDWalsh/els/commit/4140530f17d67f05639c2608865ed5bdcb560424))
+
+
 ## v0.7.3 (2025-06-06)
 
 ### Bug Fixes
@@ -105,6 +136,9 @@
 
 - **pyproject.toml**: Remove requirements.txt files
   ([`6a40dea`](https://github.com/NathanDWalsh/els/commit/6a40deab496d455beffced4b9fea47274a53a9c6))
+
+- **tree**: Indent
+  ([`83995d0`](https://github.com/NathanDWalsh/els/commit/83995d0377b3e5428f7042814a7a3b79e4663df3))
 
 
 ## v0.7.2 (2025-05-30)
