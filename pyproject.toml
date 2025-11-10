@@ -111,7 +111,7 @@ legacy_tox_ini = """
                     win: .win_pkg
     dependency_groups = dev
     commands =
-        pytest {posargs} -n 4"""
+        pytest {posargs} -n 1"""
 
 
 [tool.coverage.run]
