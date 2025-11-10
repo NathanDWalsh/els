@@ -187,6 +187,8 @@ def test_tree(
     └── {dummyroot} → {target_url}
 """
 
+    # TODO, better fix needed to account for windows slashes
+    actual = actual.replace("\\", "/")
     if not expected == actual:
         print(f"Actual:\n{actual}")
         print(f"Expected:\n{expected}")
