@@ -7,10 +7,11 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import pandas as pd
 import pyodbc
 import sqlalchemy as sa
-from sqlalchemy_utils.functions.database import create_database, drop_database
+from sqlalchemy_utils.functions.database import drop_database
 from sqlalchemy_utils.functions.orm import quote
 
-from els.sa_utils_patch import database_exists
+from els.sa_patch import create_engine
+from els.sa_utils_patch import create_database, database_exists
 
 from .base import ContainerWriterABC, FrameABC
 
@@ -63,11 +64,13 @@ def fetch_sa_engine(url: str, replace: bool = False) -> sa.Engine:
     #     raise Exception("Cannot fetch None url")
     # else:
     if not database_exists(url):
+        # print(url)
+        # raise Exception()
         create_database(url)
     elif replace:
         drop_database(url)
         create_database(url)
-    res = sa.create_engine(url, **kwargs)
+    res = create_engine(url, **kwargs)
     return res
 
 
