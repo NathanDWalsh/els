@@ -8,6 +8,7 @@ from sqlalchemy_utils.functions.database import (
     _get_scalar_result,
     _set_url_database,
     _sqlite_file_exists,
+    quote,
 )
 
 from .sa_patch import create_engine
