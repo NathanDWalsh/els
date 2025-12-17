@@ -552,6 +552,15 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
         return res
 
     @staticmethod
+    def is_list_of_dicts(_list: list[Any]) -> bool:
+        for v in _list:
+            if isinstance(v, dict):
+                pass
+            else:
+                return False
+        return True
+
+    @staticmethod
     def is_dict_of_dfs(_dict: dict[Any, Any]) -> bool:
         for k, v in _dict:
             if isinstance(k, str):
@@ -571,7 +580,11 @@ class ConfigPath(HumanPathPropertiesMixin, NodeMixin):
             elif isinstance(value, list) or (
                 isinstance(value, dict) and ConfigPath.is_dict_of_dfs(value)
             ):
-                pass
+                if ConfigPath.is_list_of_dicts(value):
+                    for li in value:
+                        ConfigPath.swap_dict_vals(li, find_replace_dict)
+                else:
+                    pass
             elif value in find_replace_dict:
                 dictionary[key] = find_replace_dict[value]
             elif isinstance(value, str) and key == "url" and "*" in value:

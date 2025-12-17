@@ -292,6 +292,7 @@ class SQLContainer(ContainerWriterABC[SQLFrame]):
                         schema=None,
                         index=False,
                         if_exists=df_io.to_sql_if_exists,
+                        # method="multi",
                         chunksize=1000,
                         **kwargs,
                     )
